@@ -116,13 +116,26 @@ export default function Admin() {
 
   const saveShifts = async (shifts) => {
     setSaving(true)
-    const { error } = await supabase.from('staff_shifts').upsert(shifts, { onConflict: 'staff_id, date' })
-    if (error) toast.error('排班儲存失敗: ' + error.message)
-    else {
+    try {
+      const payload = (shifts || []).map(s => {
+        const row = { ...s }
+        if (row.id == null) delete row.id
+        return row
+      })
+
+      const { error } = await supabase
+        .from('staff_shifts')
+        .upsert(payload, { onConflict: 'staff_id, date' })
+
+      if (error) throw error
+
       toast.success('排班已儲存')
-      setStaffShifts(shifts)
+      await fetchData()
+    } catch (e) {
+      toast.error('排班儲存失敗: ' + (e?.message || '未知錯誤'))
+    } finally {
+      setSaving(false)
     }
-    setSaving(false)
   }
 
   const handleLogin = (e) => { 
