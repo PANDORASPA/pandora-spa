@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { getBrowserClient } from '../lib/supabase/browser'
+import { supabase } from '../lib/supabase'
 
 export default function Home() {
   const [currentSlide, setCurrentSlide] = useState(0)
@@ -13,18 +13,10 @@ export default function Home() {
 
   useEffect(() => {
     async function fetchData() {
-      let supabase
-      try {
-        supabase = getBrowserClient()
-      } catch (e) {
-        setLoading(false)
-        return
-      }
-
       const [servicesData, pkgData, baData] = await Promise.all([
         supabase.from('services').select('*').eq('enabled', true).order('sort_order').limit(3),
         supabase.from('service_packages').select('*').eq('enabled', true).order('id'),
-        supabase.from('before_after').select('*').eq('enabled', true).order('created_at', { ascending: false }).limit(6),
+        supabase.from('before_after').select('*').eq('enabled', true).order('created_at', { ascending: false }).limit(6)
       ])
       
       if (servicesData.data) {
