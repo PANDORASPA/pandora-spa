@@ -1,28 +1,20 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-
 export default function SettingsTab({ settings, saveSettings }) {
-  const [draft, setDraft] = useState(settings || {})
-  const [saving, setSaving] = useState(false)
-
-  useEffect(() => {
-    setDraft(settings || {})
-  }, [settings])
-
   const handleChange = (key, value) => {
-    setDraft(prev => ({ ...(prev || {}), [key]: value }))
+    const newSettings = { ...settings, [key]: value };
+    saveSettings(newSettings);
   };
 
   const toggleDayOff = (dayName) => {
     let currentDaysOff = [];
     try {
       // Handle both string and array formats
-      currentDaysOff = typeof draft.days_off === 'string' 
-        ? (draft.days_off.includes('[') ? JSON.parse(draft.days_off) : draft.days_off.split(',')) 
-        : (draft.days_off || []);
+      currentDaysOff = typeof settings.days_off === 'string' 
+        ? (settings.days_off.includes('[') ? JSON.parse(settings.days_off) : settings.days_off.split(',')) 
+        : (settings.days_off || []);
     } catch (e) {
-      currentDaysOff = draft.days_off ? [draft.days_off] : [];
+      currentDaysOff = settings.days_off ? [settings.days_off] : [];
     }
     
     const newDaysOff = currentDaysOff.includes(dayName)
@@ -34,11 +26,11 @@ export default function SettingsTab({ settings, saveSettings }) {
 
   const getDaysOff = () => {
     try {
-      if (!draft.days_off) return [];
-      if (typeof draft.days_off === 'string' && draft.days_off.includes('[')) {
-        return JSON.parse(draft.days_off);
+      if (!settings.days_off) return [];
+      if (typeof settings.days_off === 'string' && settings.days_off.includes('[')) {
+        return JSON.parse(settings.days_off);
       }
-      return typeof draft.days_off === 'string' ? draft.days_off.split(',') : (draft.days_off || []);
+      return typeof settings.days_off === 'string' ? settings.days_off.split(',') : (settings.days_off || []);
     } catch (e) {
       return [];
     }
@@ -46,37 +38,15 @@ export default function SettingsTab({ settings, saveSettings }) {
 
   const daysOff = getDaysOff();
 
-  const handleSave = async () => {
-    setSaving(true)
-    try {
-      await saveSettings(draft || {})
-    } finally {
-      setSaving(false)
-    }
-  }
-
   return (
-    <div>
-      <div style={{ marginBottom: '24px', display: 'flex', justifyContent: 'flex-end' }}>
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="btn btn-small btn-interactive"
-          style={{ background: '#34D399' }}
-        >
-          {saving && <span className="spinner"></span>}
-          {saving ? '儲存中...' : '💾 儲存變更'}
-        </button>
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: '24px' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: '24px' }}>
       <div className="admin-card" style={{ padding: '24px' }}>
         <h3 style={{ marginBottom: '20px', fontSize: '16px', fontWeight: 700, color: 'var(--text)' }}>🏠 店舖基本設定</h3>
         <div style={{ marginBottom: '16px' }}>
           <label>店名</label>
           <input 
             type="text" 
-            value={draft.shop_name || ''} 
+            value={settings.shop_name || ''} 
             onChange={(e) => handleChange('shop_name', e.target.value)} 
             placeholder="例如: VIVA SALON"
           />
@@ -85,7 +55,7 @@ export default function SettingsTab({ settings, saveSettings }) {
           <label>地址</label>
           <input 
             type="text" 
-            value={draft.address || ''} 
+            value={settings.address || ''} 
             onChange={(e) => handleChange('address', e.target.value)} 
             placeholder="店舖詳細地址"
           />
@@ -94,7 +64,7 @@ export default function SettingsTab({ settings, saveSettings }) {
           <label>電話 / WhatsApp</label>
           <input 
             type="text" 
-            value={draft.phone || ''} 
+            value={settings.phone || ''} 
             onChange={(e) => handleChange('phone', e.target.value)} 
             placeholder="聯絡電話"
           />
@@ -109,9 +79,9 @@ export default function SettingsTab({ settings, saveSettings }) {
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <input 
               type="time" 
-              value={draft.business_hours?.split('-')[0]?.trim() || '11:00'} 
+              value={settings.business_hours?.split('-')[0]?.trim() || '11:00'} 
               onChange={(e) => {
-                const end = draft.business_hours?.split('-')[1]?.trim() || '20:00';
+                const end = settings.business_hours?.split('-')[1]?.trim() || '20:00';
                 handleChange('business_hours', `${e.target.value} - ${end}`);
               }} 
               style={{ padding: '10px' }}
@@ -119,9 +89,9 @@ export default function SettingsTab({ settings, saveSettings }) {
             <span style={{ fontWeight: 600, color: 'var(--text-light)' }}>至</span>
             <input 
               type="time" 
-              value={draft.business_hours?.split('-')[1]?.trim() || '20:00'} 
+              value={settings.business_hours?.split('-')[1]?.trim() || '20:00'} 
               onChange={(e) => {
-                const start = draft.business_hours?.split('-')[0]?.trim() || '11:00';
+                const start = settings.business_hours?.split('-')[0]?.trim() || '11:00';
                 handleChange('business_hours', `${start} - ${e.target.value}`);
               }} 
               style={{ padding: '10px' }}
@@ -162,7 +132,7 @@ export default function SettingsTab({ settings, saveSettings }) {
         <div style={{ marginBottom: '16px' }}>
           <label>預約須知</label>
           <textarea 
-            value={draft.booking_policy || ''} 
+            value={settings.booking_policy || ''} 
             onChange={(e) => handleChange('booking_policy', e.target.value)} 
             placeholder="顯示在預約確認頁面的條款..."
             style={{ minHeight: '100px' }} 
@@ -171,13 +141,12 @@ export default function SettingsTab({ settings, saveSettings }) {
         <div style={{ marginBottom: '16px' }}>
           <label>取消政策</label>
           <textarea 
-            value={draft.cancellation_policy || ''} 
+            value={settings.cancellation_policy || ''} 
             onChange={(e) => handleChange('cancellation_policy', e.target.value)} 
             placeholder="說明取消預約的時限與規則..."
             style={{ minHeight: '100px' }} 
           />
         </div>
-      </div>
       </div>
     </div>
   );
