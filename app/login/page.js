@@ -22,7 +22,7 @@ export default function Login() {
   }, [])
 
   const checkUser = async () => {
-    const currentUser = localStorage.getItem('viva_user')
+    const currentUser = localStorage.getItem('viva_current_user')
     if (currentUser) {
       const userData = JSON.parse(currentUser)
       setUser(userData)
@@ -90,8 +90,7 @@ export default function Login() {
     }
 
     // Auto login
-    localStorage.setItem('viva_user', JSON.stringify(data))
-    window.dispatchEvent(new Event('storage')) // Notify Navbar
+    localStorage.setItem('viva_current_user', JSON.stringify(data))
     setUser(data)
     setSuccess('註冊成功！歡迎加入 VIVA HAIR！')
     setLoading(false)
@@ -115,16 +114,14 @@ export default function Login() {
       return
     }
 
-    localStorage.setItem('viva_user', JSON.stringify(data))
-    window.dispatchEvent(new Event('storage')) // Notify Navbar
+    localStorage.setItem('viva_current_user', JSON.stringify(data))
     setUser(data)
     await fetchUserData(data.id, data.phone)
     setLoading(false)
   }
 
   const handleLogout = () => {
-    localStorage.removeItem('viva_user')
-    window.dispatchEvent(new Event('storage')) // Notify Navbar
+    localStorage.removeItem('viva_current_user')
     setUser(null)
     setUserBookings([])
     setUserOrders([])
