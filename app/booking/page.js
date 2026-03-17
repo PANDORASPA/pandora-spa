@@ -2,10 +2,12 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { toast } from 'react-hot-toast';
 import { supabase } from '../../lib/supabase'
 
 export default function Booking() {
+  const router = useRouter()
   const [services, setServices] = useState([])
   const [allServices, setAllServices] = useState([]) // All services for display
   const [categories, setCategories] = useState(['全部'])
@@ -23,6 +25,7 @@ export default function Booking() {
   const [bookings, setBookings] = useState([])
   const [occupiedSlots, setOccupiedSlots] = useState([])
   const [selectedStaff, setSelectedStaff] = useState('')
+  const [staffLocked, setStaffLocked] = useState(false)
   const [loading, setLoading] = useState(true)
   const [shopSettings, setShopSettings] = useState({})
   const [waUrl, setWaUrl] = useState('')
@@ -106,6 +109,17 @@ export default function Booking() {
       setLoading(false)
     }
     fetchData()
+  }, [])
+
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search)
+      const staffId = params.get('staffId')
+      if (staffId) {
+        setSelectedStaff(staffId)
+        setStaffLocked(true)
+      }
+    } catch (e) {}
   }, [])
 
   useEffect(() => {
@@ -539,6 +553,15 @@ export default function Booking() {
       return
     }
 
+    const { data: authData } = await supabase.auth.getUser()
+    const authUser = authData?.user
+    if (!authUser) {
+      toast.error('請先登入會員後再預約')
+      const returnTo = window.location.pathname + window.location.search
+      router.push(`/login?redirectTo=${encodeURIComponent(returnTo)}`)
+      return
+    }
+
     // Double booking check - query database before insert
     const dateStr = `${selectedDate}/${currentMonth + 1}/${currentYear}`
     
@@ -643,6 +666,10 @@ export default function Booking() {
       staff_id: assignedStaffId || null,
       staff_name: assignedStaffName,
       customer_id,
+      user_id: authUser.id,
+      customer_email: authUser.email,
+      customer_name: formData.name,
+      customer_phone: formData.phone,
       date: `${selectedDate}/${currentMonth + 1}/${currentYear}`,
       time: selectedTime,
       name: formData.name,
@@ -747,115 +774,136 @@ export default function Booking() {
             <h3 style={{ marginBottom: '20px', fontSize: '18px', fontWeight: 700, textAlign: 'center' }}>
               1. 選擇專屬髮型師
             </h3>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '20px' }}>
-              {/* Random/Any Staff option */}
-              <div
-                onClick={() => setSelectedStaff('random')}
-                className="btn-interactive admin-card"
-                style={{
-                  padding: '24px',
-                  background: selectedStaff === 'random' ? 'rgba(166, 139, 106, 0.05)' : '#fff',
-                  border: '2px solid ' + (selectedStaff === 'random' ? 'var(--primary)' : 'transparent'),
-                  cursor: 'pointer',
-                  textAlign: 'center',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                }}
-              >
-                <div style={{ width: '80px', height: '80px', borderRadius: '50%', background: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '32px', marginBottom: '16px' }}>🎲</div>
-                <div style={{ fontSize: '18px', fontWeight: 800, marginBottom: '4px' }}>隨機安排</div>
-                <div style={{ fontSize: '13px', color: 'var(--text-light)', marginBottom: '12px' }}>由系統為您分配當天最有空的髮型師</div>
-                <div style={{ 
-                  padding: '6px 16px', 
-                  borderRadius: '20px', 
-                  background: selectedStaff === 'random' ? 'var(--primary)' : 'var(--bg)', 
-                  color: selectedStaff === 'random' ? '#fff' : 'var(--text-light)',
-                  fontSize: '12px',
-                  fontWeight: 700
-                }}>
-                  {selectedStaff === 'random' ? '已選擇' : '選擇此項'}
+            {staffLocked && selectedStaff && selectedStaff !== 'random' ? (
+              <div style={{ maxWidth: '520px', margin: '0 auto', background: '#fff', borderRadius: '16px', padding: '18px', border: '2px solid var(--primary)', boxShadow: '0 4px 20px rgba(0,0,0,0.05)' }}>
+                <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                  <div style={{ width: '72px', height: '72px', borderRadius: '16px', background: 'var(--bg)', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    {staffList.find(s => s.id?.toString() === selectedStaff?.toString())?.photo_url ? (
+                      <img src={staffList.find(s => s.id?.toString() === selectedStaff?.toString())?.photo_url} alt="staff" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : (
+                      <span style={{ fontSize: '28px' }}>💇</span>
+                    )}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 900, fontSize: '16px', marginBottom: '4px' }}>
+                      已選擇：{staffList.find(s => s.id?.toString() === selectedStaff?.toString())?.name || `#${selectedStaff}`}
+                    </div>
+                    <div style={{ fontSize: '12px', color: 'var(--text-light)' }}>如要更改髮型師，可返回選擇頁面</div>
+                  </div>
+                  <Link href="/booking-collection" className="btn-interactive" style={{ padding: '10px 12px', borderRadius: '10px', background: 'var(--primary)', color: '#fff', fontWeight: 800, textDecoration: 'none', whiteSpace: 'nowrap' }}>
+                    更改
+                  </Link>
                 </div>
               </div>
-
-              {staffList.map(s => (
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '20px' }}>
                 <div
-                  key={s.id}
-                  onClick={() => setSelectedStaff(s.id.toString())}
+                  onClick={() => { setSelectedStaff('random'); setStaffLocked(false) }}
                   className="btn-interactive admin-card"
                   style={{
                     padding: '24px',
-                    background: selectedStaff === s.id.toString() ? 'rgba(166, 139, 106, 0.05)' : '#fff',
-                    border: '2px solid ' + (selectedStaff === s.id.toString() ? 'var(--primary)' : 'transparent'),
+                    background: selectedStaff === 'random' ? 'rgba(166, 139, 106, 0.05)' : '#fff',
+                    border: '2px solid ' + (selectedStaff === 'random' ? 'var(--primary)' : 'transparent'),
                     cursor: 'pointer',
+                    textAlign: 'center',
                     display: 'flex',
                     flexDirection: 'column',
                     alignItems: 'center',
-                    textAlign: 'center'
+                    justifyContent: 'center'
                   }}
                 >
+                  <div style={{ width: '80px', height: '80px', borderRadius: '50%', background: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '32px', marginBottom: '16px' }}>🎲</div>
+                  <div style={{ fontSize: '18px', fontWeight: 800, marginBottom: '4px' }}>隨機安排</div>
+                  <div style={{ fontSize: '13px', color: 'var(--text-light)', marginBottom: '12px' }}>由系統為您分配當天最有空的髮型師</div>
                   <div style={{ 
-                    width: '100px', 
-                    height: '100px', 
-                    borderRadius: '50%', 
-                    background: s.photo_url ? `url(${s.photo_url}) center/cover` : 'var(--primary)', 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    justifyContent: 'center', 
-                    color: '#fff', 
-                    fontSize: '32px', 
-                    fontWeight: 700, 
-                    overflow: 'hidden',
-                    marginBottom: '16px',
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
-                  }}>
-                    {!s.photo_url && (s.name?.charAt(0) || '?')}
-                  </div>
-                  <div style={{ fontSize: '18px', fontWeight: 800, marginBottom: '4px' }}>{s.name}</div>
-                  <div style={{ fontSize: '13px', color: 'var(--primary)', fontWeight: 700, marginBottom: '8px' }}>{s.role || '髮型師'}</div>
-                  
-                  {/* Rating Display */}
-                  {(() => {
-                    const rating = getStaffRating(s.id);
-                    if (rating) {
-                      return (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '8px', fontSize: '13px' }}>
-                          <span style={{ color: '#F59E0B' }}>★</span>
-                          <span style={{ fontWeight: 700 }}>{rating.average}</span>
-                          <span style={{ color: 'var(--text-light)' }}>({rating.count})</span>
-                        </div>
-                      );
-                    }
-                    return <div style={{ height: '20px', marginBottom: '8px' }}></div>; // Spacer
-                  })()}
-
-                  <div style={{ 
-                    fontSize: '12px', 
-                    color: 'var(--text-light)', 
-                    marginBottom: '16px', 
-                    lineHeight: 1.5,
-                    display: '-webkit-box',
-                    WebkitLineClamp: 2,
-                    WebkitBoxOrient: 'vertical',
-                    overflow: 'hidden',
-                    height: '36px'
-                  }}>
-                    {s.bio || '專業剪髮、染髮及造型設計，為您打造專屬個人風格。'}
-                  </div>
-                  <div style={{ 
-                    padding: '6px 20px', 
+                    padding: '6px 16px', 
                     borderRadius: '20px', 
-                    background: selectedStaff === s.id.toString() ? 'var(--primary)' : 'var(--bg)', 
-                    color: selectedStaff === s.id.toString() ? '#fff' : 'var(--text-light)',
+                    background: selectedStaff === 'random' ? 'var(--primary)' : 'var(--bg)', 
+                    color: selectedStaff === 'random' ? '#fff' : 'var(--text-light)',
                     fontSize: '12px',
                     fontWeight: 700
                   }}>
-                    {selectedStaff === s.id.toString() ? '已選擇 ✓' : '查看時間'}
+                    {selectedStaff === 'random' ? '已選擇' : '選擇此項'}
                   </div>
                 </div>
-              ))}
-            </div>
+
+                {staffList.map(s => (
+                  <div
+                    key={s.id}
+                    onClick={() => { setSelectedStaff(s.id.toString()); setStaffLocked(false) }}
+                    className="btn-interactive admin-card"
+                    style={{
+                      padding: '24px',
+                      background: selectedStaff === s.id.toString() ? 'rgba(166, 139, 106, 0.05)' : '#fff',
+                      border: '2px solid ' + (selectedStaff === s.id.toString() ? 'var(--primary)' : 'transparent'),
+                      cursor: 'pointer',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      textAlign: 'center'
+                    }}
+                  >
+                    <div style={{ 
+                      width: '100px', 
+                      height: '100px', 
+                      borderRadius: '50%', 
+                      background: s.photo_url ? `url(${s.photo_url}) center/cover` : 'var(--primary)', 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      justifyContent: 'center', 
+                      color: '#fff', 
+                      fontSize: '32px', 
+                      fontWeight: 700, 
+                      overflow: 'hidden',
+                      marginBottom: '16px',
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                    }}>
+                      {!s.photo_url && (s.name?.charAt(0) || '?')}
+                    </div>
+                    <div style={{ fontSize: '18px', fontWeight: 800, marginBottom: '4px' }}>{s.name}</div>
+                    <div style={{ fontSize: '13px', color: 'var(--primary)', fontWeight: 700, marginBottom: '8px' }}>{s.role || '髮型師'}</div>
+                    
+                    {(() => {
+                      const rating = getStaffRating(s.id);
+                      if (rating) {
+                        return (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '8px', fontSize: '13px' }}>
+                            <span style={{ color: '#F59E0B' }}>★</span>
+                            <span style={{ fontWeight: 700 }}>{rating.average}</span>
+                            <span style={{ color: 'var(--text-light)' }}>({rating.count})</span>
+                          </div>
+                        );
+                      }
+                      return <div style={{ height: '20px', marginBottom: '8px' }}></div>;
+                    })()}
+
+                    <div style={{ 
+                      fontSize: '12px', 
+                      color: 'var(--text-light)', 
+                      marginBottom: '16px', 
+                      lineHeight: 1.5,
+                      display: '-webkit-box',
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: 'vertical',
+                      overflow: 'hidden',
+                      height: '36px'
+                    }}>
+                      {s.bio || '專業剪髮、染髮及造型設計，為您打造專屬個人風格。'}
+                    </div>
+                    <div style={{ 
+                      padding: '6px 20px', 
+                      borderRadius: '20px', 
+                      background: selectedStaff === s.id.toString() ? 'var(--primary)' : 'var(--bg)', 
+                      color: selectedStaff === s.id.toString() ? '#fff' : 'var(--text-light)',
+                      fontSize: '12px',
+                      fontWeight: 700
+                    }}>
+                      {selectedStaff === s.id.toString() ? '已選擇 ✓' : '查看時間'}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Step 2: Service Selection (Filtered by staff) */}
