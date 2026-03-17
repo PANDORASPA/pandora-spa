@@ -39,7 +39,7 @@ export default function Navbar() {
   const navLinks = [
     { href: '/', label: '首頁' },
     { href: '/services', label: '服務價目' },
-    { href: '/booking', label: '預約服務' },
+    { href: '/booking-collection', label: '預約服務' },
     { href: '/articles', label: '髮型專欄' },
     { href: '/faq', label: '常見問題' },
   ]
