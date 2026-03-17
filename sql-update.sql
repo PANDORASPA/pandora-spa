@@ -2,6 +2,8 @@
 ALTER TABLE bookings ADD COLUMN IF NOT EXISTS staff_id INTEGER;
 ALTER TABLE bookings ADD COLUMN IF NOT EXISTS staff_name VARCHAR(100);
 
+ALTER TABLE services ADD COLUMN IF NOT EXISTS emoji VARCHAR(20);
+
 -- 8. Create staff table (員工)
 CREATE TABLE IF NOT EXISTS staff (
   id SERIAL PRIMARY KEY,
@@ -44,8 +46,11 @@ ALTER TABLE articles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE faqs ENABLE ROW LEVEL SECURITY;
 
 -- Public policies
+DROP POLICY IF EXISTS "Public staff" ON staff;
 CREATE POLICY "Public staff" ON staff FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Public articles" ON articles;
 CREATE POLICY "Public articles" ON articles FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Public faqs" ON faqs;
 CREATE POLICY "Public faqs" ON faqs FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
 
 -- Insert default staff (if table is empty)
