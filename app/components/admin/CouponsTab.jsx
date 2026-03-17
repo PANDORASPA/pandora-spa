@@ -3,11 +3,11 @@ import { useState, useEffect } from 'react'
 
 // Coupons Tab Component
 export default function CouponsTab({ coupons: initialCoupons, saveCoupons }) {
-  const [coupons, setCoupons] = useState(initialCoupons || []);
+  const [coupons, setCoupons] = useState(initialCoupons);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    setCoupons(initialCoupons || []);
+    setCoupons(initialCoupons);
   }, [initialCoupons]);
 
   const handleSave = async () => {
@@ -15,15 +15,6 @@ export default function CouponsTab({ coupons: initialCoupons, saveCoupons }) {
     await saveCoupons(coupons);
     setSaving(false);
   };
-
-  const updateCoupon = (id, field, value) => {
-    setCoupons(coupons.map(c => c.id === id ? { ...c, [field]: value } : c));
-  };
-
-  const updateNestedCoupon = (id, field, value) => {
-     // Not needed for flat structure, but keeping consistent naming
-     updateCoupon(id, field, value);
-  }
 
   return (
     <div>
@@ -51,8 +42,8 @@ export default function CouponsTab({ coupons: initialCoupons, saveCoupons }) {
             <div style={{ marginBottom: '16px' }}>
               <label>優惠代碼</label>
               <input 
-                value={c.code || ''} 
-                onChange={(e) => updateCoupon(c.id, 'code', e.target.value)} 
+                value={c.code} 
+                onChange={(e) => { const n = [...coupons]; n.find(x => x.id === c.id).code = e.target.value; setCoupons(n); }} 
                 placeholder="例如: WELCOME2026" 
                 style={{ fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase' }} 
               />
@@ -60,15 +51,15 @@ export default function CouponsTab({ coupons: initialCoupons, saveCoupons }) {
             <div style={{ marginBottom: '16px' }}>
               <label>優惠名稱</label>
               <input 
-                value={c.name || ''} 
-                onChange={(e) => updateCoupon(c.id, 'name', e.target.value)} 
+                value={c.name} 
+                onChange={(e) => { const n = [...coupons]; n.find(x => x.id === c.id).name = e.target.value; setCoupons(n); }} 
                 placeholder="例如: 新客首單優惠" 
               />
             </div>
             <div className="grid" style={{ gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
               <div>
                 <label>折扣類型</label>
-                <select value={c.type || 'fixed'} onChange={(e) => updateCoupon(c.id, 'type', e.target.value)}>
+                <select value={c.type} onChange={(e) => { const n = [...coupons]; n.find(x => x.id === c.id).type = e.target.value; setCoupons(n); }}>
                   <option value="fixed">定額扣減 ($)</option>
                   <option value="percent">百分比折扣 (%)</option>
                 </select>
@@ -76,8 +67,8 @@ export default function CouponsTab({ coupons: initialCoupons, saveCoupons }) {
               <div>
                 <label>折扣數值</label>
                 <input 
-                  value={c.discount || 0} 
-                  onChange={(e) => updateCoupon(c.id, 'discount', parseInt(e.target.value) || 0)} 
+                  value={c.discount} 
+                  onChange={(e) => { const n = [...coupons]; n.find(x => x.id === c.id).discount = parseInt(e.target.value) || 0; setCoupons(n); }} 
                   type="number" 
                   placeholder={c.type === 'fixed' ? '金額' : '折數'} 
                 />
@@ -87,7 +78,7 @@ export default function CouponsTab({ coupons: initialCoupons, saveCoupons }) {
               <label>使用次數上限 (0為不限)</label>
               <input 
                 value={c.usage_limit || 0} 
-                onChange={(e) => updateCoupon(c.id, 'usage_limit', parseInt(e.target.value) || 0)} 
+                onChange={(e) => { const n = [...coupons]; n.find(x => x.id === c.id).usage_limit = parseInt(e.target.value) || 0; setCoupons(n); }} 
                 type="number" 
               />
             </div>
@@ -96,16 +87,16 @@ export default function CouponsTab({ coupons: initialCoupons, saveCoupons }) {
                 <label>開始日期</label>
                 <input 
                   type="date" 
-                  value={c.start_date ? (typeof c.start_date === 'string' ? c.start_date.split('T')[0] : '') : ''} 
-                  onChange={(e) => updateCoupon(c.id, 'start_date', e.target.value)} 
+                  value={c.start_date ? c.start_date.split('T')[0] : ''} 
+                  onChange={(e) => { const n = [...coupons]; n.find(x => x.id === c.id).start_date = e.target.value; setCoupons(n); }} 
                 />
               </div>
               <div>
                 <label>結束日期</label>
                 <input 
                   type="date" 
-                  value={c.end_date ? (typeof c.end_date === 'string' ? c.end_date.split('T')[0] : '') : ''} 
-                  onChange={(e) => updateCoupon(c.id, 'end_date', e.target.value)} 
+                  value={c.end_date ? c.end_date.split('T')[0] : ''} 
+                  onChange={(e) => { const n = [...coupons]; n.find(x => x.id === c.id).end_date = e.target.value; setCoupons(n); }} 
                 />
               </div>
             </div>
@@ -113,8 +104,8 @@ export default function CouponsTab({ coupons: initialCoupons, saveCoupons }) {
               <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', margin: 0 }}>
                 <input 
                   type="checkbox" 
-                  checked={c.enabled || false} 
-                  onChange={(e) => updateCoupon(c.id, 'enabled', e.target.checked)} 
+                  checked={c.enabled} 
+                  onChange={(e) => { const n = [...coupons]; n.find(x => x.id === c.id).enabled = e.target.checked; setCoupons(n); }} 
                   style={{ width: 'auto' }}
                 />
                 <span style={{ fontSize: '14px', fontWeight: 600 }}>啟用代碼</span>
