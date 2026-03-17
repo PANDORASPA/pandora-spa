@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { getBrowserClient } from '../../lib/supabase/browser'
+import { supabase } from '../../lib/supabase'
 
 export default function Articles() {
   const [articles, setArticles] = useState([])
@@ -11,13 +11,6 @@ export default function Articles() {
   useEffect(() => {
     async function fetchArticles() {
       setLoading(true)
-      let supabase
-      try {
-        supabase = getBrowserClient()
-      } catch (e) {
-        setLoading(false)
-        return
-      }
       const { data } = await supabase.from('articles').select('*').eq('enabled', true).order('sort_order')
       if (data) setArticles(data)
       setLoading(false)
