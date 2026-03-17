@@ -306,6 +306,10 @@ export default function Booking() {
   // Check if staff is working on selected date, considering service duration and breaks
   const isStaffWorking = (staff, date, time, serviceDuration) => {
     if (!staff) return false
+
+    let isOff = false
+    let workingStart = ''
+    let workingEnd = ''
     
     // 1. Check specific shift override
     const dateStrISO = formatDateKey(date, currentYear, currentMonth)
