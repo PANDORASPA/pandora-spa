@@ -203,6 +203,23 @@ export default function Booking() {
     return String(d).substring(0, 10)
   }
 
+  const parseDaysOff = (value) => {
+    if (!value) return []
+    if (Array.isArray(value)) return value.map(v => String(v).trim()).filter(Boolean)
+    if (typeof value === 'string') {
+      const s = value.trim()
+      if (!s) return []
+      try {
+        if (s.startsWith('[')) {
+          const arr = JSON.parse(s)
+          return Array.isArray(arr) ? arr.map(v => String(v).trim()).filter(Boolean) : [String(arr).trim()].filter(Boolean)
+        }
+      } catch (e) {}
+      return s.split(',').map(v => v.trim()).filter(Boolean)
+    }
+    return [String(value).trim()].filter(Boolean)
+  }
+
   const getBusinessHoursRange = () => {
     try {
       const hoursStr = shopSettings.business_hours || '11:00 - 20:00'
@@ -244,11 +261,13 @@ export default function Booking() {
       const dayName = ['日', '一', '二', '三', '四', '五', '六'][dayOfWeek]
       
       // Check shop global days off
-      if (shopSettings.days_off && (shopSettings.days_off.includes(dayName) || shopSettings.days_off.includes(dayOfWeek))) {
+      const shopDaysOff = parseDaysOff(shopSettings.days_off)
+      if (shopDaysOff.length > 0 && (shopDaysOff.includes(dayName) || shopDaysOff.includes(dayOfWeek))) {
         return false
       }
 
-      isOff = staff.daysOff?.includes(dayOfWeek)
+      const staffDaysOff = parseDaysOff(staff.daysOff)
+      isOff = staffDaysOff.includes(dayOfWeek)
       workingStart = staff.schedule?.[dayOfWeek]?.start
       workingEnd = staff.schedule?.[dayOfWeek]?.end
     }
@@ -311,7 +330,8 @@ export default function Booking() {
           const dayOfWeek = dateObj.getDay().toString()
           const dayName = ['日', '一', '二', '三', '四', '五', '六'][dayOfWeek]
 
-          if (shopSettings.days_off && (shopSettings.days_off.includes(dayName) || shopSettings.days_off.includes(dayOfWeek))) {
+          const shopDaysOff = parseDaysOff(shopSettings.days_off)
+          if (shopDaysOff.length > 0 && (shopDaysOff.includes(dayName) || shopDaysOff.includes(dayOfWeek))) {
             return []
           }
 
@@ -323,7 +343,8 @@ export default function Booking() {
             workingStart = shift.start_time
             workingEnd = shift.end_time
           } else {
-            isOff = staff.daysOff?.includes(dayOfWeek)
+            const staffDaysOff = parseDaysOff(staff.daysOff)
+            isOff = staffDaysOff.includes(dayOfWeek)
             workingStart = staff.schedule?.[dayOfWeek]?.start
             workingEnd = staff.schedule?.[dayOfWeek]?.end
           }
