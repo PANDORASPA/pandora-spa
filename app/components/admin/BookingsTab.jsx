@@ -14,7 +14,7 @@ export default function BookingsTab({
   const [staffFilter, setStaffFilter] = useState('all')
 
   const filteredBookings = bookings.filter(b => 
-    (!searchTerm || (b.name || '').toLowerCase().includes(searchTerm.toLowerCase()) || (b.phone || '').includes(searchTerm)) && 
+    (!searchTerm || b.name?.toLowerCase().includes(searchTerm.toLowerCase()) || b.phone?.includes(searchTerm)) && 
     (statusFilter === 'all' || b.status === statusFilter) &&
     (dateFilter === '' || b.date === dateFilter) &&
     (staffFilter === 'all' || b.staff_id?.toString() === staffFilter)
