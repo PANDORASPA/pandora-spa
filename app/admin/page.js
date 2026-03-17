@@ -18,39 +18,18 @@ import StaffTab from '../components/admin/StaffTab'
 import BookingsTab from '../components/admin/BookingsTab'
 
 const TAB_GROUPS = [
-  {
-    name: '營運',
-    tabs: [
-      ['dashboard', '總覽'],
-      ['analytics', '分析'],
-      ['bookings', '預約'],
-      ['orders', '訂單'],
-    ],
-  },
-  {
-    name: '服務',
-    tabs: [
-      ['staff', '員工'],
-      ['services', '服務'],
-      ['inventory', '產品/套票'],
-    ],
-  },
-  {
-    name: '內容',
-    tabs: [
-      ['coupons', '優惠券'],
-      ['articles', '文章'],
-      ['faqs', 'FAQ'],
-    ],
-  },
-  {
-    name: '會員',
-    tabs: [['customers', '客戶']],
-  },
-  {
-    name: '系統',
-    tabs: [['settings', '設定']],
-  },
+  ['dashboard', 'Dashboard'],
+  ['analytics', '分析'],
+  ['bookings', '預約'],
+  ['orders', '訂單'],
+  ['staff', '員工'],
+  ['services', '服務'],
+  ['inventory', '產品/套票'],
+  ['coupons', '優惠券'],
+  ['articles', '文章'],
+  ['faqs', 'FAQ'],
+  ['customers', '客戶'],
+  ['settings', '設定'],
 ]
 
 export default function AdminPage() {
@@ -79,45 +58,12 @@ export default function AdminPage() {
   const [settings, setSettings] = useState({})
 
   useEffect(() => {
-    async function checkAccess() {
-      try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser()
-
-        setCurrentUser(user || null)
-
-        if (!user) {
-          setAuthChecked(true)
-          setLoading(false)
-          return
-        }
-
-        const { data: profile, error } = await supabase
-          .from('member_profiles')
-          .select('is_admin, full_name, email')
-          .eq('id', user.id)
-          .single()
-
-        if (error) throw error
-
-        const allowed = Boolean(profile?.is_admin)
-        setIsAdmin(allowed)
-        setAuthChecked(true)
-
-        if (allowed) {
-          await fetchData()
-        } else {
-          setLoading(false)
-        }
-      } catch (error) {
-        toast.error(error?.message || '檢查管理員權限失敗')
-        setAuthChecked(true)
-        setLoading(false)
-      }
+    if (typeof window === 'undefined') return
+    const tab = new URLSearchParams(window.location.search).get('tab')
+    const allowedTabs = new Set(TAB_GROUPS.map(([id]) => id))
+    if (tab && allowedTabs.has(tab)) {
+      setActiveTab(tab)
     }
-
-    checkAccess()
   }, [])
 
   const fetchData = async () => {
@@ -157,18 +103,60 @@ export default function AdminPage() {
       setFaqs(faqRows.data || [])
       setStaffShifts(sh.data || [])
       setReviews(reviewRows.data || [])
-
-      const settingsMap = (setRows.data || []).reduce((acc, item) => {
-        acc[item.key] = item.value
-        return acc
-      }, {})
-      setSettings(settingsMap)
+      setSettings(
+        (setRows.data || []).reduce((acc, item) => {
+          acc[item.key] = item.value
+          return acc
+        }, {})
+      )
     } catch (error) {
       toast.error(error?.message || '讀取後台資料失敗')
     } finally {
       setLoading(false)
     }
   }
+
+  useEffect(() => {
+    async function checkAccess() {
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser()
+
+        setCurrentUser(user || null)
+
+        if (!user) {
+          setAuthChecked(true)
+          setLoading(false)
+          return
+        }
+
+        const { data: profile, error } = await supabase
+          .from('member_profiles')
+          .select('is_admin')
+          .eq('id', user.id)
+          .single()
+
+        if (error) throw error
+
+        const allowed = Boolean(profile?.is_admin)
+        setIsAdmin(allowed)
+        setAuthChecked(true)
+
+        if (allowed) {
+          await fetchData()
+        } else {
+          setLoading(false)
+        }
+      } catch (error) {
+        toast.error(error?.message || '檢查後台權限失敗')
+        setAuthChecked(true)
+        setLoading(false)
+      }
+    }
+
+    checkAccess()
+  }, [])
 
   const saveShifts = async (shifts) => {
     setSaving(true)
@@ -186,51 +174,45 @@ export default function AdminPage() {
 
       const { error } = await supabase.from('staff_shifts').upsert(payload, { onConflict: 'staff_id,date' })
       if (error) throw error
-      toast.success('排班已保存')
+      toast.success('排班已儲存')
       await fetchData()
     } catch (error) {
-      toast.error(`排班保存失敗: ${error?.message || '未知錯誤'}`)
+      toast.error(error?.message || '儲存排班失敗')
     } finally {
       setSaving(false)
     }
   }
 
   const updateStatus = async (id, status) => {
-    try {
-      const { error } = await supabase.from('bookings').update({ status }).eq('id', id)
-      if (error) throw error
-      setBookings((prev) => prev.map((item) => (item.id === id ? { ...item, status } : item)))
-      toast.success('預約狀態已更新')
-    } catch (error) {
-      toast.error(`更新失敗: ${error?.message || '未知錯誤'}`)
+    const { error } = await supabase.from('bookings').update({ status }).eq('id', id)
+    if (error) {
+      toast.error(error.message)
+      return
     }
+    setBookings((prev) => prev.map((item) => (item.id === id ? { ...item, status } : item)))
   }
 
   const updateBookingStaff = async (id, staffId) => {
-    try {
-      const staffMember = staff.find((item) => String(item.id) === String(staffId))
-      const payload = {
-        staff_id: staffId ? Number(staffId) : null,
-        staff_name: staffMember?.name || null,
-      }
-      const { error } = await supabase.from('bookings').update(payload).eq('id', id)
-      if (error) throw error
-      setBookings((prev) => prev.map((item) => (item.id === id ? { ...item, ...payload } : item)))
-      toast.success('預約員工已更新')
-    } catch (error) {
-      toast.error(`更新失敗: ${error?.message || '未知錯誤'}`)
+    const staffMember = staff.find((item) => String(item.id) === String(staffId))
+    const payload = {
+      staff_id: staffId ? Number(staffId) : null,
+      staff_name: staffMember?.name || null,
     }
+    const { error } = await supabase.from('bookings').update(payload).eq('id', id)
+    if (error) {
+      toast.error(error.message)
+      return
+    }
+    setBookings((prev) => prev.map((item) => (item.id === id ? { ...item, ...payload } : item)))
   }
 
   const updateOrderStatus = async (id, status) => {
-    try {
-      const { error } = await supabase.from('orders').update({ status }).eq('id', id)
-      if (error) throw error
-      setOrders((prev) => prev.map((item) => (item.id === id ? { ...item, status } : item)))
-      toast.success('訂單狀態已更新')
-    } catch (error) {
-      toast.error(`更新失敗: ${error?.message || '未知錯誤'}`)
+    const { error } = await supabase.from('orders').update({ status }).eq('id', id)
+    if (error) {
+      toast.error(error.message)
+      return
     }
+    setOrders((prev) => prev.map((item) => (item.id === id ? { ...item, status } : item)))
   }
 
   const addStaff = () => {
@@ -256,14 +238,12 @@ export default function AdminPage() {
 
   const deleteStaff = async (id) => {
     if (!confirm('確定刪除此員工？')) return
-    try {
-      const { error } = await supabase.from('staff').delete().eq('id', id)
-      if (error) throw error
-      setStaff((prev) => prev.filter((item) => item.id !== id))
-      toast.success('員工已刪除')
-    } catch (error) {
-      toast.error(`刪除失敗: ${error?.message || '未知錯誤'}`)
+    const { error } = await supabase.from('staff').delete().eq('id', id)
+    if (error) {
+      toast.error(error.message)
+      return
     }
+    setStaff((prev) => prev.filter((item) => item.id !== id))
   }
 
   const updateStaffField = (id, field, value) => {
@@ -274,11 +254,11 @@ export default function AdminPage() {
     setStaff((prev) =>
       prev.map((item) => {
         if (item.id !== staffId) return item
-        const nextServices = Array.isArray(item.services) ? item.services : []
-        const exists = nextServices.includes(serviceId)
+        const currentServices = Array.isArray(item.services) ? item.services : []
+        const exists = currentServices.includes(serviceId)
         return {
           ...item,
-          services: exists ? nextServices.filter((id) => id !== serviceId) : [...nextServices, serviceId],
+          services: exists ? currentServices.filter((id) => id !== serviceId) : [...currentServices, serviceId],
         }
       })
     )
@@ -288,11 +268,11 @@ export default function AdminPage() {
     setStaff((prev) =>
       prev.map((item) => {
         if (item.id !== staffId) return item
-        const nextDaysOff = Array.isArray(item.daysOff) ? item.daysOff : []
-        const exists = nextDaysOff.includes(dayKey)
+        const daysOff = Array.isArray(item.daysOff) ? item.daysOff : []
+        const exists = daysOff.includes(dayKey)
         return {
           ...item,
-          daysOff: exists ? nextDaysOff.filter((id) => id !== dayKey) : [...nextDaysOff, dayKey],
+          daysOff: exists ? daysOff.filter((id) => id !== dayKey) : [...daysOff, dayKey],
         }
       })
     )
@@ -328,9 +308,9 @@ export default function AdminPage() {
         if (error) throw error
       }
       await fetchData()
-      toast.success('員工資料已保存')
+      toast.success('員工資料已儲存')
     } catch (error) {
-      toast.error(`保存失敗: ${error?.message || '未知錯誤'}`)
+      toast.error(error?.message || '儲存員工資料失敗')
     } finally {
       setSaving(false)
     }
@@ -356,9 +336,9 @@ export default function AdminPage() {
       }
 
       await fetchData()
-      toast.success('服務已保存')
+      toast.success('服務已儲存')
     } catch (error) {
-      toast.error(`保存失敗: ${error?.message || '未知錯誤'}`)
+      toast.error(error?.message || '儲存服務失敗')
     } finally {
       setSaving(false)
     }
@@ -384,9 +364,9 @@ export default function AdminPage() {
       }
 
       await fetchData()
-      toast.success('優惠券已保存')
+      toast.success('優惠券已儲存')
     } catch (error) {
-      toast.error(`保存失敗: ${error?.message || '未知錯誤'}`)
+      toast.error(error?.message || '儲存優惠券失敗')
     } finally {
       setSaving(false)
     }
@@ -400,23 +380,21 @@ export default function AdminPage() {
         if (error) throw error
       }
       await fetchData()
-      toast.success('設定已保存')
+      toast.success('設定已儲存')
     } catch (error) {
-      toast.error(`設定保存失敗: ${error?.message || '未知錯誤'}`)
+      toast.error(error?.message || '儲存設定失敗')
     } finally {
       setSaving(false)
     }
   }
 
   const updateCustomer = async (id, updates) => {
-    try {
-      const { error } = await supabase.from('customers').update(updates).eq('id', id)
-      if (error) throw error
-      setUsers((prev) => prev.map((item) => (item.id === id ? { ...item, ...updates } : item)))
-      toast.success('客戶資料已更新')
-    } catch (error) {
-      toast.error(`更新失敗: ${error?.message || '未知錯誤'}`)
+    const { error } = await supabase.from('customers').update(updates).eq('id', id)
+    if (error) {
+      toast.error(error.message)
+      return
     }
+    setUsers((prev) => prev.map((item) => (item.id === id ? { ...item, ...updates } : item)))
   }
 
   const stats = useMemo(() => {
@@ -428,38 +406,25 @@ export default function AdminPage() {
         .reduce((sum, item) => sum + Number(item.final_price || item.service_price || 0), 0),
       totalUsers: users.length,
       pending: bookings.filter((item) => item.status === 'pending').length,
-      completed: bookings.filter((item) => item.status === 'completed').length,
-      cancelled: bookings.filter((item) => item.status === 'cancelled').length,
     }
   }, [bookings, users.length])
 
-  const popularServices = useMemo(() => {
-    const counts = bookings.reduce((acc, item) => {
-      const key = item.service || '未命名服務'
-      acc[key] = (acc[key] || 0) + 1
-      return acc
-    }, {})
-    return Object.entries(counts)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 5)
-  }, [bookings])
-
   const handleLogout = async () => {
     await supabase.auth.signOut()
-    router.push('/')
+    router.push('/admin/login')
   }
 
   if (!authChecked || loading) {
-    return <div style={{ padding: '100px', textAlign: 'center' }}>載入中...</div>
+    return <div style={{ padding: '100px', textAlign: 'center' }}>載入後台中...</div>
   }
 
   if (!currentUser) {
     return (
       <div style={{ padding: '40px 20px', textAlign: 'center' }}>
         <h1>管理後台</h1>
-        <p style={{ color: '#666', marginBottom: '20px' }}>請先登入會員帳號。</p>
-        <Link href="/login?redirectTo=/admin" style={{ display: 'inline-block', padding: '12px 20px', background: '#A68B6A', color: '#fff', borderRadius: '10px', textDecoration: 'none', fontWeight: 700 }}>
-          前往登入
+        <p style={{ color: '#666', marginBottom: '20px' }}>請先使用管理帳號登入。</p>
+        <Link href="/admin/login?redirectTo=%2Fadmin" style={{ display: 'inline-block', padding: '12px 20px', background: '#A68B6A', color: '#fff', borderRadius: '10px', textDecoration: 'none', fontWeight: 700 }}>
+          前往後台登入
         </Link>
       </div>
     )
@@ -469,8 +434,8 @@ export default function AdminPage() {
     return (
       <div style={{ padding: '40px 20px', textAlign: 'center' }}>
         <h1>管理後台</h1>
-        <p style={{ color: '#666', marginBottom: '12px' }}>你的帳號已登入，但未有管理員權限。</p>
-        <p style={{ color: '#999', marginBottom: '20px' }}>請把 `member_profiles.is_admin` 設為 `true` 後再進入。</p>
+        <p style={{ color: '#666', marginBottom: '12px' }}>你的帳號已登入，但沒有管理後台權限。</p>
+        <p style={{ color: '#999', marginBottom: '20px' }}>請確認 `member_profiles.is_admin = true` 後再登入。</p>
         <button onClick={handleLogout} style={{ padding: '12px 20px', background: '#A68B6A', color: '#fff', border: 'none', borderRadius: '10px', fontWeight: 700, cursor: 'pointer' }}>
           登出
         </button>
@@ -482,7 +447,7 @@ export default function AdminPage() {
     <div style={{ minHeight: '100vh', background: '#f8f9fa' }}>
       <header style={{ background: '#3D3D3D', color: '#fff', padding: '12px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
         <div>
-          <h2 style={{ fontSize: '18px', margin: 0 }}>VIVA SALON 後台管理</h2>
+          <h2 style={{ fontSize: '18px', margin: 0 }}>VIVA HAIR 後台管理</h2>
           <div style={{ fontSize: '12px', opacity: 0.8 }}>{currentUser.email}</div>
         </div>
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
@@ -496,41 +461,37 @@ export default function AdminPage() {
       </header>
 
       <div style={{ background: '#fff', borderBottom: '1px solid #eee', overflowX: 'auto', padding: '8px' }}>
-        <div style={{ display: 'flex', gap: '12px', maxWidth: '1200px', margin: '0 auto', flexWrap: 'wrap' }}>
-          {TAB_GROUPS.map((group) => (
-            <div key={group.name} style={{ display: 'flex', gap: '6px', paddingRight: '12px', borderRight: '1px solid #eee' }}>
-              {group.tabs.map(([id, label]) => (
-                <button
-                  key={id}
-                  onClick={() => setActiveTab(id)}
-                  style={{
-                    padding: '10px 16px',
-                    background: activeTab === id ? '#A68B6A' : 'transparent',
-                    color: activeTab === id ? '#fff' : '#666',
-                    borderRadius: '8px',
-                    border: 'none',
-                    cursor: 'pointer',
-                    fontSize: '13px',
-                    fontWeight: 600,
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
+        <div style={{ display: 'flex', gap: '8px', maxWidth: '1200px', margin: '0 auto', flexWrap: 'wrap' }}>
+          {TAB_GROUPS.map(([id, label]) => (
+            <button
+              key={id}
+              onClick={() => setActiveTab(id)}
+              style={{
+                padding: '10px 16px',
+                background: activeTab === id ? '#A68B6A' : 'transparent',
+                color: activeTab === id ? '#fff' : '#666',
+                borderRadius: '8px',
+                border: 'none',
+                cursor: 'pointer',
+                fontSize: '13px',
+                fontWeight: 600,
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {label}
+            </button>
           ))}
         </div>
       </div>
 
       <main style={{ maxWidth: '1200px', margin: '0 auto', padding: '20px' }}>
-        {activeTab === 'dashboard' && (
+        {activeTab === 'dashboard' ? (
           <div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '20px', marginBottom: '30px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '20px', marginBottom: '24px' }}>
               {[
                 ['今日預約', stats.todayBookings],
                 ['今日收入', `$${stats.todayRevenue}`],
-                ['待確認', stats.pending],
+                ['待處理預約', stats.pending],
                 ['客戶總數', stats.totalUsers],
               ].map(([label, value]) => (
                 <div key={label} className="admin-card" style={{ padding: '24px' }}>
@@ -540,61 +501,29 @@ export default function AdminPage() {
               ))}
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr', gap: '24px' }}>
-              <div className="admin-card" style={{ padding: '24px' }}>
-                <h3 style={{ marginTop: 0 }}>今日預約</h3>
-                <div style={{ display: 'grid', gap: '12px' }}>
-                  {bookings.filter((item) => item.date === new Date().toLocaleDateString('zh-HK')).slice(0, 8).map((item) => (
-                    <div key={item.id} style={{ padding: '14px', border: '1px solid var(--gray)', borderRadius: '12px', display: 'flex', justifyContent: 'space-between', gap: '12px' }}>
-                      <div>
-                        <div style={{ fontWeight: 700 }}>{item.name}</div>
-                        <div style={{ fontSize: '13px', color: 'var(--text-light)' }}>{item.service}</div>
-                      </div>
-                      <div style={{ textAlign: 'right' }}>
-                        <div style={{ fontWeight: 700, color: 'var(--primary)' }}>{item.time}</div>
-                        <div style={{ fontSize: '12px', color: '#666' }}>{item.status}</div>
-                      </div>
+            <div className="admin-card" style={{ padding: '24px' }}>
+              <h3 style={{ marginTop: 0 }}>最近預約</h3>
+              <div style={{ display: 'grid', gap: '12px' }}>
+                {bookings.slice(0, 8).map((item) => (
+                  <div key={item.id} style={{ padding: '14px', border: '1px solid var(--gray)', borderRadius: '12px', display: 'flex', justifyContent: 'space-between', gap: '12px' }}>
+                    <div>
+                      <div style={{ fontWeight: 700 }}>{item.name}</div>
+                      <div style={{ fontSize: '13px', color: 'var(--text-light)' }}>{item.service}</div>
                     </div>
-                  ))}
-                  {bookings.filter((item) => item.date === new Date().toLocaleDateString('zh-HK')).length === 0 && (
-                    <div style={{ color: '#666' }}>今日暫時沒有預約。</div>
-                  )}
-                </div>
-              </div>
-
-              <div style={{ display: 'grid', gap: '24px' }}>
-                <div className="admin-card" style={{ padding: '24px' }}>
-                  <h3 style={{ marginTop: 0 }}>熱門服務</h3>
-                  {popularServices.map(([name, count]) => (
-                    <div key={name} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid #f0f0f0' }}>
-                      <span>{name}</span>
-                      <strong>{count}</strong>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontWeight: 700, color: 'var(--primary)' }}>{item.time}</div>
+                      <div style={{ fontSize: '12px', color: '#666' }}>{item.status}</div>
                     </div>
-                  ))}
-                </div>
-
-                <div className="admin-card" style={{ padding: '24px', background: 'linear-gradient(135deg, #A68B6A, #8B7355)', color: '#fff' }}>
-                  <h3 style={{ marginTop: 0, color: '#fff' }}>快速入口</h3>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                    {[
-                      ['bookings', '處理預約'],
-                      ['orders', '查看訂單'],
-                      ['staff', '管理員工'],
-                      ['settings', '網站設定'],
-                    ].map(([id, label]) => (
-                      <button key={id} onClick={() => setActiveTab(id)} style={{ background: 'rgba(255,255,255,0.18)', color: '#fff', border: 'none', borderRadius: '8px', padding: '12px', fontWeight: 700, cursor: 'pointer' }}>
-                        {label}
-                      </button>
-                    ))}
                   </div>
-                </div>
+                ))}
+                {bookings.length === 0 ? <div style={{ color: '#666' }}>目前沒有預約資料。</div> : null}
               </div>
             </div>
           </div>
-        )}
+        ) : null}
 
-        {activeTab === 'analytics' && <AnalyticsTab bookings={bookings} orders={orders} reviews={reviews} />}
-        {activeTab === 'bookings' && (
+        {activeTab === 'analytics' ? <AnalyticsTab bookings={bookings} orders={orders} reviews={reviews} /> : null}
+        {activeTab === 'bookings' ? (
           <BookingsTab
             bookings={bookings}
             staff={staff}
@@ -602,9 +531,9 @@ export default function AdminPage() {
             onUpdateBookingStaff={updateBookingStaff}
             onViewDetail={(booking) => setSelectedBooking(booking)}
           />
-        )}
-        {activeTab === 'orders' && <OrdersTab orders={orders} onUpdateOrderStatus={updateOrderStatus} />}
-        {activeTab === 'staff' && (
+        ) : null}
+        {activeTab === 'orders' ? <OrdersTab orders={orders} onUpdateOrderStatus={updateOrderStatus} /> : null}
+        {activeTab === 'staff' ? (
           <StaffTab
             staff={staff}
             services={services}
@@ -619,9 +548,9 @@ export default function AdminPage() {
             onSaveShifts={saveShifts}
             saving={saving}
           />
-        )}
-        {activeTab === 'services' && <ServicesTab services={services} saveServices={saveServices} />}
-        {activeTab === 'inventory' && (
+        ) : null}
+        {activeTab === 'services' ? <ServicesTab services={services} saveServices={saveServices} /> : null}
+        {activeTab === 'inventory' ? (
           <InventoryTab
             products={products}
             packages={servicePackages}
@@ -629,15 +558,15 @@ export default function AdminPage() {
             services={services}
             fetchData={fetchData}
           />
-        )}
-        {activeTab === 'coupons' && <CouponsTab coupons={coupons} saveCoupons={saveCoupons} />}
-        {activeTab === 'articles' && <ArticlesTab articles={articles} />}
-        {activeTab === 'faqs' && <FaqsTab faqs={faqs} />}
-        {activeTab === 'customers' && <CustomersTab users={users} bookings={bookings} onUpdateCustomer={updateCustomer} />}
-        {activeTab === 'settings' && <SettingsTab settings={settings} saveSettings={saveSettings} />}
+        ) : null}
+        {activeTab === 'coupons' ? <CouponsTab coupons={coupons} saveCoupons={saveCoupons} /> : null}
+        {activeTab === 'articles' ? <ArticlesTab articles={articles} /> : null}
+        {activeTab === 'faqs' ? <FaqsTab faqs={faqs} /> : null}
+        {activeTab === 'customers' ? <CustomersTab users={users} bookings={bookings} onUpdateCustomer={updateCustomer} /> : null}
+        {activeTab === 'settings' ? <SettingsTab settings={settings} saveSettings={saveSettings} /> : null}
       </main>
 
-      {selectedBooking && (
+      {selectedBooking ? (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000, padding: '20px' }} onClick={() => setSelectedBooking(null)}>
           <div style={{ background: '#fff', width: '100%', maxWidth: '460px', borderRadius: '20px', overflow: 'hidden', boxShadow: '0 10px 25px rgba(0,0,0,0.2)' }} onClick={(event) => event.stopPropagation()}>
             <div style={{ padding: '20px 25px', borderBottom: '1px solid #eee', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#FAF8F5' }}>
@@ -653,7 +582,7 @@ export default function AdminPage() {
                 <div style={{ marginBottom: '12px', fontSize: '15px' }}><strong>日期時間:</strong> {selectedBooking.date} {selectedBooking.time}</div>
                 <div style={{ marginBottom: '12px', fontSize: '15px' }}><strong>服務:</strong> {selectedBooking.service}</div>
                 <div style={{ marginBottom: '15px', fontSize: '15px' }}>
-                  <strong>員工:</strong>
+                  <strong>設計師:</strong>
                   <select
                     value={selectedBooking.staff_id || ''}
                     onChange={async (event) => {
@@ -670,12 +599,12 @@ export default function AdminPage() {
                   </select>
                 </div>
                 <div style={{ borderTop: '1px solid #eee', paddingTop: '15px' }}>
-                  <div style={{ marginBottom: '10px', fontSize: '15px' }}><strong>顧客:</strong> {selectedBooking.name}</div>
+                  <div style={{ marginBottom: '10px', fontSize: '15px' }}><strong>客戶:</strong> {selectedBooking.name}</div>
                   <div style={{ marginBottom: '15px', fontSize: '15px' }}><strong>電話:</strong> {selectedBooking.phone}</div>
                 </div>
                 <div style={{ borderTop: '1px solid #eee', paddingTop: '15px' }}>
                   <div style={{ fontSize: '15px', display: 'flex', alignItems: 'center' }}>
-                    <strong>狀態:</strong>
+                    <strong>狀態</strong>
                     <select
                       value={selectedBooking.status}
                       onChange={async (event) => {
@@ -698,7 +627,7 @@ export default function AdminPage() {
             </div>
           </div>
         </div>
-      )}
+      ) : null}
     </div>
   )
 }
