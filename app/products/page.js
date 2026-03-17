@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { toast } from 'react-hot-toast'
-import { supabase } from '../../lib/supabase'
+import { getBrowserClient } from '../../lib/supabase/browser'
 
 export default function Products() {
   const [products, setProducts] = useState([])
@@ -29,6 +29,13 @@ export default function Products() {
   useEffect(() => {
     async function fetchProducts() {
       setLoading(true)
+      let supabase
+      try {
+        supabase = getBrowserClient()
+      } catch (e) {
+        setLoading(false)
+        return
+      }
       const { data } = await supabase.from('products').select('*').eq('enabled', true).order('id')
       
       if (data && data.length > 0) {
