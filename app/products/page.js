@@ -47,7 +47,7 @@ export default function Products() {
       setCart(JSON.parse(savedCart))
     }
     
-    const currentUser = localStorage.getItem('viva_user')
+    const currentUser = localStorage.getItem('viva_current_user')
     if (currentUser) {
       const userData = JSON.parse(currentUser)
       setUser(userData)
