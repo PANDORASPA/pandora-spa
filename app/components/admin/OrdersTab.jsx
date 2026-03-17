@@ -1,14 +1,24 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { supabase } from '../../../lib/supabase'
+import { toast } from 'react-hot-toast'
 
-export default function OrdersTab({ orders, onUpdateOrder }) {
+export default function OrdersTab({ orders: initialOrders }) {
+  const [orders, setOrders] = useState(initialOrders)
   const [selectedOrder, setSelectedOrder] = useState(null)
 
-  const handleUpdateStatus = async (id, status) => {
-    await onUpdateOrder(id, status)
-    if (selectedOrder && selectedOrder.id === id) {
-      setSelectedOrder({ ...selectedOrder, status })
+  useEffect(() => {
+    setOrders(initialOrders)
+  }, [initialOrders])
+
+  const updateOrderStatus = async (id, status) => {
+    const { error } = await supabase.from('orders').update({ status }).eq('id', id)
+    if (error) {
+      toast.error('更新失敗')
+      return
     }
+    setOrders(orders.map(o => o.id === id ? { ...o, status } : o))
+    toast.success('狀態已更新')
   }
 
   return (
@@ -102,7 +112,7 @@ export default function OrdersTab({ orders, onUpdateOrder }) {
                   <strong style={{ display: 'block', marginBottom: '4px', color: 'var(--text-light)' }}>更改訂單狀態</strong>
                   <select 
                     value={selectedOrder.status} 
-                    onChange={(e) => handleUpdateStatus(selectedOrder.id, e.target.value)}
+                    onChange={(e) => updateOrderStatus(selectedOrder.id, e.target.value)}
                     className="btn-interactive"
                     style={{ marginTop: '4px' }}
                   >
