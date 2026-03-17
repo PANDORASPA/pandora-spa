@@ -271,6 +271,12 @@ export default function Booking() {
     }
   }
 
+  const getSlotStepMin = () => {
+    const v = shopSettings.slot_step_min
+    const n = typeof v === 'number' ? v : Number(String(v || ''))
+    return Number.isFinite(n) && n > 0 ? n : 30
+  }
+
   // Check if a specific time slot is occupied
   const isSlotOccupied = (staffId, date, time) => {
     const dateStr = `${date}/${currentMonth + 1}/${currentYear}`
@@ -342,12 +348,13 @@ export default function Booking() {
 
       // Check for booking conflicts throughout the service duration
       let currentTime = new Date(startTime.getTime())
+      const stepMin = getSlotStepMin()
       while (currentTime < endTime) {
         const timeStr = currentTime.toTimeString().substring(0, 5)
         if (isSlotOccupied(staff.id, date, timeStr)) {
           return false
         }
-        currentTime.setMinutes(currentTime.getMinutes() + 30)
+        currentTime.setMinutes(currentTime.getMinutes() + stepMin)
       }
     }
     
@@ -421,7 +428,8 @@ export default function Booking() {
       // Safety break for infinite loops
       let count = 0
       let current = new Date(startTime.getTime())
-      while (current <= lastStart && count < 100) {
+      const stepMin = getSlotStepMin()
+      while (current <= lastStart && count < 300) {
         const slotEnd = new Date(current.getTime() + duration * 60000)
         if (breakStart && breakEnd) {
           if (!(current < breakEnd && slotEnd > breakStart)) {
@@ -430,7 +438,7 @@ export default function Booking() {
         } else {
           slots.push(current.toTimeString().substring(0, 5))
         }
-        current.setMinutes(current.getMinutes() + 30)
+        current.setMinutes(current.getMinutes() + stepMin)
         count++
       }
       return slots
@@ -634,19 +642,6 @@ export default function Booking() {
       }
     }
 
-    // Upsert customer
-    const { data: customerData, error: customerError } = await supabase
-      .from('customers')
-      .upsert({ name: formData.name, phone: formData.phone }, { onConflict: 'phone' })
-      .select();
-
-    if (customerError) {
-      toast.error('客戶資料儲存失敗: ' + JSON.stringify(customerError));
-      return;
-    }
-
-    const customer_id = customerData[0].id;
-
     // Handle Ticket Deduction
     if (selectedUserTicket) {
       const { error: ticketError } = await supabase
@@ -683,7 +678,6 @@ export default function Booking() {
       service_price: selectedService.price,
       staff_id: assignedStaffId || null,
       staff_name: assignedStaffName,
-      customer_id,
       user_id: authUser.id,
       customer_email: authUser.email,
       customer_name: formData.name,
