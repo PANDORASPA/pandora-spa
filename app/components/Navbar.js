@@ -3,36 +3,43 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { getBrowserClient } from '../../lib/supabase/browser'
 
 export default function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
-  const [user, setUser] = useState(null)
+  const [authUser, setAuthUser] = useState(null)
+  const [displayName, setDisplayName] = useState('')
   const pathname = usePathname()
 
   useEffect(() => {
-    // Check for logged in user on mount
-    const savedUser = localStorage.getItem('viva_user')
-    if (savedUser) {
-      try {
-        setUser(JSON.parse(savedUser))
-      } catch (e) {}
+    const supabase = getBrowserClient()
+
+    const load = async () => {
+      const { data } = await supabase.auth.getUser()
+      setAuthUser(data?.user || null)
+      if (data?.user) {
+        const { data: profile } = await supabase.from('member_profiles').select('full_name').eq('id', data.user.id).single()
+        setDisplayName(profile?.full_name || data.user.email || '')
+      } else {
+        setDisplayName('')
+      }
     }
 
-    // Listen for storage events (login/logout from other tabs/pages)
-    const handleStorageChange = () => {
-      const u = localStorage.getItem('viva_user')
-      setUser(u ? JSON.parse(u) : null)
-    }
-    
-    // Custom event for same-page updates
-    const handleLocalLogin = () => handleStorageChange()
-    
-    window.addEventListener('storage', handleStorageChange)
-    window.addEventListener('viva_login_update', handleLocalLogin)
-    
+    load()
+
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      const user = session?.user || null
+      setAuthUser(user)
+      setDisplayName(user?.email || '')
+      if (user) {
+        supabase.from('member_profiles').select('full_name').eq('id', user.id).single().then(({ data: profile }) => {
+          setDisplayName(profile?.full_name || user.email || '')
+        })
+      }
+    })
+
     return () => {
-      window.removeEventListener('storage', handleStorageChange)
-      window.removeEventListener('viva_login_update', handleLocalLogin)
+      sub?.subscription?.unsubscribe()
     }
   }, [])
 
@@ -65,12 +72,12 @@ export default function Navbar() {
                 {link.label}
               </Link>
             ))}
-            {user ? (
-              <Link href="/profile" className="nav-login" style={{ background: '#f3f4f6', color: '#333', border: '1px solid #e5e5e5' }}>
-                👤 {user.name}
+            {authUser ? (
+              <Link href="/account" className="nav-login" style={{ background: '#f3f4f6', color: '#333', border: '1px solid #e5e5e5' }}>
+                👤 {displayName || '會員中心'}
               </Link>
             ) : (
-              <Link href="/booking" className="nav-login">登入</Link>
+              <Link href={`/login?redirectTo=${encodeURIComponent(pathname || '/')}`} className="nav-login">登入</Link>
             )}
           </div>
 
@@ -114,12 +121,12 @@ export default function Navbar() {
           
           <div style={{ height: '1px', background: '#eee', margin: '12px 0' }} />
           
-          {user ? (
-            <Link href="/profile" onClick={closeMenu}>
-              👤 會員中心 ({user.name})
+          {authUser ? (
+            <Link href="/account" onClick={closeMenu}>
+              👤 會員中心 ({displayName || '會員'})
             </Link>
           ) : (
-            <Link href="/booking" onClick={closeMenu}>
+            <Link href={`/login?redirectTo=${encodeURIComponent(pathname || '/')}`} onClick={closeMenu}>
               👤 會員登入
             </Link>
           )}
