@@ -95,3 +95,29 @@ WHERE NOT EXISTS (SELECT 1 FROM faqs WHERE question LIKE '%付款%');
 INSERT INTO faqs (question, answer, sort_order, enabled) 
 SELECT '取消預約的政策？', '請於預約日期前1天取消或更改，否則可能會收取一定費用。', 5, true
 WHERE NOT EXISTS (SELECT 1 FROM faqs WHERE question LIKE '%取消%');
+
+DO $$
+DECLARE
+  v_is_identity text;
+  v_default text;
+BEGIN
+  IF to_regclass('public.staff_shifts') IS NOT NULL THEN
+    SELECT c.is_identity, c.column_default
+      INTO v_is_identity, v_default
+    FROM information_schema.columns c
+    WHERE c.table_schema = 'public'
+      AND c.table_name = 'staff_shifts'
+      AND c.column_name = 'id';
+
+    IF (v_is_identity IS NULL OR v_is_identity <> 'YES') AND v_default IS NULL THEN
+      CREATE SEQUENCE IF NOT EXISTS public.staff_shifts_id_seq;
+      ALTER TABLE public.staff_shifts
+        ALTER COLUMN id SET DEFAULT nextval('public.staff_shifts_id_seq');
+      PERFORM setval(
+        'public.staff_shifts_id_seq',
+        COALESCE((SELECT MAX(id) FROM public.staff_shifts), 0) + 1,
+        false
+      );
+    END IF;
+  END IF;
+END $$;
