@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { getBrowserClient } from '../../lib/supabase/browser'
@@ -9,7 +9,6 @@ export default function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [authUser, setAuthUser] = useState(null)
   const [displayName, setDisplayName] = useState('')
-  const [isAdmin, setIsAdmin] = useState(false)
   const pathname = usePathname()
 
   useEffect(() => {
@@ -24,17 +23,17 @@ export default function Navbar() {
       const { data } = await supabase.auth.getUser()
       const user = data?.user || null
       setAuthUser(user)
+
       if (user) {
         const { data: profile } = await supabase
           .from('member_profiles')
-          .select('full_name, is_admin')
+          .select('full_name')
           .eq('id', user.id)
           .single()
+
         setDisplayName(profile?.full_name || user.email || '')
-        setIsAdmin(!!profile?.is_admin)
       } else {
         setDisplayName('')
-        setIsAdmin(false)
       }
     }
 
@@ -44,18 +43,16 @@ export default function Navbar() {
       const user = session?.user || null
       setAuthUser(user)
       setDisplayName(user?.email || '')
+
       if (user) {
         supabase
           .from('member_profiles')
-          .select('full_name, is_admin')
+          .select('full_name')
           .eq('id', user.id)
           .single()
           .then(({ data: profile }) => {
             setDisplayName(profile?.full_name || user.email || '')
-            setIsAdmin(!!profile?.is_admin)
           })
-      } else {
-        setIsAdmin(false)
       }
     })
 
@@ -65,15 +62,14 @@ export default function Navbar() {
   }, [])
 
   const navLinks = [
-    { href: '/', label: '棣栭爜' },
-    { href: '/services', label: '鏈嶅嫏鍍圭洰' },
-    { href: '/booking', label: '闋愮磩鏈嶅嫏' },
-    { href: '/articles', label: '楂瀷灏堟瑒' },
-    { href: '/faq', label: '甯歌鍟忛' },
+    { href: '/', label: '首頁' },
+    { href: '/services', label: '服務項目' },
+    { href: '/booking', label: '預約服務' },
+    { href: '/articles', label: '髮型專欄' },
+    { href: '/faq', label: '常見問題' },
   ]
 
   const closeMenu = () => setMobileMenuOpen(false)
-  const adminHref = authUser ? '/admin' : '/login?redirectTo=%2Fadmin'
 
   return (
     <>
@@ -89,16 +85,13 @@ export default function Navbar() {
                 {link.label}
               </Link>
             ))}
-            <Link href={adminHref} className="nav-admin">
-              {isAdmin ? 'Admin' : 'Admin Login'}
-            </Link>
             {authUser ? (
               <Link href="/account" className="nav-login" style={{ background: '#f3f4f6', color: '#333', border: '1px solid #e5e5e5' }}>
-                馃懁 {displayName || '鏈冨摗涓績'}
+                會員 {displayName || '會員中心'}
               </Link>
             ) : (
               <Link href={`/login?redirectTo=${encodeURIComponent(pathname || '/')}`} className="nav-login">
-                鐧诲叆
+                登入
               </Link>
             )}
           </div>
@@ -106,7 +99,7 @@ export default function Navbar() {
           <button
             className={`mobile-menu-btn ${mobileMenuOpen ? 'active' : ''}`}
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            aria-label="閬稿柈"
+            aria-label="Menu"
           >
             <span></span>
             <span></span>
@@ -120,7 +113,7 @@ export default function Navbar() {
       <div className={`mobile-menu ${mobileMenuOpen ? 'active' : ''}`}>
         <div className="mobile-menu-header">
           <span style={{ fontWeight: 700, color: '#A68B6A', fontSize: '18px' }}>VIVA HAIR</span>
-          <button className="mobile-menu-close" onClick={closeMenu}>鉁?/button>
+          <button className="mobile-menu-close" onClick={closeMenu}>×</button>
         </div>
 
         <div className="mobile-menu-links">
@@ -134,25 +127,21 @@ export default function Navbar() {
 
           {authUser ? (
             <Link href="/account" onClick={closeMenu}>
-              馃懁 鏈冨摗涓績 ({displayName || '鏈冨摗'})
+              會員中心 ({displayName || '會員'})
             </Link>
           ) : (
             <Link href={`/login?redirectTo=${encodeURIComponent(pathname || '/')}`} onClick={closeMenu}>
-              馃懁 鏈冨摗鐧诲叆
+              會員登入
             </Link>
           )}
-
-          <Link href={adminHref} onClick={closeMenu}>
-            鈿欙笍 {isAdmin ? 'Admin' : 'Admin Login'}
-          </Link>
         </div>
 
         <div style={{ padding: '16px', borderTop: '1px solid #eee', marginTop: 'auto' }}>
           <p style={{ fontSize: '12px', color: '#999', textAlign: 'center' }}>
-            涔濋緧澶瓙閫氳彍琛?7A 1妯?
+            VIVA HAIR
           </p>
           <p style={{ fontSize: '12px', color: '#999', textAlign: 'center', marginTop: '4px' }}>
-            漏 2026 VIVA HAIR
+            © 2026 VIVA HAIR
           </p>
         </div>
       </div>
