@@ -36,6 +36,7 @@ export default function Booking() {
   const [isLoginMode, setIsLoginMode] = useState(true)
   const [authForm, setAuthForm] = useState({ phone: '', password: '', name: '', email: '' })
   const [reviews, setReviews] = useState([])
+  const [authUser, setAuthUser] = useState(null)
 
   // Fetch services, coupons, staff, bookings and shifts from Supabase
   useEffect(() => {
@@ -109,6 +110,23 @@ export default function Booking() {
       setLoading(false)
     }
     fetchData()
+  }, [])
+
+  useEffect(() => {
+    const load = async () => {
+      const { data } = await supabase.auth.getUser()
+      setAuthUser(data?.user || null)
+    }
+
+    load()
+
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      setAuthUser(session?.user || null)
+    })
+
+    return () => {
+      sub?.subscription?.unsubscribe()
+    }
   }, [])
 
   useEffect(() => {
@@ -1051,78 +1069,26 @@ export default function Booking() {
             <h3 style={{ marginBottom: '16px', fontSize: '16px', fontWeight: 600 }}>4. 填寫資料</h3>
             
             {/* Member Login Section */}
-            {!currentUser ? (
+            {authUser ? null : (
               <div style={{ background: '#f9fafb', padding: '20px', borderRadius: '12px', marginBottom: '24px', border: '1px dashed #d1d5db' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                  <h4 style={{ margin: 0, fontSize: '15px', color: 'var(--primary)' }}>
-                    {isLoginMode ? '👋 會員登入 (自動填寫資料)' : '📝 新用戶註冊'}
-                  </h4>
-                  <button 
-                    onClick={() => setIsLoginMode(!isLoginMode)}
-                    style={{ background: 'none', border: 'none', color: '#666', fontSize: '12px', cursor: 'pointer', textDecoration: 'underline' }}
+                <div style={{ fontWeight: 800, marginBottom: '8px', color: 'var(--primary)' }}>請先登入會員後再預約</div>
+                <div style={{ fontSize: '13px', color: '#666', marginBottom: '12px' }}>登入後即可用電郵會員系統管理預約。</div>
+                <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                  <Link
+                    href={`/login?redirectTo=${encodeURIComponent(typeof window !== 'undefined' ? window.location.pathname + window.location.search : '/booking')}`}
+                    className="btn-interactive"
+                    style={{ padding: '10px 16px', background: 'var(--primary)', color: '#fff', borderRadius: '10px', fontWeight: 800, textDecoration: 'none' }}
                   >
-                    {isLoginMode ? '切換至註冊' : '已有帳號？登入'}
-                  </button>
+                    登入
+                  </Link>
+                  <Link
+                    href={`/register?redirectTo=${encodeURIComponent(typeof window !== 'undefined' ? window.location.pathname + window.location.search : '/booking')}`}
+                    className="btn-interactive"
+                    style={{ padding: '10px 16px', background: '#fff', color: 'var(--primary)', borderRadius: '10px', fontWeight: 800, textDecoration: 'none', border: '1px solid var(--primary)' }}
+                  >
+                    註冊
+                  </Link>
                 </div>
-                
-                {isLoginMode ? (
-                  <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                    <input 
-                      type="tel" 
-                      placeholder="手機號碼" 
-                      value={authForm.phone} 
-                      onChange={e => setAuthForm({...authForm, phone: e.target.value})}
-                      style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid #d1d5db', minWidth: '150px' }}
-                    />
-                    <button 
-                      onClick={handleLogin}
-                      className="btn-interactive"
-                      style={{ padding: '10px 20px', background: 'var(--primary)', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 600 }}
-                    >
-                      登入
-                    </button>
-                  </div>
-                ) : (
-                  <div style={{ display: 'grid', gap: '10px' }}>
-                    <input 
-                      type="text" 
-                      placeholder="姓名" 
-                      value={authForm.name} 
-                      onChange={e => setAuthForm({...authForm, name: e.target.value})}
-                      style={{ padding: '10px', borderRadius: '8px', border: '1px solid #d1d5db' }}
-                    />
-                    <input 
-                      type="tel" 
-                      placeholder="手機號碼" 
-                      value={authForm.phone} 
-                      onChange={e => setAuthForm({...authForm, phone: e.target.value})}
-                      style={{ padding: '10px', borderRadius: '8px', border: '1px solid #d1d5db' }}
-                    />
-                    <button 
-                      onClick={handleRegister}
-                      className="btn-interactive"
-                      style={{ padding: '10px', background: 'var(--primary)', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 600 }}
-                    >
-                      註冊並繼續
-                    </button>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div style={{ background: '#f0fdf4', padding: '16px', borderRadius: '12px', marginBottom: '24px', border: '1px solid #bbf7d0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div>
-                  <div style={{ fontWeight: 700, color: '#166534', marginBottom: '4px' }}>歡迎回來，{currentUser.name} 🎉</div>
-                  <div style={{ fontSize: '12px', color: '#15803d' }}>
-                    會員等級: <span style={{ fontWeight: 700 }}>{currentUser.membership_level || '普通會員'}</span> | 
-                    積分: <span style={{ fontWeight: 700 }}>{currentUser.points || 0}</span>
-                  </div>
-                </div>
-                <button 
-                  onClick={handleLogout}
-                  style={{ background: 'none', border: 'none', color: '#dc2626', fontSize: '12px', cursor: 'pointer', textDecoration: 'underline' }}
-                >
-                  登出
-                </button>
               </div>
             )}
 
