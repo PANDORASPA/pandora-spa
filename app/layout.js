@@ -4,15 +4,9 @@ import MobileNav from './components/MobileNav'
 import { Toaster } from 'react-hot-toast'
 
 export const metadata = {
-  title: 'VIVA HAIR',
-  description: 'VIVA HAIR booking and member portal',
-}
-
-export const viewport = {
-  width: 'device-width',
-  initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
+  title: 'VIVA HAIR - 髮型屋預約系統',
+  description: '九龍太子通菜街17A 髮型屋預約系統',
+  viewport: 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no',
 }
 
 export default function RootLayout({ children }) {
@@ -24,7 +18,7 @@ export default function RootLayout({ children }) {
         <main>{children}</main>
         <footer className="footer">
           <p>© 2026 VIVA HAIR. All Rights Reserved.</p>
-          <p>VIVA HAIR</p>
+          <p>九龍太子通菜街17A 1樓</p>
         </footer>
         <MobileNav />
       </body>
