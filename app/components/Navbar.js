@@ -12,7 +12,12 @@ export default function Navbar() {
   const pathname = usePathname()
 
   useEffect(() => {
-    const supabase = getBrowserClient()
+    let supabase
+    try {
+      supabase = getBrowserClient()
+    } catch (e) {
+      return
+    }
 
     const load = async () => {
       const { data } = await supabase.auth.getUser()
