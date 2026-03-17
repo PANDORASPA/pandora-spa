@@ -116,31 +116,13 @@ export default function Admin() {
 
   const saveShifts = async (shifts) => {
     setSaving(true)
-    try {
-      const payload = (shifts || [])
-        .filter(s => s && s.staff_id != null && s.date)
-        .map(s => {
-          const row = { ...s }
-          delete row.id
-          delete row.created_at
-          if (row.start_time === '') row.start_time = null
-          if (row.end_time === '') row.end_time = null
-          return row
-        })
-
-      const { error } = await supabase
-        .from('staff_shifts')
-        .upsert(payload, { onConflict: 'staff_id, date' })
-
-      if (error) throw error
-
+    const { error } = await supabase.from('staff_shifts').upsert(shifts, { onConflict: 'staff_id, date' })
+    if (error) toast.error('排班儲存失敗: ' + error.message)
+    else {
       toast.success('排班已儲存')
-      await fetchData()
-    } catch (e) {
-      toast.error('排班儲存失敗: ' + (e?.message || '未知錯誤'))
-    } finally {
-      setSaving(false)
+      setStaffShifts(shifts)
     }
+    setSaving(false)
   }
 
   const handleLogin = (e) => { 
@@ -235,50 +217,28 @@ export default function Admin() {
     }))
   }
 
-  const saveStaff = async (onlyStaffId) => {
+  const saveStaff = async () => {
     setSaving(true)
-    try {
-      const list = onlyStaffId ? staff.filter(s => s.id === onlyStaffId) : staff
-      for (const s of list) {
-        const payload = { ...s }
-        if (typeof payload.id === 'number' && payload.id > 2147483647) delete payload.id
-        const { error } = await supabase.from('staff').upsert(payload)
-        if (error) throw error
-      }
-      await fetchData()
-      toast.success('已保存')
-    } catch (e) {
-      toast.error('儲存失敗: ' + (e?.message || '未知錯誤'))
-    } finally {
-      setSaving(false)
+    for (const s of staff) {
+      const payload = { ...s }
+      if (typeof payload.id === 'number' && payload.id > 2147483647) delete payload.id
+      await supabase.from('staff').upsert(payload)
     }
+    await fetchData()
+    toast.success('已保存')
+    setSaving(false)
   }
 
   const saveServices = async (newServices) => {
     setSaving(true)
-    try {
-      const existingIds = (services || []).map(s => s.id).filter(Boolean)
-      const nextIds = (newServices || []).map(s => s.id).filter(id => typeof id === 'number')
-      const deletedIds = existingIds.filter(id => !nextIds.includes(id))
-
-      if (deletedIds.length > 0) {
-        const { error: delError } = await supabase.from('services').delete().in('id', deletedIds)
-        if (delError) throw delError
-      }
-
-      for (const s of newServices) {
-        const payload = { ...s }
-        if (typeof payload.id === 'number' && payload.id > 2147483647) delete payload.id
-        const { error } = await supabase.from('services').upsert(payload, { onConflict: 'id' })
-        if (error) throw error
-      }
-      await fetchData()
-      toast.success('已保存')
-    } catch (e) {
-      toast.error('儲存失敗: ' + (e?.message || '未知錯誤'))
-    } finally {
-      setSaving(false)
+    for (const s of newServices) {
+      const payload = { ...s }
+      if (typeof payload.id === 'number' && payload.id > 2147483647) delete payload.id
+      await supabase.from('services').upsert(payload)
     }
+    await fetchData()
+    toast.success('已保存')
+    setSaving(false)
   }
 
   const saveCoupons = async (newCoupons) => {
@@ -294,22 +254,14 @@ export default function Admin() {
   }
 
   const saveSettings = async (newSettings) => {
-    setSaving(true)
-    try {
-      const entries = Object.entries(newSettings || {})
-      for (const [key, value] of entries) {
-        const { error } = await supabase
-          .from('settings')
-          .upsert({ key, value }, { onConflict: 'key' })
-        if (error) throw error
-      }
-      await fetchData()
-      toast.success('設定已保存')
-    } catch (e) {
-      toast.error('設定儲存失敗: ' + (e?.message || '未知錯誤'))
-    } finally {
-      setSaving(false)
-    }
+    setSaving(true);
+    const updates = Object.keys(newSettings).map(key => (
+      supabase.from('settings').upsert({ key, value: newSettings[key] })
+    ));
+    await Promise.all(updates);
+    setSettings(newSettings);
+    toast.success('設定已保存');
+    setSaving(false);
   };
 
   const updateCustomer = async (id, updates) => {
