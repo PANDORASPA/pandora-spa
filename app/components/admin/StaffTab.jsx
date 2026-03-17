@@ -135,15 +135,16 @@ export default function StaffTab({
           <button onClick={onAddStaff} className="btn btn-small btn-interactive">+ 新增員工</button>
           <button 
             onClick={async () => {
-              await onSave();
-              if (onSaveShifts) await onSaveShifts(localShifts);
+              if (!selectedStaffId) return
+              await onSave(selectedStaffId);
+              if (onSaveShifts) await onSaveShifts(localShifts.filter(s => s.staff_id === selectedStaffId));
             }} 
-            disabled={saving} 
+            disabled={saving || !selectedStaffId} 
             className="btn btn-small btn-interactive" 
             style={{ background: '#34D399' }}
           >
             {saving && <span className="spinner"></span>}
-            {saving ? '儲存中...' : '💾 儲存所有'}
+            {saving ? '儲存中...' : '💾 儲存此員工'}
           </button>
         </div>
       </div>
