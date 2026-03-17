@@ -2,8 +2,6 @@
 ALTER TABLE bookings ADD COLUMN IF NOT EXISTS staff_id INTEGER;
 ALTER TABLE bookings ADD COLUMN IF NOT EXISTS staff_name VARCHAR(100);
 
-ALTER TABLE services ADD COLUMN IF NOT EXISTS emoji VARCHAR(20);
-
 -- 8. Create staff table (員工)
 CREATE TABLE IF NOT EXISTS staff (
   id SERIAL PRIMARY KEY,
@@ -46,11 +44,8 @@ ALTER TABLE articles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE faqs ENABLE ROW LEVEL SECURITY;
 
 -- Public policies
-DROP POLICY IF EXISTS "Public staff" ON staff;
 CREATE POLICY "Public staff" ON staff FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
-DROP POLICY IF EXISTS "Public articles" ON articles;
 CREATE POLICY "Public articles" ON articles FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
-DROP POLICY IF EXISTS "Public faqs" ON faqs;
 CREATE POLICY "Public faqs" ON faqs FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
 
 -- Insert default staff (if table is empty)
@@ -95,29 +90,3 @@ WHERE NOT EXISTS (SELECT 1 FROM faqs WHERE question LIKE '%付款%');
 INSERT INTO faqs (question, answer, sort_order, enabled) 
 SELECT '取消預約的政策？', '請於預約日期前1天取消或更改，否則可能會收取一定費用。', 5, true
 WHERE NOT EXISTS (SELECT 1 FROM faqs WHERE question LIKE '%取消%');
-
-DO $$
-DECLARE
-  v_is_identity text;
-  v_default text;
-BEGIN
-  IF to_regclass('public.staff_shifts') IS NOT NULL THEN
-    SELECT c.is_identity, c.column_default
-      INTO v_is_identity, v_default
-    FROM information_schema.columns c
-    WHERE c.table_schema = 'public'
-      AND c.table_name = 'staff_shifts'
-      AND c.column_name = 'id';
-
-    IF (v_is_identity IS NULL OR v_is_identity <> 'YES') AND v_default IS NULL THEN
-      CREATE SEQUENCE IF NOT EXISTS public.staff_shifts_id_seq;
-      ALTER TABLE public.staff_shifts
-        ALTER COLUMN id SET DEFAULT nextval('public.staff_shifts_id_seq');
-      PERFORM setval(
-        'public.staff_shifts_id_seq',
-        COALESCE((SELECT MAX(id) FROM public.staff_shifts), 0) + 1,
-        false
-      );
-    END IF;
-  END IF;
-END $$;
