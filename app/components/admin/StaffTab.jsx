@@ -371,7 +371,7 @@ export default function StaffTab({
                             {daySchedule.start}<br/>-<br/>{daySchedule.end}
                           </div>
                         ) : (
-                          <div onClick={() => onUpdateSchedule(selectedStaff.id, dayKey, 'start', '11:00')} className="btn-interactive" style={{ padding: '16px 5px', background: 'var(--gray)', color: 'var(--text-light)', borderRadius: '12px', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}>未排班</div>
+                          <div onClick={() => { onUpdateSchedule(selectedStaff.id, dayKey, 'start', '11:00'); onUpdateSchedule(selectedStaff.id, dayKey, 'end', '20:00') }} className="btn-interactive" style={{ padding: '16px 5px', background: 'var(--gray)', color: 'var(--text-light)', borderRadius: '12px', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}>未排班</div>
                         )}
                       </div>
                     )
