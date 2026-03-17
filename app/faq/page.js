@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { supabase } from '../../lib/supabase'
+import { getBrowserClient } from '../../lib/supabase/browser'
 
 export default function FAQ() {
   const [faqs, setFaqs] = useState([])
@@ -11,6 +11,13 @@ export default function FAQ() {
   useEffect(() => {
     async function fetchFaqs() {
       setLoading(true)
+      let supabase
+      try {
+        supabase = getBrowserClient()
+      } catch (e) {
+        setLoading(false)
+        return
+      }
       const { data } = await supabase.from('faqs').select('*').eq('enabled', true).order('sort_order')
       if (data) setFaqs(data)
       setLoading(false)
