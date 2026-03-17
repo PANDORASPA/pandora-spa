@@ -192,6 +192,45 @@ export default function Booking() {
     return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
   }
 
+  const normalizeTime = (t) => {
+    if (!t) return ''
+    const s = String(t)
+    return s.length >= 5 ? s.substring(0, 5) : s
+  }
+
+  const normalizeDateKey = (d) => {
+    if (!d) return ''
+    return String(d).substring(0, 10)
+  }
+
+  const parseDaysOff = (value) => {
+    if (!value) return []
+    if (Array.isArray(value)) return value.map(v => String(v).trim()).filter(Boolean)
+    if (typeof value === 'string') {
+      const s = value.trim()
+      if (!s) return []
+      try {
+        if (s.startsWith('[')) {
+          const arr = JSON.parse(s)
+          return Array.isArray(arr) ? arr.map(v => String(v).trim()).filter(Boolean) : [String(arr).trim()].filter(Boolean)
+        }
+      } catch (e) {}
+      return s.split(',').map(v => v.trim()).filter(Boolean)
+    }
+    return [String(value).trim()].filter(Boolean)
+  }
+
+  const getBusinessHoursRange = () => {
+    try {
+      const hoursStr = shopSettings.business_hours || '11:00 - 20:00'
+      const parts = hoursStr.split('-').map(s => s.trim())
+      if (parts.length !== 2) return { start: '11:00', end: '20:00' }
+      return { start: normalizeTime(parts[0]), end: normalizeTime(parts[1]) }
+    } catch (e) {
+      return { start: '11:00', end: '20:00' }
+    }
+  }
+
   // Check if a specific time slot is occupied
   const isSlotOccupied = (staffId, date, time) => {
     const dateStr = `${date}/${currentMonth + 1}/${currentYear}`
@@ -209,7 +248,7 @@ export default function Booking() {
     
     // 1. Check specific shift override
     const dateStrISO = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(date).padStart(2, '0')}`
-    const shift = staffShifts.find(s => s.staff_id === staff.id && s.date === dateStrISO)
+    const shift = staffShifts.find(s => s.staff_id === staff.id && normalizeDateKey(s.date) === dateStrISO)
     
     let workingStart, workingEnd, isOff;
 
@@ -224,14 +263,22 @@ export default function Booking() {
       const dayName = ['日', '一', '二', '三', '四', '五', '六'][dayOfWeek]
       
       // Check shop global days off
-      if (shopSettings.days_off && (shopSettings.days_off.includes(dayName) || shopSettings.days_off.includes(dayOfWeek))) {
+      const shopDaysOff = parseDaysOff(shopSettings.days_off)
+      if (shopDaysOff.length > 0 && (shopDaysOff.includes(dayName) || shopDaysOff.includes(dayOfWeek))) {
         return false
       }
 
-      isOff = staff.daysOff?.includes(dayOfWeek)
+      const staffDaysOff = parseDaysOff(staff.daysOff)
+      isOff = staffDaysOff.includes(dayOfWeek)
       workingStart = staff.schedule?.[dayOfWeek]?.start
       workingEnd = staff.schedule?.[dayOfWeek]?.end
     }
+
+    workingStart = normalizeTime(workingStart)
+    workingEnd = normalizeTime(workingEnd)
+    const bh = getBusinessHoursRange()
+    if (workingStart && !workingEnd) workingEnd = bh.end
+    if (!workingStart && workingEnd) workingStart = bh.start
 
     if (isOff || !workingStart || !workingEnd) return false
     
@@ -246,8 +293,10 @@ export default function Booking() {
 
       // Check break time (break_start to break_end) - currently defaults apply even to shifts unless break is removed
       if (staff.break_start && staff.break_end) {
-        const breakStart = new Date(`1970-01-01T${staff.break_start}:00`)
-        const breakEnd = new Date(`1970-01-01T${staff.break_end}:00`)
+        const bs = normalizeTime(staff.break_start)
+        const be = normalizeTime(staff.break_end)
+        const breakStart = new Date(`1970-01-01T${bs}:00`)
+        const breakEnd = new Date(`1970-01-01T${be}:00`)
         if (startTime < breakEnd && endTime > breakStart) return false
       }
 
@@ -270,19 +319,77 @@ export default function Booking() {
   // Dynamically generate time slots based on business hours
   const getTimeSlots = () => {
     try {
-      const hoursStr = shopSettings.business_hours || '11:00 - 20:00'
-      const parts = hoursStr.split('-').map(s => s.trim())
-      if (parts.length !== 2) return ['11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00']
-      
-      const [start, end] = parts
+      const bh = getBusinessHoursRange()
+      let rangeStart = bh.start
+      let rangeEnd = bh.end
+      const duration = selectedService?.timeMins || 60
+
+      if (selectedStaff && selectedStaff !== 'random' && selectedDate) {
+        const staff = staffList.find(s => s.id?.toString() === selectedStaff?.toString())
+        if (staff) {
+          const dateStrISO = formatDateKey(selectedDate, currentYear, currentMonth)
+          const dateObj = new Date(currentYear, currentMonth, selectedDate)
+          const dayOfWeek = dateObj.getDay().toString()
+          const dayName = ['日', '一', '二', '三', '四', '五', '六'][dayOfWeek]
+
+          const shopDaysOff = parseDaysOff(shopSettings.days_off)
+          if (shopDaysOff.length > 0 && (shopDaysOff.includes(dayName) || shopDaysOff.includes(dayOfWeek))) {
+            return []
+          }
+
+          const shift = staffShifts.find(s => s.staff_id === staff.id && normalizeDateKey(s.date) === dateStrISO)
+          let workingStart, workingEnd, isOff
+
+          if (shift) {
+            isOff = shift.is_off
+            workingStart = shift.start_time
+            workingEnd = shift.end_time
+          } else {
+            const staffDaysOff = parseDaysOff(staff.daysOff)
+            isOff = staffDaysOff.includes(dayOfWeek)
+            workingStart = staff.schedule?.[dayOfWeek]?.start
+            workingEnd = staff.schedule?.[dayOfWeek]?.end
+          }
+
+          workingStart = normalizeTime(workingStart)
+          workingEnd = normalizeTime(workingEnd)
+          if (isOff) return []
+
+          if (workingStart) rangeStart = workingStart
+          if (workingEnd) rangeEnd = workingEnd
+          if (rangeStart && !rangeEnd) rangeEnd = bh.end
+          if (!rangeStart && rangeEnd) rangeStart = bh.start
+        }
+      }
+
+      if (!rangeStart || !rangeEnd) return []
+
       const slots = []
-      let current = new Date(`1970-01-01T${start}:00`)
-      const endTime = new Date(`1970-01-01T${end}:00`)
+      const startTime = new Date(`1970-01-01T${rangeStart}:00`)
+      const endTime = new Date(`1970-01-01T${rangeEnd}:00`)
+      const lastStart = new Date(endTime.getTime() - duration * 60000)
+
+      const bs = selectedStaff && selectedStaff !== 'random'
+        ? normalizeTime(staffList.find(s => s.id?.toString() === selectedStaff?.toString())?.break_start)
+        : ''
+      const be = selectedStaff && selectedStaff !== 'random'
+        ? normalizeTime(staffList.find(s => s.id?.toString() === selectedStaff?.toString())?.break_end)
+        : ''
+      const breakStart = bs ? new Date(`1970-01-01T${bs}:00`) : null
+      const breakEnd = be ? new Date(`1970-01-01T${be}:00`) : null
       
       // Safety break for infinite loops
       let count = 0
-      while (current < endTime && count < 50) {
-        slots.push(current.toTimeString().substring(0, 5))
+      let current = new Date(startTime.getTime())
+      while (current <= lastStart && count < 100) {
+        const slotEnd = new Date(current.getTime() + duration * 60000)
+        if (breakStart && breakEnd) {
+          if (!(current < breakEnd && slotEnd > breakStart)) {
+            slots.push(current.toTimeString().substring(0, 5))
+          }
+        } else {
+          slots.push(current.toTimeString().substring(0, 5))
+        }
         current.setMinutes(current.getMinutes() + 30)
         count++
       }
