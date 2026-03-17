@@ -2,12 +2,10 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import { toast } from 'react-hot-toast';
-import { getBrowserClient } from '../../lib/supabase/browser'
+import { supabase } from '../../lib/supabase'
 
 export default function Booking() {
-  const router = useRouter()
   const [services, setServices] = useState([])
   const [allServices, setAllServices] = useState([]) // All services for display
   const [categories, setCategories] = useState(['全部'])
@@ -29,23 +27,17 @@ export default function Booking() {
   const [shopSettings, setShopSettings] = useState({})
   const [waUrl, setWaUrl] = useState('')
   const [staffShifts, setStaffShifts] = useState([])
+  const [currentUser, setCurrentUser] = useState(null)
+  const [userTickets, setUserTickets] = useState([])
+  const [selectedUserTicket, setSelectedUserTicket] = useState(null)
+  const [isLoginMode, setIsLoginMode] = useState(true)
+  const [authForm, setAuthForm] = useState({ phone: '', password: '', name: '', email: '' })
   const [reviews, setReviews] = useState([])
-  const [authUser, setAuthUser] = useState(null)
-  const [availableSlots, setAvailableSlots] = useState([])
-  const [slotsLoading, setSlotsLoading] = useState(false)
 
   // Fetch services, coupons, staff, bookings and shifts from Supabase
   useEffect(() => {
     async function fetchData() {
       setLoading(true)
-      let supabase
-      try {
-        supabase = getBrowserClient()
-      } catch (e) {
-        toast.error(e?.message || 'Supabase 設定錯誤')
-        setLoading(false)
-        return
-      }
       const [servicesData, couponsData, staffData, bookingsData, settingsData, shiftsData, reviewsData] = await Promise.all([
         supabase.from('services').select('*').eq('enabled', true).order('sort_order'),
         supabase.from('coupons').select('*').eq('enabled', true),
@@ -58,10 +50,15 @@ export default function Booking() {
       
       if (reviewsData.data) setReviews(reviewsData.data)
       
-      const { data: auth } = await supabase.auth.getUser()
-      setAuthUser(auth?.user || null)
-      if (auth?.user) {
-        setFormData(prev => ({ ...prev, name: prev.name, phone: prev.phone }))
+      // Check for logged in user
+      const savedUser = localStorage.getItem('viva_user')
+      if (savedUser) {
+        try {
+          const user = JSON.parse(savedUser)
+          setCurrentUser(user)
+          setFormData(prev => ({ ...prev, name: user.name, phone: user.phone }))
+          fetchUserTickets(user.id)
+        } catch (e) {}
       }
       
       if (settingsData.data) {
@@ -111,16 +108,19 @@ export default function Booking() {
     fetchData()
   }, [])
 
+  const fetchUserTickets = async (userId) => {
+    const { data } = await supabase
+      .from('user_tickets')
+      .select('*, tickets(service_id)')
+      .eq('customer_id', userId)
+      .gt('remaining_count', 0)
+    
+    if (data) setUserTickets(data)
+  }
+
   // Refetch bookings when date changes
   useEffect(() => {
     async function refetchBookings() {
-      let supabase
-      try {
-        supabase = getBrowserClient()
-      } catch (e) {
-        return
-      }
-
       const { data } = await supabase.from('bookings').select('*')
       if (data) setBookings(data)
     }
@@ -133,13 +133,6 @@ export default function Booking() {
   useEffect(() => {
     async function fetchOccupiedSlots() {
       if (!selectedDate) {
-        setOccupiedSlots([])
-        return
-      }
-      let supabase
-      try {
-        supabase = getBrowserClient()
-      } catch (e) {
         setOccupiedSlots([])
         return
       }
@@ -199,45 +192,6 @@ export default function Booking() {
     return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
   }
 
-  const normalizeTime = (t) => {
-    if (!t) return ''
-    const s = String(t)
-    return s.length >= 5 ? s.substring(0, 5) : s
-  }
-
-  const normalizeDateKey = (d) => {
-    if (!d) return ''
-    return String(d).substring(0, 10)
-  }
-
-  const parseDaysOff = (value) => {
-    if (!value) return []
-    if (Array.isArray(value)) return value.map(v => String(v).trim()).filter(Boolean)
-    if (typeof value === 'string') {
-      const s = value.trim()
-      if (!s) return []
-      try {
-        if (s.startsWith('[')) {
-          const arr = JSON.parse(s)
-          return Array.isArray(arr) ? arr.map(v => String(v).trim()).filter(Boolean) : [String(arr).trim()].filter(Boolean)
-        }
-      } catch (e) {}
-      return s.split(',').map(v => v.trim()).filter(Boolean)
-    }
-    return [String(value).trim()].filter(Boolean)
-  }
-
-  const getBusinessHoursRange = () => {
-    try {
-      const hoursStr = shopSettings.business_hours || '11:00 - 20:00'
-      const parts = hoursStr.split('-').map(s => s.trim())
-      if (parts.length !== 2) return { start: '11:00', end: '20:00' }
-      return { start: normalizeTime(parts[0]), end: normalizeTime(parts[1]) }
-    } catch (e) {
-      return { start: '11:00', end: '20:00' }
-    }
-  }
-
   // Check if a specific time slot is occupied
   const isSlotOccupied = (staffId, date, time) => {
     const dateStr = `${date}/${currentMonth + 1}/${currentYear}`
@@ -254,8 +208,10 @@ export default function Booking() {
     if (!staff) return false
     
     // 1. Check specific shift override
-    const dateStrISO = formatDateKey(date, currentYear, currentMonth)
-    const shift = staffShifts.find(s => s.staff_id === staff.id && normalizeDateKey(s.date) === dateStrISO)
+    const dateStrISO = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(date).padStart(2, '0')}`
+    const shift = staffShifts.find(s => s.staff_id === staff.id && s.date === dateStrISO)
+    
+    let workingStart, workingEnd, isOff;
 
     if (shift) {
       isOff = shift.is_off
@@ -268,22 +224,14 @@ export default function Booking() {
       const dayName = ['日', '一', '二', '三', '四', '五', '六'][dayOfWeek]
       
       // Check shop global days off
-      const shopDaysOff = parseDaysOff(shopSettings.days_off)
-      if (shopDaysOff.length > 0 && (shopDaysOff.includes(dayName) || shopDaysOff.includes(dayOfWeek))) {
+      if (shopSettings.days_off && (shopSettings.days_off.includes(dayName) || shopSettings.days_off.includes(dayOfWeek))) {
         return false
       }
 
-      const staffDaysOff = parseDaysOff(staff.daysOff)
-      isOff = staffDaysOff.includes(dayOfWeek)
+      isOff = staff.daysOff?.includes(dayOfWeek)
       workingStart = staff.schedule?.[dayOfWeek]?.start
       workingEnd = staff.schedule?.[dayOfWeek]?.end
     }
-
-    workingStart = normalizeTime(workingStart)
-    workingEnd = normalizeTime(workingEnd)
-    const bh = getBusinessHoursRange()
-    if (workingStart && !workingEnd) workingEnd = bh.end
-    if (!workingStart && workingEnd) workingStart = bh.start
 
     if (isOff || !workingStart || !workingEnd) return false
     
@@ -298,10 +246,8 @@ export default function Booking() {
 
       // Check break time (break_start to break_end) - currently defaults apply even to shifts unless break is removed
       if (staff.break_start && staff.break_end) {
-        const bs = normalizeTime(staff.break_start)
-        const be = normalizeTime(staff.break_end)
-        const breakStart = new Date(`1970-01-01T${bs}:00`)
-        const breakEnd = new Date(`1970-01-01T${be}:00`)
+        const breakStart = new Date(`1970-01-01T${staff.break_start}:00`)
+        const breakEnd = new Date(`1970-01-01T${staff.break_end}:00`)
         if (startTime < breakEnd && endTime > breakStart) return false
       }
 
@@ -324,78 +270,19 @@ export default function Booking() {
   // Dynamically generate time slots based on business hours
   const getTimeSlots = () => {
     try {
-      const bh = getBusinessHoursRange()
-      let rangeStart = bh.start
-      let rangeEnd = bh.end
-      const duration = selectedService?.timeMins || 60
-
-      if (selectedStaff && selectedStaff !== 'random' && selectedDate) {
-        const staff = staffList.find(s => s.id?.toString() === selectedStaff?.toString())
-        if (staff) {
-          const dateStrISO = formatDateKey(selectedDate, currentYear, currentMonth)
-          const dateObj = new Date(currentYear, currentMonth, selectedDate)
-          const dayOfWeek = dateObj.getDay().toString()
-          const dayName = ['日', '一', '二', '三', '四', '五', '六'][dayOfWeek]
-
-          const shopDaysOff = parseDaysOff(shopSettings.days_off)
-          if (shopDaysOff.length > 0 && (shopDaysOff.includes(dayName) || shopDaysOff.includes(dayOfWeek))) {
-            return []
-          }
-
-          const shift = staffShifts.find(s => s.staff_id === staff.id && normalizeDateKey(s.date) === dateStrISO)
-          let workingStart, workingEnd, isOff
-
-          if (shift) {
-            isOff = shift.is_off
-            workingStart = shift.start_time
-            workingEnd = shift.end_time
-          } else {
-            const staffDaysOff = parseDaysOff(staff.daysOff)
-            isOff = staffDaysOff.includes(dayOfWeek)
-            workingStart = staff.schedule?.[dayOfWeek]?.start
-            workingEnd = staff.schedule?.[dayOfWeek]?.end
-          }
-
-          workingStart = normalizeTime(workingStart)
-          workingEnd = normalizeTime(workingEnd)
-
-          if (isOff) return []
-
-          if (workingStart) rangeStart = workingStart
-          if (workingEnd) rangeEnd = workingEnd
-
-          if (rangeStart && !rangeEnd) rangeEnd = bh.end
-          if (!rangeStart && rangeEnd) rangeStart = bh.start
-        }
-      }
-
-      if (!rangeStart || !rangeEnd) return []
-
-      const startTime = new Date(`1970-01-01T${rangeStart}:00`)
-      const endTime = new Date(`1970-01-01T${rangeEnd}:00`)
-      const lastStart = new Date(endTime.getTime() - duration * 60000)
-
-      const bs = selectedStaff && selectedStaff !== 'random'
-        ? normalizeTime(staffList.find(s => s.id?.toString() === selectedStaff?.toString())?.break_start)
-        : ''
-      const be = selectedStaff && selectedStaff !== 'random'
-        ? normalizeTime(staffList.find(s => s.id?.toString() === selectedStaff?.toString())?.break_end)
-        : ''
-      const breakStart = bs ? new Date(`1970-01-01T${bs}:00`) : null
-      const breakEnd = be ? new Date(`1970-01-01T${be}:00`) : null
-
+      const hoursStr = shopSettings.business_hours || '11:00 - 20:00'
+      const parts = hoursStr.split('-').map(s => s.trim())
+      if (parts.length !== 2) return ['11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00']
+      
+      const [start, end] = parts
       const slots = []
-      let current = new Date(startTime.getTime())
+      let current = new Date(`1970-01-01T${start}:00`)
+      const endTime = new Date(`1970-01-01T${end}:00`)
+      
+      // Safety break for infinite loops
       let count = 0
-      while (current <= lastStart && count < 100) {
-        const slotEnd = new Date(current.getTime() + duration * 60000)
-        if (breakStart && breakEnd) {
-          if (!(current < breakEnd && slotEnd > breakStart)) {
-            slots.push(current.toTimeString().substring(0, 5))
-          }
-        } else {
-          slots.push(current.toTimeString().substring(0, 5))
-        }
+      while (current < endTime && count < 50) {
+        slots.push(current.toTimeString().substring(0, 5))
         current.setMinutes(current.getMinutes() + 30)
         count++
       }
@@ -405,33 +292,7 @@ export default function Booking() {
     }
   }
 
-  useEffect(() => {
-    const loadSlots = async () => {
-      if (!selectedService || !selectedDate) {
-        setAvailableSlots([])
-        return
-      }
-      const dateISO = formatDateKey(selectedDate, currentYear, currentMonth)
-      const staffId = selectedStaff && selectedStaff !== 'random' ? selectedStaff : ''
-      setSlotsLoading(true)
-      try {
-        const res = await fetch(`/api/availability?date=${encodeURIComponent(dateISO)}&serviceId=${encodeURIComponent(selectedService.id)}${staffId ? `&staffId=${encodeURIComponent(staffId)}` : ''}`)
-        const json = await res.json().catch(() => ({}))
-        if (!res.ok) {
-          setAvailableSlots([])
-          return
-        }
-        setAvailableSlots(Array.isArray(json.slots) ? json.slots : [])
-      } catch (e) {
-        setAvailableSlots([])
-      } finally {
-        setSlotsLoading(false)
-      }
-    }
-    loadSlots()
-  }, [selectedService, selectedDate, selectedStaff, currentYear, currentMonth])
-
-  const timeSlots = availableSlots.length > 0 ? availableSlots : (slotsLoading ? [] : getTimeSlots())
+  const timeSlots = getTimeSlots()
 
   // Get booking count for each day of the month
   const getDayBookingCount = (day) => {
@@ -505,66 +366,202 @@ export default function Booking() {
     return days
   }
 
+  const handleLogin = async (e) => {
+    e.preventDefault()
+    if (!authForm.phone) return toast.error('請輸入電話號碼')
+    
+    // In a real app, you would verify password/OTP here. 
+    // For now, we simulate login by fetching customer record by phone
+    const { data, error } = await supabase
+      .from('customers')
+      .select('*')
+      .eq('phone', authForm.phone)
+      .single()
+      
+    if (error || !data) {
+      toast.error('找不到此用戶，請先註冊')
+      setIsLoginMode(false)
+    } else {
+      setCurrentUser(data)
+      setFormData(prev => ({ ...prev, name: data.name, phone: data.phone }))
+      localStorage.setItem('viva_user', JSON.stringify(data))
+      fetchUserTickets(data.id)
+      toast.success('登入成功')
+    }
+  }
+
+  const handleRegister = async (e) => {
+    e.preventDefault()
+    if (!authForm.phone || !authForm.name) return toast.error('請填寫所有欄位')
+    
+    const { data, error } = await supabase
+      .from('customers')
+      .upsert({ name: authForm.name, phone: authForm.phone, email: authForm.email })
+      .select()
+      .single()
+      
+    if (error) {
+      toast.error('註冊失敗: ' + error.message)
+    } else {
+      setCurrentUser(data)
+      setFormData(prev => ({ ...prev, name: data.name, phone: data.phone }))
+      localStorage.setItem('viva_user', JSON.stringify(data))
+      fetchUserTickets(data.id)
+      toast.success('註冊成功，已自動填寫資料')
+    }
+  }
+
+  const handleLogout = () => {
+    setCurrentUser(null)
+    setFormData(prev => ({ ...prev, name: '', phone: '' }))
+    localStorage.removeItem('viva_user')
+    toast.success('已登出')
+  }
+
   const handleSubmit = async () => {
     if (!selectedService || !selectedDate || !selectedTime || !formData.name || !formData.phone) {
       toast.error('請填寫所有必填項目')
       return
     }
 
-    const dateISO = formatDateKey(selectedDate, currentYear, currentMonth)
-    const returnParams = new URLSearchParams()
-    returnParams.set('serviceId', String(selectedService.id))
-    if (selectedStaff) returnParams.set('staffId', String(selectedStaff))
-    returnParams.set('date', dateISO)
-    returnParams.set('time', String(selectedTime))
-    const returnTo = `/booking?${returnParams.toString()}`
+    // Double booking check - query database before insert
+    const dateStr = `${selectedDate}/${currentMonth + 1}/${currentYear}`
+    
+    // Check if staff is still available (concurrency protection)
+    const { data: existingBookings } = await supabase
+      .from('bookings')
+      .select('id')
+      .eq('date', dateStr)
+      .eq('time', selectedTime)
+      .eq('staff_id', (selectedStaff === 'random' || !selectedStaff) ? null : selectedStaff)
+      .in('status', ['pending', 'confirmed'])
 
-    if (!authUser) {
-      toast.error('請先登入會員後再預約')
-      router.push(`/login?redirectTo=${encodeURIComponent(returnTo)}`)
+    if (selectedStaff !== 'random' && existingBookings && existingBookings.length > 0) {
+      toast.error('此時段已被預約，請選擇其他時間或髮型師')
       return
     }
 
-    try {
-      const res = await fetch('/api/bookings/create', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          date: dateISO,
-          serviceId: selectedService.id,
-          staffId: selectedStaff === 'random' || !selectedStaff ? null : Number(selectedStaff),
-          startTime: selectedTime,
-          customerName: formData.name,
-          customerPhone: formData.phone,
-        }),
-      })
+    // Coupon Validation
+    if (formData.coupon) {
+      const { data: couponData } = await supabase
+        .from('coupons')
+        .select('*')
+        .eq('code', formData.coupon)
+        .eq('enabled', true)
+        .single();
 
-      const json = await res.json().catch(() => ({}))
-      if (res.status === 401) {
-        toast.error('請先登入會員後再預約')
-        router.push(`/login?redirectTo=${encodeURIComponent(returnTo)}`)
-        return
-      }
-      if (!res.ok) {
-        toast.error(json?.error || '預約失敗')
-        return
+      if (!couponData) {
+        toast.error('無效的優惠碼');
+        return;
       }
 
-      const booking = json?.booking
-      if (booking) setBookings([...bookings, booking])
+      const now = new Date();
+      if (couponData.start_date && new Date(couponData.start_date) > now) {
+        toast.error('優惠碼尚未生效');
+        return;
+      }
+      if (couponData.end_date && new Date(couponData.end_date) < now) {
+        toast.error('優惠碼已過期');
+        return;
+      }
 
-      const ref = booking?.ref || ''
-      const shopPhone = shopSettings.phone || '85212345678'
-      const waMsg = `您好，我想確認預約：\n編號：${ref}\n服務：${selectedService.name}\n日期：${selectedDate}/${currentMonth + 1}/${currentYear}\n時間：${selectedTime}\n姓名：${formData.name}`
-      const wa = `https://wa.me/${shopPhone.replace(/\D/g, '')}?text=${encodeURIComponent(waMsg)}`
-      setWaUrl(wa)
-
-      toast.success('預約已提交，已為你封鎖時段')
-      setBookingRef(ref)
-      setShowModal(true)
-    } catch (e) {
-      toast.error('預約失敗: ' + (e?.message || '未知錯誤'))
+      if (couponData.usage_limit > 0) {
+        const { count } = await supabase
+          .from('bookings')
+          .select('id', { count: 'exact', head: true })
+          .eq('coupon', formData.coupon);
+        
+        if (count >= couponData.usage_limit) {
+          toast.error('此優惠碼已達到使用上限');
+          return;
+        }
+      }
     }
+
+    // Upsert customer
+    const { data: customerData, error: customerError } = await supabase
+      .from('customers')
+      .upsert({ name: formData.name, phone: formData.phone }, { onConflict: 'phone' })
+      .select();
+
+    if (customerError) {
+      toast.error('客戶資料儲存失敗: ' + JSON.stringify(customerError));
+      return;
+    }
+
+    const customer_id = customerData[0].id;
+
+    // Handle Ticket Deduction
+    if (selectedUserTicket) {
+      const { error: ticketError } = await supabase
+        .from('user_tickets')
+        .update({ remaining_count: selectedUserTicket.remaining_count - 1 })
+        .eq('id', selectedUserTicket.id)
+      
+      if (ticketError) {
+        toast.error('套票扣除失敗')
+        return
+      }
+    }
+
+    const ref = 'VIVA' + Date.now().toString().slice(-6)
+    
+    // If no staff selected or random, find a free one to assign
+    let assignedStaffId = selectedStaff === 'random' ? null : selectedStaff;
+    let assignedStaffName = staffList.find(s => s.id.toString() === assignedStaffId)?.name || null;
+
+    if (!assignedStaffId || selectedStaff === 'random') {
+      const freeStaff = staffList.find(s => {
+        const canProvide = !s.services || s.services.length === 0 || s.services.includes(selectedService.id);
+        return canProvide && isStaffWorking(s, selectedDate, selectedTime, selectedService.timeMins);
+      });
+      if (freeStaff) {
+        assignedStaffId = freeStaff.id.toString();
+        assignedStaffName = freeStaff.name;
+      }
+    }
+
+    const booking = {
+      ref,
+      service: selectedService.name,
+      service_price: selectedService.price,
+      staff_id: assignedStaffId || null,
+      staff_name: assignedStaffName,
+      customer_id,
+      date: `${selectedDate}/${currentMonth + 1}/${currentYear}`,
+      time: selectedTime,
+      name: formData.name,
+      phone: formData.phone,
+      coupon: formData.coupon || null,
+      final_price: selectedUserTicket ? 0 : finalPrice, // 0 if ticket used
+      status: 'pending',
+      created_at: new Date().toISOString()
+    }
+
+    const { data, error } = await supabase
+      .from('bookings')
+      .insert([booking])
+      .select()
+
+    if (error) {
+      toast.error('錯誤: ' + JSON.stringify(error))
+      return
+    }
+
+    // Update bookings state for blocking
+    if (data && data[0]) {
+      setBookings([...bookings, data[0]])
+    }
+
+    // WhatsApp Notification Link
+    const shopPhone = shopSettings.phone || '85212345678'
+    const waMsg = `您好，我想確認預約：\n編號：${ref}\n服務：${selectedService.name}\n日期：${selectedDate}/${currentMonth + 1}/${currentYear}\n時間：${selectedTime}\n姓名：${formData.name}`
+    const waUrl = `https://wa.me/${shopPhone.replace(/\D/g, '')}?text=${encodeURIComponent(waMsg)}`
+    setWaUrl(waUrl)
+
+    toast.success('預約成功！')
+    setBookingRef(ref)
+    setShowModal(true)
   }
 
   const finalPrice = selectedService ? 
@@ -847,9 +844,6 @@ export default function Booking() {
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))', gap: '12px' }}>
                     {timeSlots.map(time => {
                       let isOccupied = false;
-                      if (availableSlots.length > 0) {
-                        isOccupied = false
-                      } else
                       if (selectedStaff === 'random') {
                         isOccupied = !staffList.some(s => {
                           const canProvide = !s.services || s.services.length === 0 || s.services.includes(selectedService.id);
@@ -883,11 +877,7 @@ export default function Booking() {
                       )
                     })}
                   </div>
-                  {slotsLoading ? (
-                    <p style={{ textAlign: 'center', color: 'var(--text-light)', padding: '20px' }}>載入可預約時段中...</p>
-                  ) : (
-                    timeSlots.length === 0 && <p style={{ textAlign: 'center', color: 'var(--text-light)', padding: '20px' }}>該日期暫無可用時段</p>
-                  )}
+                  {timeSlots.length === 0 && <p style={{ textAlign: 'center', color: 'var(--text-light)', padding: '20px' }}>該日期暫無可用時段</p>}
                 </div>
               )}
             </div>
@@ -898,22 +888,78 @@ export default function Booking() {
             <h3 style={{ marginBottom: '16px', fontSize: '16px', fontWeight: 600 }}>4. 填寫資料</h3>
             
             {/* Member Login Section */}
-            {!authUser ? (
+            {!currentUser ? (
               <div style={{ background: '#f9fafb', padding: '20px', borderRadius: '12px', marginBottom: '24px', border: '1px dashed #d1d5db' }}>
-                <div style={{ fontWeight: 800, marginBottom: '8px', color: 'var(--primary)' }}>請先登入會員後再預約</div>
-                <div style={{ fontSize: '13px', color: '#666', marginBottom: '12px' }}>未登入狀態下可以瀏覽時段，但不可提交預約。</div>
-                <Link
-                  href={`/login?redirectTo=${encodeURIComponent('/booking')}`}
-                  className="btn-interactive"
-                  style={{ display: 'inline-block', padding: '10px 16px', background: 'var(--primary)', color: '#fff', borderRadius: '10px', fontWeight: 700 }}
-                >
-                  前往登入 / 註冊
-                </Link>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                  <h4 style={{ margin: 0, fontSize: '15px', color: 'var(--primary)' }}>
+                    {isLoginMode ? '👋 會員登入 (自動填寫資料)' : '📝 新用戶註冊'}
+                  </h4>
+                  <button 
+                    onClick={() => setIsLoginMode(!isLoginMode)}
+                    style={{ background: 'none', border: 'none', color: '#666', fontSize: '12px', cursor: 'pointer', textDecoration: 'underline' }}
+                  >
+                    {isLoginMode ? '切換至註冊' : '已有帳號？登入'}
+                  </button>
+                </div>
+                
+                {isLoginMode ? (
+                  <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                    <input 
+                      type="tel" 
+                      placeholder="手機號碼" 
+                      value={authForm.phone} 
+                      onChange={e => setAuthForm({...authForm, phone: e.target.value})}
+                      style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid #d1d5db', minWidth: '150px' }}
+                    />
+                    <button 
+                      onClick={handleLogin}
+                      className="btn-interactive"
+                      style={{ padding: '10px 20px', background: 'var(--primary)', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 600 }}
+                    >
+                      登入
+                    </button>
+                  </div>
+                ) : (
+                  <div style={{ display: 'grid', gap: '10px' }}>
+                    <input 
+                      type="text" 
+                      placeholder="姓名" 
+                      value={authForm.name} 
+                      onChange={e => setAuthForm({...authForm, name: e.target.value})}
+                      style={{ padding: '10px', borderRadius: '8px', border: '1px solid #d1d5db' }}
+                    />
+                    <input 
+                      type="tel" 
+                      placeholder="手機號碼" 
+                      value={authForm.phone} 
+                      onChange={e => setAuthForm({...authForm, phone: e.target.value})}
+                      style={{ padding: '10px', borderRadius: '8px', border: '1px solid #d1d5db' }}
+                    />
+                    <button 
+                      onClick={handleRegister}
+                      className="btn-interactive"
+                      style={{ padding: '10px', background: 'var(--primary)', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 600 }}
+                    >
+                      註冊並繼續
+                    </button>
+                  </div>
+                )}
               </div>
             ) : (
-              <div style={{ background: '#f0fdf4', padding: '16px', borderRadius: '12px', marginBottom: '24px', border: '1px solid #bbf7d0' }}>
-                <div style={{ fontWeight: 800, color: '#166534', marginBottom: '4px' }}>已登入：{authUser.email}</div>
-                <div style={{ fontSize: '12px', color: '#15803d' }}>你的預約會自動綁定會員帳戶</div>
+              <div style={{ background: '#f0fdf4', padding: '16px', borderRadius: '12px', marginBottom: '24px', border: '1px solid #bbf7d0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <div style={{ fontWeight: 700, color: '#166534', marginBottom: '4px' }}>歡迎回來，{currentUser.name} 🎉</div>
+                  <div style={{ fontSize: '12px', color: '#15803d' }}>
+                    會員等級: <span style={{ fontWeight: 700 }}>{currentUser.membership_level || '普通會員'}</span> | 
+                    積分: <span style={{ fontWeight: 700 }}>{currentUser.points || 0}</span>
+                  </div>
+                </div>
+                <button 
+                  onClick={handleLogout}
+                  style={{ background: 'none', border: 'none', color: '#dc2626', fontSize: '12px', cursor: 'pointer', textDecoration: 'underline' }}
+                >
+                  登出
+                </button>
               </div>
             )}
 
@@ -931,6 +977,7 @@ export default function Booking() {
                 value={formData.coupon} 
                 onChange={e => setFormData({...formData, coupon: e.target.value})} 
                 style={{ width: '100%', padding: '14px', border: '1px solid #e5e7eb', borderRadius: '10px', fontSize: '16px', outline: 'none', cursor: 'pointer' }}
+                disabled={!!selectedUserTicket}
               >
                 <option value="">請選擇優惠碼 (如有)</option>
                 {coupons.map(c => (
@@ -939,25 +986,64 @@ export default function Booking() {
               </select>
             </div>
 
+            {/* Ticket Selection */}
+            {userTickets.some(t => t.tickets?.service_id === selectedService?.id) && (
+              <div style={{ marginBottom: '20px', padding: '16px', background: '#f0fdf4', borderRadius: '12px', border: '1px solid #bbf7d0' }}>
+                <label style={{ display: 'block', marginBottom: '12px', fontWeight: 700, fontSize: '14px', color: '#166534' }}>
+                  🎫 您有可用的套票
+                </label>
+                {userTickets.filter(t => t.tickets?.service_id === selectedService?.id).map(t => (
+                  <div 
+                    key={t.id}
+                    onClick={() => {
+                      if (selectedUserTicket?.id === t.id) {
+                        setSelectedUserTicket(null)
+                      } else {
+                        setSelectedUserTicket(t)
+                        setFormData({...formData, coupon: ''}) // Clear coupon if ticket used
+                      }
+                    }}
+                    style={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      gap: '12px', 
+                      cursor: 'pointer',
+                      padding: '10px',
+                      background: '#fff',
+                      borderRadius: '8px',
+                      border: selectedUserTicket?.id === t.id ? '2px solid #166534' : '1px solid #ddd'
+                    }}
+                  >
+                    <div style={{ width: '20px', height: '20px', borderRadius: '50%', border: '2px solid #166534', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      {selectedUserTicket?.id === t.id && <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#166534' }} />}
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 700, fontSize: '14px' }}>{t.ticket_name}</div>
+                      <div style={{ fontSize: '12px', color: '#666' }}>剩餘 {t.remaining_count} 次</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
             <button 
               onClick={handleSubmit} 
               className="btn-interactive"
-              disabled={!authUser}
               style={{ 
                 width: '100%', 
                 padding: '16px', 
-                background: 'linear-gradient(135deg, #A68B6A, #8B7355)', 
+                background: selectedUserTicket ? 'linear-gradient(135deg, #166534, #15803d)' : 'linear-gradient(135deg, #A68B6A, #8B7355)', 
                 color: '#fff', 
                 border: 'none', 
                 borderRadius: '10px', 
                 fontWeight: 700, 
                 fontSize: '16px', 
-                cursor: !authUser ? 'not-allowed' : 'pointer', 
+                cursor: 'pointer', 
                 minHeight: '56px',
                 boxShadow: '0 4px 15px rgba(166, 139, 106, 0.3)'
               }}
             >
-              {`提交預約 ${finalPrice > 0 ? "$" + Math.round(finalPrice) : ""}`}
+              {selectedUserTicket ? `使用套票預約 (扣除 1 次)` : `提交預約 ${finalPrice > 0 ? "$" + Math.round(finalPrice) : ""}`}
             </button>
           </div>
         </div>
