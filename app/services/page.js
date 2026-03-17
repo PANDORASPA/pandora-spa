@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { supabase } from '../../lib/supabase'
 import { toast } from 'react-hot-toast'
+import { getBrowserClient } from '../../lib/supabase/browser'
 
 export default function Services() {
   const [services, setServices] = useState([])
@@ -14,6 +14,12 @@ export default function Services() {
 
   useEffect(() => {
     async function fetchData() {
+      let supabase
+      try {
+        supabase = getBrowserClient()
+      } catch (e) {
+        return
+      }
       const [servicesData, packagesData, ticketsData] = await Promise.all([
         supabase.from('services').select('*').eq('enabled', true).order('sort_order'),
         supabase.from('service_packages').select('*').eq('enabled', true),
@@ -38,6 +44,14 @@ export default function Services() {
     }
 
     // Simulate Purchase: Add directly to user_tickets
+    let supabase
+    try {
+      supabase = getBrowserClient()
+    } catch (e) {
+      toast.error('系統設定錯誤')
+      return
+    }
+
     const { error } = await supabase.from('user_tickets').insert({
       customer_id: currentUser.id,
       ticket_id: ticket.id,
