@@ -108,6 +108,14 @@ export default function Booking() {
     fetchData()
   }, [])
 
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search)
+      const staffId = params.get('staffId')
+      if (staffId) setSelectedStaff(staffId)
+    } catch (e) {}
+  }, [])
+
   const fetchUserTickets = async (userId) => {
     const { data } = await supabase
       .from('user_tickets')
