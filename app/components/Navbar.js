@@ -6,68 +6,45 @@ import { usePathname } from 'next/navigation'
 import { getBrowserClient } from '../../lib/supabase/browser'
 
 export default function Navbar() {
+  const pathname = usePathname()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [authUser, setAuthUser] = useState(null)
-  const [displayName, setDisplayName] = useState('')
-  const pathname = usePathname()
 
   useEffect(() => {
     let supabase
     try {
       supabase = getBrowserClient()
-    } catch (e) {
+    } catch (error) {
       return
     }
 
-    const load = async () => {
-      const { data } = await supabase.auth.getUser()
-      const user = data?.user || null
-      setAuthUser(user)
-
-      if (user) {
-        const { data: profile } = await supabase
-          .from('member_profiles')
-          .select('full_name')
-          .eq('id', user.id)
-          .single()
-
-        setDisplayName(profile?.full_name || user.email || '')
-      } else {
-        setDisplayName('')
-      }
+    const syncUser = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      setAuthUser(user || null)
     }
 
-    load()
+    syncUser()
 
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
-      const user = session?.user || null
-      setAuthUser(user)
-      setDisplayName(user?.email || '')
-
-      if (user) {
-        supabase
-          .from('member_profiles')
-          .select('full_name')
-          .eq('id', user.id)
-          .single()
-          .then(({ data: profile }) => {
-            setDisplayName(profile?.full_name || user.email || '')
-          })
-      }
+    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+      setAuthUser(session?.user || null)
     })
 
     return () => {
-      sub?.subscription?.unsubscribe()
+      data?.subscription?.unsubscribe()
     }
   }, [])
 
   const navLinks = [
     { href: '/', label: '首頁' },
-    { href: '/services', label: '服務項目' },
+    { href: '/services', label: '服務價目' },
     { href: '/booking', label: '預約服務' },
-    { href: '/articles', label: '髮型專欄' },
     { href: '/faq', label: '常見問題' },
   ]
+
+  const memberHref = authUser ? '/account' : `/login?redirectTo=${encodeURIComponent('/account')}`
+  const memberLabel = authUser ? '我的預約' : '會員登入'
 
   const closeMenu = () => setMobileMenuOpen(false)
 
@@ -85,20 +62,14 @@ export default function Navbar() {
                 {link.label}
               </Link>
             ))}
-            {authUser ? (
-              <Link href="/account" className="nav-login" style={{ background: '#f3f4f6', color: '#333', border: '1px solid #e5e5e5' }}>
-                會員 {displayName || '會員中心'}
-              </Link>
-            ) : (
-              <Link href={`/login?redirectTo=${encodeURIComponent(pathname || '/')}`} className="nav-login">
-                登入
-              </Link>
-            )}
+            <Link href={memberHref} className="nav-login">
+              {memberLabel}
+            </Link>
           </div>
 
           <button
             className={`mobile-menu-btn ${mobileMenuOpen ? 'active' : ''}`}
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            onClick={() => setMobileMenuOpen((open) => !open)}
             aria-label="Menu"
           >
             <span></span>
@@ -113,7 +84,9 @@ export default function Navbar() {
       <div className={`mobile-menu ${mobileMenuOpen ? 'active' : ''}`}>
         <div className="mobile-menu-header">
           <span style={{ fontWeight: 700, color: '#A68B6A', fontSize: '18px' }}>VIVA HAIR</span>
-          <button className="mobile-menu-close" onClick={closeMenu}>×</button>
+          <button className="mobile-menu-close" onClick={closeMenu} aria-label="Close menu">
+            ×
+          </button>
         </div>
 
         <div className="mobile-menu-links">
@@ -125,21 +98,13 @@ export default function Navbar() {
 
           <div style={{ height: '1px', background: '#eee', margin: '12px 0' }} />
 
-          {authUser ? (
-            <Link href="/account" onClick={closeMenu}>
-              會員中心 ({displayName || '會員'})
-            </Link>
-          ) : (
-            <Link href={`/login?redirectTo=${encodeURIComponent(pathname || '/')}`} onClick={closeMenu}>
-              會員登入
-            </Link>
-          )}
+          <Link href={memberHref} onClick={closeMenu}>
+            {memberLabel}
+          </Link>
         </div>
 
         <div style={{ padding: '16px', borderTop: '1px solid #eee', marginTop: 'auto' }}>
-          <p style={{ fontSize: '12px', color: '#999', textAlign: 'center' }}>
-            VIVA HAIR
-          </p>
+          <p style={{ fontSize: '12px', color: '#999', textAlign: 'center' }}>VIVA HAIR</p>
           <p style={{ fontSize: '12px', color: '#999', textAlign: 'center', marginTop: '4px' }}>
             © 2026 VIVA HAIR
           </p>
