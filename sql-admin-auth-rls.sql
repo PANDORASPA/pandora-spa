@@ -10,6 +10,9 @@ ADD COLUMN IF NOT EXISTS member_user_id UUID REFERENCES auth.users(id);
 ALTER TABLE public.user_tickets
 ADD COLUMN IF NOT EXISTS member_user_id UUID REFERENCES auth.users(id);
 
+ALTER TABLE public.customers
+ADD COLUMN IF NOT EXISTS points INTEGER DEFAULT 0;
+
 -- Allow members to read their own admin flag.
 DROP POLICY IF EXISTS "Members can view own profile" ON public.member_profiles;
 CREATE POLICY "Members can view own profile"
