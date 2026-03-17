@@ -30,7 +30,7 @@ export async function middleware(request) {
   } = await supabase.auth.getUser()
 
   const pathname = request.nextUrl.pathname
-  if (pathname.startsWith('/account') && !user) {
+  if ((pathname.startsWith('/account') || pathname.startsWith('/admin')) && !user) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     url.searchParams.set('redirectTo', pathname + request.nextUrl.search)
@@ -43,4 +43,3 @@ export async function middleware(request) {
 export const config = {
   matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
 }
-
