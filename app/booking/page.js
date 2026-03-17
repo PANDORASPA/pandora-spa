@@ -277,15 +277,78 @@ export default function Booking() {
     return Number.isFinite(n) && n > 0 ? n : 30
   }
 
+  const parseTimeToMinutes = (t) => {
+    const s = normalizeTime(t)
+    if (!s) return null
+    const parts = s.split(':').map(Number)
+    if (parts.length < 2) return null
+    const hh = parts[0]
+    const mm = parts[1]
+    if (!Number.isFinite(hh) || !Number.isFinite(mm)) return null
+    return hh * 60 + mm
+  }
+
+  const minutesToTime = (mins) => {
+    if (!Number.isFinite(mins)) return ''
+    const m = Math.max(0, Math.floor(mins))
+    const hh = Math.floor(m / 60)
+    const mm = m % 60
+    return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`
+  }
+
+  const getServiceDurationMinByBooking = (b) => {
+    const n = Number(b?.duration_min)
+    if (Number.isFinite(n) && n > 0) return n
+    const serviceId = b?.service_id
+    if (serviceId != null) {
+      const svc = allServices.find(s => String(s.id) === String(serviceId))
+      if (svc?.timeMins) return svc.timeMins
+    }
+    const svc2 = allServices.find(s => String(s.name || '') === String(b?.service || ''))
+    if (svc2?.timeMins) return svc2.timeMins
+    return 60
+  }
+
+  const getServiceBufferMinByBooking = (b) => {
+    const n = Number(b?.buffer_min)
+    if (Number.isFinite(n) && n >= 0) return n
+    const serviceId = b?.service_id
+    if (serviceId != null) {
+      const svc = allServices.find(s => String(s.id) === String(serviceId))
+      const buf = Number(svc?.buffer_min)
+      if (Number.isFinite(buf) && buf >= 0) return buf
+    }
+    const svc2 = allServices.find(s => String(s.name || '') === String(b?.service || ''))
+    const buf2 = Number(svc2?.buffer_min)
+    if (Number.isFinite(buf2) && buf2 >= 0) return buf2
+    return 0
+  }
+
   // Check if a specific time slot is occupied
   const isSlotOccupied = (staffId, date, time) => {
     const dateStr = `${date}/${currentMonth + 1}/${currentYear}`
-    return bookings.some(b => 
-      b.staff_id === staffId && 
-      b.date === dateStr && 
-      b.time === time &&
-      (b.status === 'pending' || b.status === 'confirmed')
-    )
+    const dateISO = formatDateKey(date, currentYear, currentMonth)
+    const tMin = parseTimeToMinutes(time)
+    if (tMin == null) return false
+
+    return bookings.some(b => {
+      if (String(b.staff_id) !== String(staffId)) return false
+      const onDate = String(b.date || '') === String(dateStr) || normalizeDateKey(b.appointment_date) === dateISO
+      if (!onDate) return false
+      if (!(b.status === 'pending' || b.status === 'confirmed')) return false
+
+      const startRaw = b.start_time || b.time
+      const startMin = parseTimeToMinutes(startRaw)
+      if (startMin == null) return false
+
+      const endRaw = b.buffer_end_time || b.end_time
+      const endMinDirect = parseTimeToMinutes(endRaw)
+      const durationMin = getServiceDurationMinByBooking(b)
+      const bufferMin = getServiceBufferMinByBooking(b)
+      const endMin = endMinDirect != null ? endMinDirect : (startMin + durationMin + bufferMin)
+
+      return tMin >= startMin && tMin < endMin
+    })
   }
 
   // Check if staff is working on selected date, considering service duration and breaks
@@ -361,7 +424,9 @@ export default function Booking() {
     return true
   }
 
-  const availableStaff = staffList.filter(s => isStaffWorking(s, selectedDate, selectedTime, selectedService?.timeMins))
+  const serviceBufferMin = Number(selectedService?.buffer_min)
+  const effectiveServiceMin = (selectedService?.timeMins || 60) + (Number.isFinite(serviceBufferMin) && serviceBufferMin > 0 ? serviceBufferMin : 0)
+  const availableStaff = staffList.filter(s => isStaffWorking(s, selectedDate, selectedTime, effectiveServiceMin))
 
   // Dynamically generate time slots based on business hours
   const getTimeSlots = () => {
@@ -369,7 +434,8 @@ export default function Booking() {
       const bh = getBusinessHoursRange()
       let rangeStart = bh.start
       let rangeEnd = bh.end
-      const duration = selectedService?.timeMins || 60
+      const bufferMin = Number(selectedService?.buffer_min)
+      const duration = (selectedService?.timeMins || 60) + (Number.isFinite(bufferMin) && bufferMin > 0 ? bufferMin : 0)
 
       if (selectedStaff && selectedStaff !== 'random' && selectedDate) {
         const staff = staffList.find(s => s.id?.toString() === selectedStaff?.toString())
@@ -588,23 +654,6 @@ export default function Booking() {
       return
     }
 
-    // Double booking check - query database before insert
-    const dateStr = `${selectedDate}/${currentMonth + 1}/${currentYear}`
-    
-    // Check if staff is still available (concurrency protection)
-    const { data: existingBookings } = await supabase
-      .from('bookings')
-      .select('id')
-      .eq('date', dateStr)
-      .eq('time', selectedTime)
-      .eq('staff_id', (selectedStaff === 'random' || !selectedStaff) ? null : selectedStaff)
-      .in('status', ['pending', 'confirmed'])
-
-    if (selectedStaff !== 'random' && existingBookings && existingBookings.length > 0) {
-      toast.error('此時段已被預約，請選擇其他時間或髮型師')
-      return
-    }
-
     // Coupon Validation
     if (formData.coupon) {
       const { data: couponData } = await supabase
@@ -656,6 +705,17 @@ export default function Booking() {
     }
 
     const ref = 'VIVA' + Date.now().toString().slice(-6)
+    const dateStr = `${selectedDate}/${currentMonth + 1}/${currentYear}`
+    const dateISO = formatDateKey(selectedDate, currentYear, currentMonth)
+    const baseDurationMin = selectedService?.timeMins || 60
+    const baseBufferMin = Number(selectedService?.buffer_min)
+    const bufferMin = Number.isFinite(baseBufferMin) && baseBufferMin > 0 ? baseBufferMin : 0
+    const startMin = parseTimeToMinutes(selectedTime)
+    if (startMin == null) {
+      toast.error('時間格式錯誤')
+      return
+    }
+    const endMin = startMin + baseDurationMin + bufferMin
     
     // If no staff selected or random, find a free one to assign
     let assignedStaffId = selectedStaff === 'random' ? null : selectedStaff;
@@ -664,12 +724,46 @@ export default function Booking() {
     if (!assignedStaffId || selectedStaff === 'random') {
       const freeStaff = staffList.find(s => {
         const canProvide = !s.services || s.services.length === 0 || s.services.includes(selectedService.id);
-        return canProvide && isStaffWorking(s, selectedDate, selectedTime, selectedService.timeMins);
+        return canProvide && isStaffWorking(s, selectedDate, selectedTime, effectiveServiceMin);
       });
       if (freeStaff) {
         assignedStaffId = freeStaff.id.toString();
         assignedStaffName = freeStaff.name;
       }
+    }
+
+    if (!assignedStaffId) {
+      toast.error('此時段暫無髮型師可預約')
+      return
+    }
+
+    const { data: staffBookings, error: staffBookingsError } = await supabase
+      .from('bookings')
+      .select('*')
+      .eq('staff_id', Number(assignedStaffId))
+      .eq('date', dateStr)
+      .in('status', ['pending', 'confirmed'])
+
+    if (staffBookingsError) {
+      toast.error('讀取預約資料失敗: ' + staffBookingsError.message)
+      return
+    }
+
+    const overlapped = (staffBookings || []).some(b => {
+      const startRaw = b.start_time || b.time
+      const bStartMin = parseTimeToMinutes(startRaw)
+      if (bStartMin == null) return false
+      const bEndRaw = b.buffer_end_time || b.end_time
+      const bEndMinDirect = parseTimeToMinutes(bEndRaw)
+      const bDurationMin = getServiceDurationMinByBooking(b)
+      const bBufferMin = getServiceBufferMinByBooking(b)
+      const bEndMin = bEndMinDirect != null ? bEndMinDirect : (bStartMin + bDurationMin + bBufferMin)
+      return startMin < bEndMin && endMin > bStartMin
+    })
+
+    if (overlapped) {
+      toast.error('此時間段已被預約，請選擇其他時間')
+      return
     }
 
     const booking = {
@@ -682,7 +776,7 @@ export default function Booking() {
       customer_email: authUser.email,
       customer_name: formData.name,
       customer_phone: formData.phone,
-      date: `${selectedDate}/${currentMonth + 1}/${currentYear}`,
+      date: dateStr,
       time: selectedTime,
       name: formData.name,
       phone: formData.phone,
@@ -692,10 +786,25 @@ export default function Booking() {
       created_at: new Date().toISOString()
     }
 
-    const { data, error } = await supabase
-      .from('bookings')
-      .insert([booking])
-      .select()
+    const endTimeStr = minutesToTime(startMin + baseDurationMin)
+    const bufferEndTimeStr = minutesToTime(endMin)
+    const bookingExtended = {
+      ...booking,
+      appointment_date: dateISO,
+      start_time: selectedTime,
+      end_time: endTimeStr,
+      buffer_end_time: bufferEndTimeStr,
+      duration_min: baseDurationMin,
+      buffer_min: bufferMin,
+      service_id: selectedService.id,
+    }
+
+    let insertRes = await supabase.from('bookings').insert([bookingExtended]).select()
+    if (insertRes.error && (insertRes.error.code === 'PGRST204' || String(insertRes.error.message || '').includes('schema cache'))) {
+      insertRes = await supabase.from('bookings').insert([booking]).select()
+    }
+    const data = insertRes.data
+    const error = insertRes.error
 
     if (error) {
       toast.error('錯誤: ' + JSON.stringify(error))
@@ -1022,11 +1131,11 @@ export default function Booking() {
                       if (selectedStaff === 'random') {
                         isOccupied = !staffList.some(s => {
                           const canProvide = !s.services || s.services.length === 0 || s.services.includes(selectedService.id);
-                          return canProvide && isStaffWorking(s, selectedDate, time, selectedService.timeMins);
+                          return canProvide && isStaffWorking(s, selectedDate, time, effectiveServiceMin);
                         });
                       } else {
                         const staff = staffList.find(s => s.id.toString() === selectedStaff);
-                        isOccupied = !isStaffWorking(staff, selectedDate, time, selectedService.timeMins);
+                        isOccupied = !isStaffWorking(staff, selectedDate, time, effectiveServiceMin);
                       }
 
                       return (
