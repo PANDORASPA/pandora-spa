@@ -135,16 +135,15 @@ export default function StaffTab({
           <button onClick={onAddStaff} className="btn btn-small btn-interactive">+ 新增員工</button>
           <button 
             onClick={async () => {
-              if (!selectedStaffId) return
-              await onSave(selectedStaffId);
-              if (onSaveShifts) await onSaveShifts(localShifts.filter(s => s.staff_id === selectedStaffId));
+              await onSave();
+              if (onSaveShifts) await onSaveShifts(localShifts);
             }} 
-            disabled={saving || !selectedStaffId} 
+            disabled={saving} 
             className="btn btn-small btn-interactive" 
             style={{ background: '#34D399' }}
           >
             {saving && <span className="spinner"></span>}
-            {saving ? '儲存中...' : '💾 儲存此員工'}
+            {saving ? '儲存中...' : '💾 儲存所有'}
           </button>
         </div>
       </div>
@@ -372,7 +371,7 @@ export default function StaffTab({
                             {daySchedule.start}<br/>-<br/>{daySchedule.end}
                           </div>
                         ) : (
-                          <div onClick={() => { onUpdateSchedule(selectedStaff.id, dayKey, 'start', '11:00'); onUpdateSchedule(selectedStaff.id, dayKey, 'end', '20:00') }} className="btn-interactive" style={{ padding: '16px 5px', background: 'var(--gray)', color: 'var(--text-light)', borderRadius: '12px', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}>未排班</div>
+                          <div onClick={() => onUpdateSchedule(selectedStaff.id, dayKey, 'start', '11:00')} className="btn-interactive" style={{ padding: '16px 5px', background: 'var(--gray)', color: 'var(--text-light)', borderRadius: '12px', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}>未排班</div>
                         )}
                       </div>
                     )
