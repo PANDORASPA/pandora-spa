@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { supabase } from '../../lib/supabase'
+import { getBrowserClient } from '../../lib/supabase/browser'
 
 export default function BookingCollection() {
   const [staff, setStaff] = useState([])
@@ -11,6 +11,13 @@ export default function BookingCollection() {
   useEffect(() => {
     const load = async () => {
       setLoading(true)
+      let supabase
+      try {
+        supabase = getBrowserClient()
+      } catch (e) {
+        setLoading(false)
+        return
+      }
       const { data } = await supabase.from('staff').select('*').eq('enabled', true).order('name')
       setStaff(data || [])
       setLoading(false)
@@ -93,4 +100,3 @@ export default function BookingCollection() {
     </>
   )
 }
-
