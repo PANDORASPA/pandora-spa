@@ -2,56 +2,127 @@
 -- Run this script in Supabase SQL Editor to fix "Permission Denied" errors when saving settings
 
 -- 1. Services
-DROP POLICY IF EXISTS "Admin full access" ON services;
-CREATE POLICY "Allow anon insert" ON services FOR INSERT TO anon, authenticated WITH CHECK (true);
-CREATE POLICY "Allow anon update" ON services FOR UPDATE TO anon, authenticated USING (true);
-CREATE POLICY "Allow anon delete" ON services FOR DELETE TO anon, authenticated USING (true);
+DO $$
+BEGIN
+  IF to_regclass('public.services') IS NOT NULL THEN
+    EXECUTE 'DROP POLICY IF EXISTS "Admin full access" ON public.services';
+    EXECUTE 'DROP POLICY IF EXISTS "Allow anon insert" ON public.services';
+    EXECUTE 'DROP POLICY IF EXISTS "Allow anon update" ON public.services';
+    EXECUTE 'DROP POLICY IF EXISTS "Allow anon delete" ON public.services';
+    EXECUTE 'CREATE POLICY "Allow anon insert" ON public.services FOR INSERT TO anon, authenticated WITH CHECK (true)';
+    EXECUTE 'CREATE POLICY "Allow anon update" ON public.services FOR UPDATE TO anon, authenticated USING (true)';
+    EXECUTE 'CREATE POLICY "Allow anon delete" ON public.services FOR DELETE TO anon, authenticated USING (true)';
+  END IF;
+END $$;
 
 -- 2. Products
-DROP POLICY IF EXISTS "Admin full access" ON products;
-CREATE POLICY "Allow anon insert" ON products FOR INSERT TO anon, authenticated WITH CHECK (true);
-CREATE POLICY "Allow anon update" ON products FOR UPDATE TO anon, authenticated USING (true);
-CREATE POLICY "Allow anon delete" ON products FOR DELETE TO anon, authenticated USING (true);
+DO $$
+BEGIN
+  IF to_regclass('public.products') IS NOT NULL THEN
+    EXECUTE 'DROP POLICY IF EXISTS "Admin full access" ON public.products';
+    EXECUTE 'DROP POLICY IF EXISTS "Allow anon insert" ON public.products';
+    EXECUTE 'DROP POLICY IF EXISTS "Allow anon update" ON public.products';
+    EXECUTE 'DROP POLICY IF EXISTS "Allow anon delete" ON public.products';
+    EXECUTE 'CREATE POLICY "Allow anon insert" ON public.products FOR INSERT TO anon, authenticated WITH CHECK (true)';
+    EXECUTE 'CREATE POLICY "Allow anon update" ON public.products FOR UPDATE TO anon, authenticated USING (true)';
+    EXECUTE 'CREATE POLICY "Allow anon delete" ON public.products FOR DELETE TO anon, authenticated USING (true)';
+  END IF;
+END $$;
 
 -- 3. Staff
-DROP POLICY IF EXISTS "Admin full access" ON staff;
-CREATE POLICY "Allow anon insert" ON staff FOR INSERT TO anon, authenticated WITH CHECK (true);
-CREATE POLICY "Allow anon update" ON staff FOR UPDATE TO anon, authenticated USING (true);
-CREATE POLICY "Allow anon delete" ON staff FOR DELETE TO anon, authenticated USING (true);
+DO $$
+BEGIN
+  IF to_regclass('public.staff') IS NOT NULL THEN
+    EXECUTE 'DROP POLICY IF EXISTS "Admin full access" ON public.staff';
+    EXECUTE 'DROP POLICY IF EXISTS "Allow anon insert" ON public.staff';
+    EXECUTE 'DROP POLICY IF EXISTS "Allow anon update" ON public.staff';
+    EXECUTE 'DROP POLICY IF EXISTS "Allow anon delete" ON public.staff';
+    EXECUTE 'CREATE POLICY "Allow anon insert" ON public.staff FOR INSERT TO anon, authenticated WITH CHECK (true)';
+    EXECUTE 'CREATE POLICY "Allow anon update" ON public.staff FOR UPDATE TO anon, authenticated USING (true)';
+    EXECUTE 'CREATE POLICY "Allow anon delete" ON public.staff FOR DELETE TO anon, authenticated USING (true)';
+  END IF;
+END $$;
 
 -- 4. Coupons
-DROP POLICY IF EXISTS "Admin full access" ON coupons;
-CREATE POLICY "Allow anon insert" ON coupons FOR INSERT TO anon, authenticated WITH CHECK (true);
-CREATE POLICY "Allow anon update" ON coupons FOR UPDATE TO anon, authenticated USING (true);
-CREATE POLICY "Allow anon delete" ON coupons FOR DELETE TO anon, authenticated USING (true);
+DO $$
+BEGIN
+  IF to_regclass('public.coupons') IS NOT NULL THEN
+    EXECUTE 'DROP POLICY IF EXISTS "Admin full access" ON public.coupons';
+    EXECUTE 'DROP POLICY IF EXISTS "Allow anon insert" ON public.coupons';
+    EXECUTE 'DROP POLICY IF EXISTS "Allow anon update" ON public.coupons';
+    EXECUTE 'DROP POLICY IF EXISTS "Allow anon delete" ON public.coupons';
+    EXECUTE 'CREATE POLICY "Allow anon insert" ON public.coupons FOR INSERT TO anon, authenticated WITH CHECK (true)';
+    EXECUTE 'CREATE POLICY "Allow anon update" ON public.coupons FOR UPDATE TO anon, authenticated USING (true)';
+    EXECUTE 'CREATE POLICY "Allow anon delete" ON public.coupons FOR DELETE TO anon, authenticated USING (true)';
+  END IF;
+END $$;
 
 -- 5. Settings
-DROP POLICY IF EXISTS "Admin full access" ON settings;
-CREATE POLICY "Allow anon insert" ON settings FOR INSERT TO anon, authenticated WITH CHECK (true);
-CREATE POLICY "Allow anon update" ON settings FOR UPDATE TO anon, authenticated USING (true);
+DO $$
+BEGIN
+  IF to_regclass('public.settings') IS NOT NULL THEN
+    EXECUTE 'DROP POLICY IF EXISTS "Admin full access" ON public.settings';
+    EXECUTE 'DROP POLICY IF EXISTS "Allow anon insert" ON public.settings';
+    EXECUTE 'DROP POLICY IF EXISTS "Allow anon update" ON public.settings';
+    EXECUTE 'CREATE POLICY "Allow anon insert" ON public.settings FOR INSERT TO anon, authenticated WITH CHECK (true)';
+    EXECUTE 'CREATE POLICY "Allow anon update" ON public.settings FOR UPDATE TO anon, authenticated USING (true)';
+  END IF;
+END $$;
 
 -- 6. Service Packages
-DROP POLICY IF EXISTS "Admin full access" ON service_packages; -- (if exists)
-CREATE POLICY "Allow anon insert" ON service_packages FOR INSERT TO anon, authenticated WITH CHECK (true);
-CREATE POLICY "Allow anon update" ON service_packages FOR UPDATE TO anon, authenticated USING (true);
-CREATE POLICY "Allow anon delete" ON service_packages FOR DELETE TO anon, authenticated USING (true);
+DO $$
+BEGIN
+  IF to_regclass('public.service_packages') IS NOT NULL THEN
+    EXECUTE 'DROP POLICY IF EXISTS "Admin full access" ON public.service_packages';
+    EXECUTE 'DROP POLICY IF EXISTS "Allow anon insert" ON public.service_packages';
+    EXECUTE 'DROP POLICY IF EXISTS "Allow anon update" ON public.service_packages';
+    EXECUTE 'DROP POLICY IF EXISTS "Allow anon delete" ON public.service_packages';
+    EXECUTE 'CREATE POLICY "Allow anon insert" ON public.service_packages FOR INSERT TO anon, authenticated WITH CHECK (true)';
+    EXECUTE 'CREATE POLICY "Allow anon update" ON public.service_packages FOR UPDATE TO anon, authenticated USING (true)';
+    EXECUTE 'CREATE POLICY "Allow anon delete" ON public.service_packages FOR DELETE TO anon, authenticated USING (true)';
+  END IF;
+END $$;
 
 -- 7. Tickets
-DROP POLICY IF EXISTS "Admin full access" ON tickets; -- (if exists)
-CREATE POLICY "Allow anon insert" ON tickets FOR INSERT TO anon, authenticated WITH CHECK (true);
-CREATE POLICY "Allow anon update" ON tickets FOR UPDATE TO anon, authenticated USING (true);
-CREATE POLICY "Allow anon delete" ON tickets FOR DELETE TO anon, authenticated USING (true);
+DO $$
+BEGIN
+  IF to_regclass('public.tickets') IS NOT NULL THEN
+    EXECUTE 'DROP POLICY IF EXISTS "Admin full access" ON public.tickets';
+    EXECUTE 'DROP POLICY IF EXISTS "Allow anon insert" ON public.tickets';
+    EXECUTE 'DROP POLICY IF EXISTS "Allow anon update" ON public.tickets';
+    EXECUTE 'DROP POLICY IF EXISTS "Allow anon delete" ON public.tickets';
+    EXECUTE 'CREATE POLICY "Allow anon insert" ON public.tickets FOR INSERT TO anon, authenticated WITH CHECK (true)';
+    EXECUTE 'CREATE POLICY "Allow anon update" ON public.tickets FOR UPDATE TO anon, authenticated USING (true)';
+    EXECUTE 'CREATE POLICY "Allow anon delete" ON public.tickets FOR DELETE TO anon, authenticated USING (true)';
+  END IF;
+END $$;
 
 -- 8. Articles & FAQs
-DROP POLICY IF EXISTS "Admin full access" ON articles;
-CREATE POLICY "Allow anon insert" ON articles FOR INSERT TO anon, authenticated WITH CHECK (true);
-CREATE POLICY "Allow anon update" ON articles FOR UPDATE TO anon, authenticated USING (true);
-CREATE POLICY "Allow anon delete" ON articles FOR DELETE TO anon, authenticated USING (true);
+DO $$
+BEGIN
+  IF to_regclass('public.articles') IS NOT NULL THEN
+    EXECUTE 'DROP POLICY IF EXISTS "Admin full access" ON public.articles';
+    EXECUTE 'DROP POLICY IF EXISTS "Allow anon insert" ON public.articles';
+    EXECUTE 'DROP POLICY IF EXISTS "Allow anon update" ON public.articles';
+    EXECUTE 'DROP POLICY IF EXISTS "Allow anon delete" ON public.articles';
+    EXECUTE 'CREATE POLICY "Allow anon insert" ON public.articles FOR INSERT TO anon, authenticated WITH CHECK (true)';
+    EXECUTE 'CREATE POLICY "Allow anon update" ON public.articles FOR UPDATE TO anon, authenticated USING (true)';
+    EXECUTE 'CREATE POLICY "Allow anon delete" ON public.articles FOR DELETE TO anon, authenticated USING (true)';
+  END IF;
+END $$;
 
-DROP POLICY IF EXISTS "Admin full access" ON faqs;
-CREATE POLICY "Allow anon insert" ON faqs FOR INSERT TO anon, authenticated WITH CHECK (true);
-CREATE POLICY "Allow anon update" ON faqs FOR UPDATE TO anon, authenticated USING (true);
-CREATE POLICY "Allow anon delete" ON faqs FOR DELETE TO anon, authenticated USING (true);
+DO $$
+BEGIN
+  IF to_regclass('public.faqs') IS NOT NULL THEN
+    EXECUTE 'DROP POLICY IF EXISTS "Admin full access" ON public.faqs';
+    EXECUTE 'DROP POLICY IF EXISTS "Allow anon insert" ON public.faqs';
+    EXECUTE 'DROP POLICY IF EXISTS "Allow anon update" ON public.faqs';
+    EXECUTE 'DROP POLICY IF EXISTS "Allow anon delete" ON public.faqs';
+    EXECUTE 'CREATE POLICY "Allow anon insert" ON public.faqs FOR INSERT TO anon, authenticated WITH CHECK (true)';
+    EXECUTE 'CREATE POLICY "Allow anon update" ON public.faqs FOR UPDATE TO anon, authenticated USING (true)';
+    EXECUTE 'CREATE POLICY "Allow anon delete" ON public.faqs FOR DELETE TO anon, authenticated USING (true)';
+  END IF;
+END $$;
 
 -- 9. Staff Shifts (Ensure write access)
 DO $$
