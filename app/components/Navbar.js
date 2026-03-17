@@ -9,6 +9,7 @@ export default function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [authUser, setAuthUser] = useState(null)
   const [displayName, setDisplayName] = useState('')
+  const [isAdmin, setIsAdmin] = useState(false)
   const pathname = usePathname()
 
   useEffect(() => {
@@ -21,12 +22,19 @@ export default function Navbar() {
 
     const load = async () => {
       const { data } = await supabase.auth.getUser()
-      setAuthUser(data?.user || null)
-      if (data?.user) {
-        const { data: profile } = await supabase.from('member_profiles').select('full_name').eq('id', data.user.id).single()
-        setDisplayName(profile?.full_name || data.user.email || '')
+      const user = data?.user || null
+      setAuthUser(user)
+      if (user) {
+        const { data: profile } = await supabase
+          .from('member_profiles')
+          .select('full_name, is_admin')
+          .eq('id', user.id)
+          .single()
+        setDisplayName(profile?.full_name || user.email || '')
+        setIsAdmin(!!profile?.is_admin)
       } else {
         setDisplayName('')
+        setIsAdmin(false)
       }
     }
 
@@ -37,9 +45,17 @@ export default function Navbar() {
       setAuthUser(user)
       setDisplayName(user?.email || '')
       if (user) {
-        supabase.from('member_profiles').select('full_name').eq('id', user.id).single().then(({ data: profile }) => {
-          setDisplayName(profile?.full_name || user.email || '')
-        })
+        supabase
+          .from('member_profiles')
+          .select('full_name, is_admin')
+          .eq('id', user.id)
+          .single()
+          .then(({ data: profile }) => {
+            setDisplayName(profile?.full_name || user.email || '')
+            setIsAdmin(!!profile?.is_admin)
+          })
+      } else {
+        setIsAdmin(false)
       }
     })
 
@@ -49,14 +65,15 @@ export default function Navbar() {
   }, [])
 
   const navLinks = [
-    { href: '/', label: '首頁' },
-    { href: '/services', label: '服務價目' },
-    { href: '/booking', label: '預約服務' },
-    { href: '/articles', label: '髮型專欄' },
-    { href: '/faq', label: '常見問題' },
+    { href: '/', label: '棣栭爜' },
+    { href: '/services', label: '鏈嶅嫏鍍圭洰' },
+    { href: '/booking', label: '闋愮磩鏈嶅嫏' },
+    { href: '/articles', label: '楂瀷灏堟瑒' },
+    { href: '/faq', label: '甯歌鍟忛' },
   ]
 
   const closeMenu = () => setMobileMenuOpen(false)
+  const adminHref = authUser ? '/admin' : '/login?redirectTo=%2Fadmin'
 
   return (
     <>
@@ -65,32 +82,31 @@ export default function Navbar() {
           <Link href="/" className="logo" onClick={closeMenu}>
             VIVA HAIR
           </Link>
-          
-          {/* Desktop Navigation */}
+
           <div className="nav-links">
-            {navLinks.map(link => (
-              <Link 
-                key={link.href} 
-                href={link.href}
-                className={pathname === link.href ? 'active' : ''}
-              >
+            {navLinks.map((link) => (
+              <Link key={link.href} href={link.href} className={pathname === link.href ? 'active' : ''}>
                 {link.label}
               </Link>
             ))}
+            <Link href={adminHref} className="nav-admin">
+              {isAdmin ? 'Admin' : 'Admin Login'}
+            </Link>
             {authUser ? (
               <Link href="/account" className="nav-login" style={{ background: '#f3f4f6', color: '#333', border: '1px solid #e5e5e5' }}>
-                👤 {displayName || '會員中心'}
+                馃懁 {displayName || '鏈冨摗涓績'}
               </Link>
             ) : (
-              <Link href={`/login?redirectTo=${encodeURIComponent(pathname || '/')}`} className="nav-login">登入</Link>
+              <Link href={`/login?redirectTo=${encodeURIComponent(pathname || '/')}`} className="nav-login">
+                鐧诲叆
+              </Link>
             )}
           </div>
 
-          {/* Mobile Menu Button */}
-          <button 
+          <button
             className={`mobile-menu-btn ${mobileMenuOpen ? 'active' : ''}`}
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            aria-label="選單"
+            aria-label="閬稿柈"
           >
             <span></span>
             <span></span>
@@ -99,54 +115,44 @@ export default function Navbar() {
         </div>
       </nav>
 
-      {/* Mobile Menu Overlay */}
-      <div 
-        className={`mobile-menu-overlay ${mobileMenuOpen ? 'active' : ''}`}
-        onClick={closeMenu}
-      />
+      <div className={`mobile-menu-overlay ${mobileMenuOpen ? 'active' : ''}`} onClick={closeMenu} />
 
-      {/* Mobile Menu Panel */}
       <div className={`mobile-menu ${mobileMenuOpen ? 'active' : ''}`}>
         <div className="mobile-menu-header">
           <span style={{ fontWeight: 700, color: '#A68B6A', fontSize: '18px' }}>VIVA HAIR</span>
-          <button className="mobile-menu-close" onClick={closeMenu}>✕</button>
+          <button className="mobile-menu-close" onClick={closeMenu}>鉁?/button>
         </div>
-        
+
         <div className="mobile-menu-links">
-          {navLinks.map(link => (
-            <Link 
-              key={link.href} 
-              href={link.href}
-              className={pathname === link.href ? 'active' : ''}
-              onClick={closeMenu}
-            >
+          {navLinks.map((link) => (
+            <Link key={link.href} href={link.href} className={pathname === link.href ? 'active' : ''} onClick={closeMenu}>
               {link.label}
             </Link>
           ))}
-          
+
           <div style={{ height: '1px', background: '#eee', margin: '12px 0' }} />
-          
+
           {authUser ? (
             <Link href="/account" onClick={closeMenu}>
-              👤 會員中心 ({displayName || '會員'})
+              馃懁 鏈冨摗涓績 ({displayName || '鏈冨摗'})
             </Link>
           ) : (
             <Link href={`/login?redirectTo=${encodeURIComponent(pathname || '/')}`} onClick={closeMenu}>
-              👤 會員登入
+              馃懁 鏈冨摗鐧诲叆
             </Link>
           )}
-          
-          <Link href="/admin" onClick={closeMenu}>
-            ⚙️ 管理後台
+
+          <Link href={adminHref} onClick={closeMenu}>
+            鈿欙笍 {isAdmin ? 'Admin' : 'Admin Login'}
           </Link>
         </div>
 
         <div style={{ padding: '16px', borderTop: '1px solid #eee', marginTop: 'auto' }}>
           <p style={{ fontSize: '12px', color: '#999', textAlign: 'center' }}>
-            九龍太子通菜街17A 1樓
+            涔濋緧澶瓙閫氳彍琛?7A 1妯?
           </p>
           <p style={{ fontSize: '12px', color: '#999', textAlign: 'center', marginTop: '4px' }}>
-            © 2026 VIVA HAIR
+            漏 2026 VIVA HAIR
           </p>
         </div>
       </div>
