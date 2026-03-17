@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 
 // Coupons Tab Component
 export default function CouponsTab({ coupons: initialCoupons, saveCoupons }) {
