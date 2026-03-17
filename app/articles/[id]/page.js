@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { getBrowserClient } from '../../../lib/supabase/browser'
+import { supabase } from '../../../lib/supabase'
 
 export default function ArticleDetail() {
   const params = useParams()
@@ -15,14 +15,6 @@ export default function ArticleDetail() {
     async function fetchArticle() {
       if (!params.id) return
       setLoading(true)
-      let supabase
-      try {
-        supabase = getBrowserClient()
-      } catch (e) {
-        router.push('/articles')
-        return
-      }
-
       const { data, error } = await supabase
         .from('articles')
         .select('*')
