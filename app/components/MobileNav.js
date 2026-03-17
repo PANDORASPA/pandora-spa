@@ -11,7 +11,7 @@ export default function MobileNav() {
 
   const navItems = [
     { href: '/', icon: '🏠', label: '首頁' },
-    { href: '/booking', icon: '📅', label: '預約' },
+    { href: '/booking-collection', icon: '📅', label: '預約' },
     { href: '/products', icon: '🛍️', label: '產品' },
     { href: '/login', icon: '👤', label: '我的' },
   ]
