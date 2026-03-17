@@ -1,12 +1,12 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { Suspense, useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'react-hot-toast';
 import { getBrowserClient } from '../../lib/supabase/browser'
 
-export default function Booking() {
+function BookingInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [services, setServices] = useState([])
@@ -1049,5 +1049,13 @@ export default function Booking() {
         </div>
       )}
     </>
+  )
+}
+
+export default function Booking() {
+  return (
+    <Suspense>
+      <BookingInner />
+    </Suspense>
   )
 }
