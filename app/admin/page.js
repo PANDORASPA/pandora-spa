@@ -117,11 +117,16 @@ export default function Admin() {
   const saveShifts = async (shifts) => {
     setSaving(true)
     try {
-      const payload = (shifts || []).map(s => {
-        const row = { ...s }
-        if (row.id == null) delete row.id
-        return row
-      })
+      const payload = (shifts || [])
+        .filter(s => s && s.staff_id != null && s.date)
+        .map(s => {
+          const row = { ...s }
+          delete row.id
+          delete row.created_at
+          if (row.start_time === '') row.start_time = null
+          if (row.end_time === '') row.end_time = null
+          return row
+        })
 
       const { error } = await supabase
         .from('staff_shifts')
