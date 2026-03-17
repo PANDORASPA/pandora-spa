@@ -116,38 +116,57 @@ ALTER TABLE customers ENABLE ROW LEVEL SECURITY;
 -- More secure RLS policies
 
 -- For public tables that anyone can read
+DROP POLICY IF EXISTS "Public read access" ON services;
 CREATE POLICY "Public read access" ON services FOR SELECT TO anon, authenticated USING (true);
+DROP POLICY IF EXISTS "Admin full access" ON services;
 CREATE POLICY "Admin full access" ON services FOR ALL TO service_role USING (true) WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Public read access" ON products;
 CREATE POLICY "Public read access" ON products FOR SELECT TO anon, authenticated USING (true);
+DROP POLICY IF EXISTS "Admin full access" ON products;
 CREATE POLICY "Admin full access" ON products FOR ALL TO service_role USING (true) WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Public read access" ON coupons;
 CREATE POLICY "Public read access" ON coupons FOR SELECT TO anon, authenticated USING (true);
+DROP POLICY IF EXISTS "Admin full access" ON coupons;
 CREATE POLICY "Admin full access" ON coupons FOR ALL TO service_role USING (true) WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Public read access" ON customers;
 CREATE POLICY "Public read access" ON customers FOR SELECT TO anon, authenticated USING (true);
+DROP POLICY IF EXISTS "Admin full access" ON customers;
 CREATE POLICY "Admin full access" ON customers FOR ALL TO service_role USING (true) WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Public read access" ON staff;
 CREATE POLICY "Public read access" ON staff FOR SELECT TO anon, authenticated USING (true);
+DROP POLICY IF EXISTS "Admin full access" ON staff;
 CREATE POLICY "Admin full access" ON staff FOR ALL TO service_role USING (true) WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Public read access" ON articles;
 CREATE POLICY "Public read access" ON articles FOR SELECT TO anon, authenticated USING (true);
+DROP POLICY IF EXISTS "Admin full access" ON articles;
 CREATE POLICY "Admin full access" ON articles FOR ALL TO service_role USING (true) WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Public read access" ON faqs;
 CREATE POLICY "Public read access" ON faqs FOR SELECT TO anon, authenticated USING (true);
+DROP POLICY IF EXISTS "Admin full access" ON faqs;
 CREATE POLICY "Admin full access" ON faqs FOR ALL TO service_role USING (true) WITH CHECK (true);
 
 -- For bookings table
+DROP POLICY IF EXISTS "Allow public insert" ON bookings;
 CREATE POLICY "Allow public insert" ON bookings FOR INSERT TO anon, authenticated WITH CHECK (true);
+DROP POLICY IF EXISTS "Admin full access" ON bookings;
 CREATE POLICY "Admin full access" ON bookings FOR ALL TO service_role USING (true) WITH CHECK (true);
 
 -- For users table
+DROP POLICY IF EXISTS "Admin full access" ON users;
 CREATE POLICY "Admin full access" ON users FOR ALL TO service_role USING (true) WITH CHECK (true);
 
 -- For orders table
+DROP POLICY IF EXISTS "Admin full access" ON orders;
 CREATE POLICY "Admin full access" ON orders FOR ALL TO service_role USING (true) WITH CHECK (true);
 
 -- For settings table
+DROP POLICY IF EXISTS "Admin full access" ON settings;
 CREATE POLICY "Admin full access" ON settings FOR ALL TO service_role USING (true) WITH CHECK (true);
 
 -- Insert default services
@@ -159,6 +178,9 @@ INSERT INTO services (name, price, time, enabled, sort_order) VALUES
   ('头皮护理', 450, 45, true, 5)
 ON CONFLICT DO NOTHING;
 
+ALTER TABLE products ADD COLUMN IF NOT EXISTS stock INTEGER DEFAULT 0;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS sort_order INTEGER DEFAULT 0;
+
 -- Insert default products
 INSERT INTO products (name, price, stock, enabled, sort_order) VALUES
   ('DS100 護髮精華素', 680, 10, true, 1),
@@ -167,6 +189,11 @@ INSERT INTO products (name, price, stock, enabled, sort_order) VALUES
   ('專業洗髮水', 150, 25, true, 4),
   ('髮泥定型', 120, 30, true, 5)
 ON CONFLICT DO NOTHING;
+
+ALTER TABLE coupons ADD COLUMN IF NOT EXISTS min_spend INTEGER DEFAULT 0;
+ALTER TABLE coupons ADD COLUMN IF NOT EXISTS start_date TIMESTAMP WITH TIME ZONE;
+ALTER TABLE coupons ADD COLUMN IF NOT EXISTS end_date TIMESTAMP WITH TIME ZONE;
+ALTER TABLE coupons ADD COLUMN IF NOT EXISTS usage_limit INTEGER DEFAULT 0;
 
 -- Insert default coupons
 INSERT INTO coupons (code, name, discount, type, min_spend, enabled) VALUES
@@ -217,14 +244,17 @@ CREATE TABLE IF NOT EXISTS faqs (
 
 -- Enable RLS for staff
 ALTER TABLE staff ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Public staff" ON staff;
 CREATE POLICY "Public staff" ON staff FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
 
 -- Enable RLS for articles
 ALTER TABLE articles ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Public articles" ON articles;
 CREATE POLICY "Public articles" ON articles FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
 
 -- Enable RLS for faqs
 ALTER TABLE faqs ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Public faqs" ON faqs;
 CREATE POLICY "Public faqs" ON faqs FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
 
 -- Insert default staff
@@ -264,9 +294,11 @@ CREATE TABLE IF NOT EXISTS tickets (
 
 -- Enable RLS for new tables
 ALTER TABLE service_packages ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Public service_packages" ON service_packages;
 CREATE POLICY "Public service_packages" ON service_packages FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
 
 ALTER TABLE tickets ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Public tickets" ON tickets;
 CREATE POLICY "Public tickets" ON tickets FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
 
 -- 13. Create staff_shifts table (按月/日排班)
@@ -283,6 +315,7 @@ CREATE TABLE IF NOT EXISTS staff_shifts (
 
 -- Enable RLS for staff_shifts
 ALTER TABLE staff_shifts ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Public staff_shifts" ON staff_shifts;
 CREATE POLICY "Public staff_shifts" ON staff_shifts FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
 
 -- 14. Create user_tickets table (客戶持有的套票)
@@ -298,6 +331,7 @@ CREATE TABLE IF NOT EXISTS user_tickets (
 
 -- Enable RLS for user_tickets
 ALTER TABLE user_tickets ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Public user_tickets" ON user_tickets;
 CREATE POLICY "Public user_tickets" ON user_tickets FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
 
 -- 15. Create reviews table (評價系統)
@@ -313,5 +347,5 @@ CREATE TABLE IF NOT EXISTS reviews (
 
 -- Enable RLS for reviews
 ALTER TABLE reviews ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Public reviews" ON reviews;
 CREATE POLICY "Public reviews" ON reviews FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
-
