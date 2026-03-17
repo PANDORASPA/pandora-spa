@@ -16,10 +16,6 @@ export default function ServicesTab({ services: initialServices, saveServices })
     setSaving(false);
   };
 
-  const updateService = (id, field, value) => {
-    setServices(services.map(s => s.id === id ? { ...s, [field]: value } : s));
-  };
-
   return (
     <div>
       <div style={{ marginBottom: '24px', display: 'flex', gap: '12px' }}>
@@ -41,14 +37,14 @@ export default function ServicesTab({ services: initialServices, saveServices })
       </div>
 
       <div className="grid">
-        {[...services].sort((a,b) => (a.sort_order||0) - (b.sort_order||0)).map(s => (
+        {services.sort((a,b) => (a.sort_order||0) - (b.sort_order||0)).map(s => (
           <div key={s.id} className="admin-card" style={{ padding: '24px' }}>
             <div style={{ display: 'flex', gap: '20px', marginBottom: '20px' }}>
               <div style={{ position: 'relative' }}>
                 <label>圖標</label>
                 <input 
                   value={s.emoji} 
-                  onChange={(e) => updateService(s.id, 'emoji', e.target.value)} 
+                  onChange={(e) => { const n = [...services]; n.find(x => x.id === s.id).emoji = e.target.value; setServices(n); }} 
                   style={{ width: '64px', height: '64px', fontSize: '32px', textAlign: 'center', padding: 0 }} 
                 />
               </div>
@@ -56,7 +52,7 @@ export default function ServicesTab({ services: initialServices, saveServices })
                 <label>服務名稱</label>
                 <input 
                   value={s.name} 
-                  onChange={(e) => updateService(s.id, 'name', e.target.value)} 
+                  onChange={(e) => { const n = [...services]; n.find(x => x.id === s.id).name = e.target.value; setServices(n); }} 
                   placeholder="例如: 韓式剪髮" 
                   style={{ fontWeight: 700, fontSize: '16px' }} 
                 />
@@ -68,7 +64,7 @@ export default function ServicesTab({ services: initialServices, saveServices })
                 <label>價格 ($)</label>
                 <input 
                   value={s.price} 
-                  onChange={(e) => updateService(s.id, 'price', parseInt(e.target.value) || 0)} 
+                  onChange={(e) => { const n = [...services]; n.find(x => x.id === s.id).price = parseInt(e.target.value) || 0; setServices(n); }} 
                   type="number" 
                 />
               </div>
@@ -77,7 +73,7 @@ export default function ServicesTab({ services: initialServices, saveServices })
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <input 
                     value={s.time} 
-                    onChange={(e) => updateService(s.id, 'time', parseInt(e.target.value) || 60)} 
+                    onChange={(e) => { const n = [...services]; n.find(x => x.id === s.id).time = parseInt(e.target.value) || 60; setServices(n); }} 
                     type="number" 
                   />
                   <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-light)' }}>min</span>
@@ -89,7 +85,7 @@ export default function ServicesTab({ services: initialServices, saveServices })
               <label>服務分類</label>
               <input 
                 value={s.category || ''} 
-                onChange={(e) => updateService(s.id, 'category', e.target.value)} 
+                onChange={(e) => { const n = [...services]; n.find(x => x.id === s.id).category = e.target.value; setServices(n); }} 
                 placeholder="例如: 剪髮, 染髮, 護理" 
               />
             </div>
@@ -98,7 +94,7 @@ export default function ServicesTab({ services: initialServices, saveServices })
               <label>服務詳情描述</label>
               <textarea 
                 value={s.description || ''} 
-                onChange={(e) => updateService(s.id, 'description', e.target.value)} 
+                onChange={(e) => { const n = [...services]; n.find(x => x.id === s.id).description = e.target.value; setServices(n); }} 
                 placeholder="輸入服務的特色或注意事項..." 
                 style={{ minHeight: '80px', resize: 'vertical' }} 
               />
@@ -109,7 +105,7 @@ export default function ServicesTab({ services: initialServices, saveServices })
                 <input 
                   type="checkbox" 
                   checked={s.enabled} 
-                  onChange={(e) => updateService(s.id, 'enabled', e.target.checked)} 
+                  onChange={(e) => { const n = [...services]; n.find(x => x.id === s.id).enabled = e.target.checked; setServices(n); }} 
                   style={{ width: 'auto' }}
                 />
                 <span style={{ fontSize: '14px', fontWeight: 600 }}>啟用服務</span>
@@ -120,7 +116,7 @@ export default function ServicesTab({ services: initialServices, saveServices })
                   <input 
                     type="number" 
                     value={s.sort_order || 0} 
-                    onChange={(e) => updateService(s.id, 'sort_order', parseInt(e.target.value) || 0)} 
+                    onChange={(e) => { const n = [...services]; n.find(x => x.id === s.id).sort_order = parseInt(e.target.value) || 0; setServices(n); }} 
                     style={{ width: '50px', padding: '6px', fontSize: '12px' }} 
                   />
                 </div>
