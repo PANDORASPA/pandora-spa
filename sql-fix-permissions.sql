@@ -54,13 +54,30 @@ CREATE POLICY "Allow anon update" ON faqs FOR UPDATE TO anon, authenticated USIN
 CREATE POLICY "Allow anon delete" ON faqs FOR DELETE TO anon, authenticated USING (true);
 
 -- 9. Staff Shifts (Ensure write access)
-DROP POLICY IF EXISTS "Public staff_shifts" ON staff_shifts;
-CREATE POLICY "Public staff_shifts" ON staff_shifts FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
+DO $$
+BEGIN
+  IF to_regclass('public.staff_shifts') IS NOT NULL THEN
+    EXECUTE 'DROP POLICY IF EXISTS "Public staff_shifts" ON public.staff_shifts';
+    EXECUTE 'CREATE POLICY "Public staff_shifts" ON public.staff_shifts FOR ALL TO anon, authenticated USING (true) WITH CHECK (true)';
+  END IF;
+END $$;
 
 -- 10. Orders (Ensure admin update access)
-DROP POLICY IF EXISTS "Admin full access" ON orders;
-CREATE POLICY "Allow anon update" ON orders FOR UPDATE TO anon, authenticated USING (true);
+DO $$
+BEGIN
+  IF to_regclass('public.orders') IS NOT NULL THEN
+    EXECUTE 'DROP POLICY IF EXISTS "Admin full access" ON public.orders';
+    EXECUTE 'DROP POLICY IF EXISTS "Allow anon update" ON public.orders';
+    EXECUTE 'CREATE POLICY "Allow anon update" ON public.orders FOR UPDATE TO anon, authenticated USING (true)';
+  END IF;
+END $$;
 
 -- 11. Customers (Ensure admin update access)
-DROP POLICY IF EXISTS "Admin full access" ON customers;
-CREATE POLICY "Allow anon update" ON customers FOR UPDATE TO anon, authenticated USING (true);
+DO $$
+BEGIN
+  IF to_regclass('public.customers') IS NOT NULL THEN
+    EXECUTE 'DROP POLICY IF EXISTS "Admin full access" ON public.customers';
+    EXECUTE 'DROP POLICY IF EXISTS "Allow anon update" ON public.customers';
+    EXECUTE 'CREATE POLICY "Allow anon update" ON public.customers FOR UPDATE TO anon, authenticated USING (true)';
+  END IF;
+END $$;
