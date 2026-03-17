@@ -17,7 +17,12 @@ function RegisterInner() {
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    const supabase = getBrowserClient()
+    let supabase
+    try {
+      supabase = getBrowserClient()
+    } catch (e) {
+      return
+    }
     supabase.auth.getUser().then(({ data }) => {
       if (data?.user) router.replace(redirectTo)
     })
@@ -34,7 +39,6 @@ function RegisterInner() {
       const supabase = getBrowserClient()
       const { data, error } = await supabase.auth.signUp({ email, password })
       if (error) throw error
-
       if (data?.user) {
         toast.success('註冊成功')
       } else {
@@ -121,3 +125,4 @@ export default function Register() {
     </Suspense>
   )
 }
+
