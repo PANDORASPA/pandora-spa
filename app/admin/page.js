@@ -230,16 +230,23 @@ export default function Admin() {
     }))
   }
 
-  const saveStaff = async () => {
+  const saveStaff = async (onlyStaffId) => {
     setSaving(true)
-    for (const s of staff) {
-      const payload = { ...s }
-      if (typeof payload.id === 'number' && payload.id > 2147483647) delete payload.id
-      await supabase.from('staff').upsert(payload)
+    try {
+      const list = onlyStaffId ? staff.filter(s => s.id === onlyStaffId) : staff
+      for (const s of list) {
+        const payload = { ...s }
+        if (typeof payload.id === 'number' && payload.id > 2147483647) delete payload.id
+        const { error } = await supabase.from('staff').upsert(payload)
+        if (error) throw error
+      }
+      await fetchData()
+      toast.success('已保存')
+    } catch (e) {
+      toast.error('儲存失敗: ' + (e?.message || '未知錯誤'))
+    } finally {
+      setSaving(false)
     }
-    await fetchData()
-    toast.success('已保存')
-    setSaving(false)
   }
 
   const saveServices = async (newServices) => {
