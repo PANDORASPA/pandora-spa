@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { getBrowserClient } from '../../lib/supabase/browser'
+import { supabase } from '../../lib/supabase'
 
 export default function Tickets() {
   const [tickets, setTickets] = useState([])
@@ -11,13 +11,6 @@ export default function Tickets() {
   useEffect(() => {
     async function fetchTickets() {
       setLoading(true)
-      let supabase
-      try {
-        supabase = getBrowserClient()
-      } catch (e) {
-        setLoading(false)
-        return
-      }
       const { data } = await supabase.from('tickets').select('*').eq('enabled', true).order('id')
       if (data) setTickets(data)
       setLoading(false)
