@@ -20,8 +20,25 @@ export default function StaffTab({
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear())
   const [localShifts, setLocalShifts] = useState(staffShifts)
 
+  const normalizeDateKey = (d) => {
+    if (!d) return ''
+    return String(d).substring(0, 10)
+  }
+
+  const normalizeTime = (t) => {
+    if (!t) return ''
+    const s = String(t)
+    return s.length >= 5 ? s.substring(0, 5) : s
+  }
+
   useEffect(() => {
-    setLocalShifts(staffShifts)
+    const normalized = (staffShifts || []).map(s => ({
+      ...s,
+      date: normalizeDateKey(s.date),
+      start_time: normalizeTime(s.start_time),
+      end_time: normalizeTime(s.end_time),
+    }))
+    setLocalShifts(normalized)
   }, [staffShifts])
 
   useEffect(() => {
