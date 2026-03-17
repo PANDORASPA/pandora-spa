@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { supabase } from '../../lib/supabase'
+import { getBrowserClient } from '../../lib/supabase/browser'
 
 export default function Team() {
   const [staff, setStaff] = useState([])
@@ -12,6 +12,13 @@ export default function Team() {
   useEffect(() => {
     async function fetchData() {
       setLoading(true)
+      let supabase
+      try {
+        supabase = getBrowserClient()
+      } catch (e) {
+        setLoading(false)
+        return
+      }
       const [staffData, servicesData] = await Promise.all([
         supabase.from('staff').select('*').eq('enabled', true).order('id'),
         supabase.from('services').select('*').eq('enabled', true)
