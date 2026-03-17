@@ -192,6 +192,23 @@ export default function Booking() {
     return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
   }
 
+  const normalizeTime = (t) => {
+    if (!t) return ''
+    const s = String(t)
+    return s.length >= 5 ? s.substring(0, 5) : s
+  }
+
+  const getBusinessHoursRange = () => {
+    try {
+      const hoursStr = shopSettings.business_hours || '11:00 - 20:00'
+      const parts = hoursStr.split('-').map(s => s.trim())
+      if (parts.length !== 2) return { start: '11:00', end: '20:00' }
+      return { start: normalizeTime(parts[0]), end: normalizeTime(parts[1]) }
+    } catch (e) {
+      return { start: '11:00', end: '20:00' }
+    }
+  }
+
   // Check if a specific time slot is occupied
   const isSlotOccupied = (staffId, date, time) => {
     const dateStr = `${date}/${currentMonth + 1}/${currentYear}`
@@ -233,6 +250,12 @@ export default function Booking() {
       workingEnd = staff.schedule?.[dayOfWeek]?.end
     }
 
+    workingStart = normalizeTime(workingStart)
+    workingEnd = normalizeTime(workingEnd)
+    const bh = getBusinessHoursRange()
+    if (workingStart && !workingEnd) workingEnd = bh.end
+    if (!workingStart && workingEnd) workingStart = bh.start
+
     if (isOff || !workingStart || !workingEnd) return false
     
     if (time) {
@@ -246,8 +269,10 @@ export default function Booking() {
 
       // Check break time (break_start to break_end) - currently defaults apply even to shifts unless break is removed
       if (staff.break_start && staff.break_end) {
-        const breakStart = new Date(`1970-01-01T${staff.break_start}:00`)
-        const breakEnd = new Date(`1970-01-01T${staff.break_end}:00`)
+        const bs = normalizeTime(staff.break_start)
+        const be = normalizeTime(staff.break_end)
+        const breakStart = new Date(`1970-01-01T${bs}:00`)
+        const breakEnd = new Date(`1970-01-01T${be}:00`)
         if (startTime < breakEnd && endTime > breakStart) return false
       }
 
