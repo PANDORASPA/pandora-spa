@@ -2,12 +2,13 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'react-hot-toast';
 import { getBrowserClient } from '../../lib/supabase/browser'
 
 export default function Booking() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [services, setServices] = useState([])
   const [allServices, setAllServices] = useState([]) // All services for display
   const [categories, setCategories] = useState(['全部'])
@@ -61,7 +62,23 @@ export default function Booking() {
       const { data: auth } = await supabase.auth.getUser()
       setAuthUser(auth?.user || null)
       if (auth?.user) {
-        setFormData(prev => ({ ...prev, name: prev.name, phone: prev.phone }))
+        const { data: profile } = await supabase
+          .from('member_profiles')
+          .select('full_name, phone')
+          .eq('id', auth.user.id)
+          .single()
+
+        setFormData(prev => ({
+          ...prev,
+          name: profile?.full_name || prev.name,
+          phone: profile?.phone || prev.phone,
+          coupon: searchParams.get('coupon') || prev.coupon,
+        }))
+      } else {
+        setFormData(prev => ({
+          ...prev,
+          coupon: searchParams.get('coupon') || prev.coupon,
+        }))
       }
       
       if (settingsData.data) {
@@ -109,7 +126,44 @@ export default function Booking() {
       setLoading(false)
     }
     fetchData()
-  }, [])
+  }, [searchParams])
+
+  useEffect(() => {
+    const coupon = searchParams.get('coupon')
+    if (!coupon) return
+    setFormData(prev => ({ ...prev, coupon }))
+  }, [searchParams])
+
+  useEffect(() => {
+    if (allServices.length === 0) return
+
+    const serviceId = searchParams.get('serviceId')
+    const staffId = searchParams.get('staffId')
+    const dateISO = searchParams.get('date')
+    const time = searchParams.get('time')
+
+    if (serviceId && !selectedService) {
+      const matchedService = allServices.find(item => String(item.id) === String(serviceId))
+      if (matchedService) setSelectedService(matchedService)
+    }
+
+    if (staffId && !selectedStaff) {
+      setSelectedStaff(String(staffId))
+    }
+
+    if (dateISO && !selectedDate) {
+      const [year, month, day] = String(dateISO).split('-').map(Number)
+      if (year && month && day) {
+        setCurrentYear(year)
+        setCurrentMonth(month - 1)
+        setSelectedDate(day)
+      }
+    }
+
+    if (time && !selectedTime) {
+      setSelectedTime(time)
+    }
+  }, [allServices, searchParams, selectedDate, selectedService, selectedStaff, selectedTime])
 
   // Refetch bookings when date changes
   useEffect(() => {
