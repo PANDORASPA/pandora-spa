@@ -13,7 +13,7 @@ export default function MobileNav() {
     { href: '/', icon: '🏠', label: '首頁' },
     { href: '/booking', icon: '📅', label: '預約' },
     { href: '/products', icon: '🛍️', label: '產品' },
-    { href: '/account', icon: '👤', label: '我的' },
+    { href: '/login', icon: '👤', label: '我的' },
   ]
 
   return (
