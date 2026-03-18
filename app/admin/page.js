@@ -45,6 +45,9 @@ export default function Admin() {
   const [articles, setArticles] = useState([])
   const [faqs, setFaqs] = useState([])
   const [staffShifts, setStaffShifts] = useState([])
+  const [staffBreaks, setStaffBreaks] = useState([])
+  const [staffTimeOff, setStaffTimeOff] = useState([])
+  const [blockedSlots, setBlockedSlots] = useState([])
   const [reviews, setReviews] = useState([])
   const [settings, setSettings] = useState({})
   const [selectedBooking, setSelectedBooking] = useState(null)
@@ -56,6 +59,13 @@ export default function Admin() {
       : Array.isArray(row?.daysoff)
         ? row.daysoff
         : [],
+  })
+
+  const normalizeScheduleRow = (row) => ({
+    ...row,
+    date: row?.date ? String(row.date).substring(0, 10) : '',
+    start_time: row?.start_time ? String(row.start_time).substring(0, 5) : '',
+    end_time: row?.end_time ? String(row.end_time).substring(0, 5) : '',
   })
 
   useEffect(() => {
@@ -94,7 +104,7 @@ export default function Admin() {
 
   const fetchData = async () => {
     setLoading(true)
-    const [b, o, s, sp, p, t, c, cust, st, setRows, art, f, sh, r] = await Promise.all([
+    const [b, o, s, sp, p, t, c, cust, st, setRows, art, f, sh, br, to, bs, r] = await Promise.all([
       supabase.from('bookings').select('*').order('created_at', { ascending: false }),
       supabase.from('orders').select('*').order('created_at', { ascending: false }),
       supabase.from('services').select('*').order('sort_order'),
@@ -108,6 +118,9 @@ export default function Admin() {
       supabase.from('articles').select('*').order('sort_order'),
       supabase.from('faqs').select('*').order('sort_order'),
       supabase.from('staff_shifts').select('*'),
+      supabase.from('staff_breaks').select('*').order('staff_id').order('day_of_week'),
+      supabase.from('staff_time_off').select('*').order('date'),
+      supabase.from('blocked_slots').select('*').order('date'),
       supabase.from('reviews').select('*').order('created_at', { ascending: false }),
     ])
 
@@ -122,7 +135,10 @@ export default function Admin() {
     if (st.data) setStaff(st.data.map(normalizeStaffRow))
     if (art.data) setArticles(art.data)
     if (f.data) setFaqs(f.data)
-    if (sh.data) setStaffShifts(sh.data)
+    if (sh.data) setStaffShifts(sh.data.map(normalizeScheduleRow))
+    if (br.data) setStaffBreaks(br.data)
+    if (to.data) setStaffTimeOff(to.data.map(normalizeScheduleRow))
+    if (bs.data) setBlockedSlots(bs.data.map(normalizeScheduleRow))
     if (r.data) setReviews(r.data)
     if (setRows.data) {
       const nextSettings = setRows.data.reduce((acc, item) => {
@@ -186,6 +202,62 @@ export default function Admin() {
     } finally {
       setSaving(false)
     }
+  }
+
+  const saveScheduleTable = async ({ table, rows = [], deletedIds = [], onConflict }) => {
+    setSaving(true)
+    try {
+      const normalizedRows = (rows || [])
+        .filter((row) => !row?.__deleted)
+        .map((row) => {
+          const payload = stripTransientFields({ ...row })
+          if (payload.date) payload.date = String(payload.date).substring(0, 10)
+          if (payload.start_time) payload.start_time = String(payload.start_time).substring(0, 5)
+          if (payload.end_time) payload.end_time = String(payload.end_time).substring(0, 5)
+          if (payload.day_of_week != null && payload.day_of_week !== '') payload.day_of_week = Number(payload.day_of_week)
+          if (payload.is_all_day == null) delete payload.is_all_day
+          if (typeof payload.id === 'number' && payload.id > 2147483647) delete payload.id
+          return payload
+        })
+
+      if (normalizedRows.length > 0) {
+        const query = onConflict
+          ? supabase.from(table).upsert(normalizedRows, { onConflict })
+          : supabase.from(table).upsert(normalizedRows)
+        const { error } = await query
+        if (error) throw error
+      }
+
+      if (deletedIds.length > 0) {
+        const { error } = await supabase.from(table).delete().in('id', deletedIds)
+        if (error) throw error
+      }
+
+      await fetchData()
+      toast.success('Saved')
+    } catch (error) {
+      toast.error(`${table} save failed: ${error?.message || 'Unknown error'}`)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const saveStaffBreaks = async (payloadOrRows) => {
+    const rows = Array.isArray(payloadOrRows) ? payloadOrRows : payloadOrRows?.rows || []
+    const deletedIds = Array.isArray(payloadOrRows?.deletedIds) ? payloadOrRows.deletedIds : []
+    await saveScheduleTable({ table: 'staff_breaks', rows, deletedIds })
+  }
+
+  const saveStaffTimeOff = async (payloadOrRows) => {
+    const rows = Array.isArray(payloadOrRows) ? payloadOrRows : payloadOrRows?.rows || []
+    const deletedIds = Array.isArray(payloadOrRows?.deletedIds) ? payloadOrRows.deletedIds : []
+    await saveScheduleTable({ table: 'staff_time_off', rows, deletedIds })
+  }
+
+  const saveBlockedSlots = async (payloadOrRows) => {
+    const rows = Array.isArray(payloadOrRows) ? payloadOrRows : payloadOrRows?.rows || []
+    const deletedIds = Array.isArray(payloadOrRows?.deletedIds) ? payloadOrRows.deletedIds : []
+    await saveScheduleTable({ table: 'blocked_slots', rows, deletedIds })
   }
 
   const saveStaff = async () => {
@@ -526,6 +598,9 @@ export default function Admin() {
             staff={staff}
             services={services}
             staffShifts={staffShifts}
+            staffBreaks={staffBreaks}
+            staffTimeOff={staffTimeOff}
+            blockedSlots={blockedSlots}
             onAddStaff={addStaff}
             onDeleteStaff={deleteStaff}
             onUpdateField={updateStaffField}
@@ -534,6 +609,9 @@ export default function Admin() {
             onUpdateSchedule={updateStaffSchedule}
             onSave={saveStaff}
             onSaveShifts={saveShifts}
+            onSaveBreaks={saveStaffBreaks}
+            onSaveTimeOff={saveStaffTimeOff}
+            onSaveBlockedSlots={saveBlockedSlots}
             saving={saving}
           />
         )}
