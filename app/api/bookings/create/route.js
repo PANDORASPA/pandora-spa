@@ -54,6 +54,8 @@ export async function POST(request) {
     const startTime = String(body?.startTime || '')
     const customerName = String(body?.customerName || '')
     const customerPhone = String(body?.customerPhone || '')
+    const couponCode = body?.couponCode ? String(body.couponCode) : ''
+    const userTicketId = body?.userTicketId ? Number(body.userTicketId) : null
 
     if (!dateISO || !/^\d{4}-\d{2}-\d{2}$/.test(dateISO)) {
       return NextResponse.json({ error: '日期格式錯誤' }, { status: 400 })
@@ -187,18 +189,84 @@ export async function POST(request) {
 
     const endTime = addMinutesToTime(startTime, durationMin)
     const bufferEndTime = addMinutesToTime(endTime, bufferMin)
+    let finalPrice = Number(service.price) || 0
+
+    if (couponCode) {
+      const { data: coupon, error: couponError } = await supabase
+        .from('coupons')
+        .select('*')
+        .eq('code', couponCode)
+        .eq('enabled', true)
+        .maybeSingle()
+
+      if (couponError) return NextResponse.json({ error: couponError.message }, { status: 500 })
+      if (!coupon) return NextResponse.json({ error: 'Invalid coupon code.' }, { status: 400 })
+
+      const now = new Date()
+      if (coupon.start_date && new Date(coupon.start_date) > now) {
+        return NextResponse.json({ error: 'Coupon is not active yet.' }, { status: 400 })
+      }
+      if (coupon.end_date && new Date(coupon.end_date) < now) {
+        return NextResponse.json({ error: 'Coupon has expired.' }, { status: 400 })
+      }
+
+      if (Number(coupon.usage_limit) > 0) {
+        const { count, error: usageError } = await supabase
+          .from('bookings')
+          .select('id', { count: 'exact', head: true })
+          .eq('coupon', couponCode)
+
+        if (usageError) return NextResponse.json({ error: usageError.message }, { status: 500 })
+        if ((count || 0) >= Number(coupon.usage_limit)) {
+          return NextResponse.json({ error: 'Coupon usage limit reached.' }, { status: 400 })
+        }
+      }
+
+      if (coupon.type === 'percent') {
+        finalPrice = Math.max(0, finalPrice * (1 - Number(coupon.discount || 0) / 100))
+      } else {
+        finalPrice = Math.max(0, finalPrice - Number(coupon.discount || 0))
+      }
+    }
+
+    let userTicket = null
+    if (userTicketId) {
+      const ticketRes = await supabase
+        .from('user_tickets')
+        .select('id,remaining_count,member_user_id,customer_id,ticket_name,tickets(service_id)')
+        .eq('id', userTicketId)
+        .maybeSingle()
+
+      if (ticketRes.error) return NextResponse.json({ error: ticketRes.error.message }, { status: 500 })
+      userTicket = ticketRes.data
+      if (!userTicket) return NextResponse.json({ error: 'Ticket not found.' }, { status: 404 })
+
+      const ownerMatches =
+        String(userTicket.member_user_id || '') === String(user.id) ||
+        String(userTicket.customer_id || '') === String(user.id)
+      if (!ownerMatches) return NextResponse.json({ error: 'You do not own this ticket.' }, { status: 403 })
+      if (Number(userTicket.remaining_count || 0) <= 0) {
+        return NextResponse.json({ error: 'Ticket has no remaining uses.' }, { status: 400 })
+      }
+      if (Number(userTicket?.tickets?.service_id || 0) !== Number(service.id)) {
+        return NextResponse.json({ error: 'Ticket does not match this service.' }, { status: 400 })
+      }
+
+      finalPrice = 0
+    }
 
     const payload = {
       ref: `${Date.now()}`,
       service: service.name,
       service_price: service.price,
-      final_price: service.price,
+      final_price: finalPrice,
       date: legacyDate,
       time: startTime,
       staff_id: chosenStaffId,
       staff_name: chosenStaff.name,
       name: customerName,
       phone: customerPhone,
+      coupon: couponCode || null,
       status: 'pending',
       user_id: user.id,
       customer_name: customerName,
@@ -220,6 +288,18 @@ export async function POST(request) {
         return NextResponse.json({ error: '此時段已被預約，請選擇其他時間' }, { status: 409 })
       }
       return NextResponse.json({ error: '建立預約失敗: ' + msg }, { status: 500 })
+    }
+
+    if (userTicket) {
+      const { error: ticketUpdateError } = await supabase
+        .from('user_tickets')
+        .update({ remaining_count: Number(userTicket.remaining_count || 0) - 1 })
+        .eq('id', userTicket.id)
+
+      if (ticketUpdateError) {
+        await supabase.from('bookings').delete().eq('id', inserted.id)
+        return NextResponse.json({ error: 'Ticket deduction failed: ' + ticketUpdateError.message }, { status: 500 })
+      }
     }
 
     return NextResponse.json(
