@@ -3,13 +3,13 @@
 import { useEffect, useState } from 'react'
 
 const DAY_OPTIONS = [
-  { key: '0', label: '日' },
-  { key: '1', label: '一' },
-  { key: '2', label: '二' },
-  { key: '3', label: '三' },
-  { key: '4', label: '四' },
-  { key: '5', label: '五' },
-  { key: '6', label: '六' },
+  { key: '0', label: '週日' },
+  { key: '1', label: '週一' },
+  { key: '2', label: '週二' },
+  { key: '3', label: '週三' },
+  { key: '4', label: '週四' },
+  { key: '5', label: '週五' },
+  { key: '6', label: '週六' },
 ]
 
 const normalizeDaysOff = (value) => {
@@ -37,6 +37,62 @@ const normalizeDaysOff = (value) => {
     .filter(Boolean)
 }
 
+const parseBusinessHours = (value) => {
+  const fallback = ['11:00', '20:00']
+  const raw = String(value || `${fallback[0]} - ${fallback[1]}`)
+  const parts = raw
+    .split('-')
+    .map((item) => item.trim())
+    .filter(Boolean)
+
+  return {
+    start: parts[0] || fallback[0],
+    end: parts[1] || fallback[1],
+  }
+}
+
+function SectionCard({ title, description, children, tone = 'default' }) {
+  const accentColor = tone === 'soft' ? '#A68B6A' : 'var(--text)'
+  const background = tone === 'soft' ? 'linear-gradient(180deg, #fff, #FAF8F5)' : '#fff'
+
+  return (
+    <div
+      className="admin-card"
+      style={{
+        padding: '24px',
+        background,
+        border: '1px solid var(--gray)',
+      }}
+    >
+      <div style={{ marginBottom: '18px' }}>
+        <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: accentColor }}>{title}</h3>
+        {description && (
+          <p style={{ margin: '6px 0 0', fontSize: '13px', lineHeight: 1.6, color: 'var(--text-light)' }}>
+            {description}
+          </p>
+        )}
+      </div>
+      {children}
+    </div>
+  )
+}
+
+function FieldGroup({ label, hint, children }) {
+  return (
+    <div style={{ marginBottom: '16px' }}>
+      <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: 700, color: 'var(--text)' }}>
+        {label}
+      </label>
+      {children}
+      {hint && (
+        <div style={{ marginTop: '8px', fontSize: '12px', lineHeight: 1.6, color: 'var(--text-light)' }}>
+          {hint}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function SettingsTab({ settings, saveSettings, saving = false }) {
   const [draft, setDraft] = useState(settings || {})
 
@@ -45,6 +101,8 @@ export default function SettingsTab({ settings, saveSettings, saving = false }) 
   }, [settings])
 
   const isDirty = JSON.stringify(draft || {}) !== JSON.stringify(settings || {})
+  const businessHours = parseBusinessHours(draft.business_hours)
+  const currentDaysOff = normalizeDaysOff(draft.days_off)
 
   const updateSetting = (key, value) => {
     setDraft((current) => ({ ...current, [key]: value }))
@@ -54,7 +112,6 @@ export default function SettingsTab({ settings, saveSettings, saving = false }) 
     await saveSettings(draft)
   }
 
-  const currentDaysOff = normalizeDaysOff(draft.days_off)
   const toggleDayOff = (dayKey) => {
     const nextDaysOff = currentDaysOff.includes(dayKey)
       ? currentDaysOff.filter((item) => item !== dayKey)
@@ -63,159 +120,193 @@ export default function SettingsTab({ settings, saveSettings, saving = false }) 
     updateSetting('days_off', JSON.stringify(nextDaysOff))
   }
 
-  const businessHours = String(draft.business_hours || '11:00 - 20:00')
-    .split('-')
-    .map((item) => item.trim())
-  const businessStart = businessHours[0] || '11:00'
-  const businessEnd = businessHours[1] || '20:00'
-
   return (
-    <div>
+    <div style={{ display: 'grid', gap: '20px' }}>
       <div
+        className="admin-card"
         style={{
+          padding: '18px 20px',
+          background: 'linear-gradient(135deg, #fff, #FAF8F5)',
+          border: '1px solid rgba(166, 139, 106, 0.22)',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          gap: '12px',
+          gap: '16px',
           flexWrap: 'wrap',
-          marginBottom: '20px',
-          padding: '16px 18px',
-          background: '#fff',
-          borderRadius: '14px',
-          border: '1px solid var(--gray)',
         }}
       >
         <div>
-          <div style={{ fontWeight: 800, color: 'var(--text)' }}>店舖設定草稿</div>
-          <div style={{ fontSize: '13px', color: 'var(--text-light)' }}>
-            {isDirty ? '有未儲存修改' : '目前設定已同步'}
+          <div style={{ fontSize: '13px', fontWeight: 700, color: '#A68B6A', letterSpacing: '0.04em' }}>
+            SETTINGS
+          </div>
+          <div style={{ marginTop: '4px', fontSize: '18px', fontWeight: 800, color: 'var(--text)' }}>
+            店舖設定
+          </div>
+          <div style={{ marginTop: '4px', fontSize: '13px', lineHeight: 1.6, color: 'var(--text-light)' }}>
+            調整店舖資料、營業時間、公休日與預約規則，改動後記得按右側儲存。
           </div>
         </div>
-        <button
-          type="button"
-          onClick={handleSave}
-          disabled={!isDirty || saving}
-          className="btn btn-small btn-interactive"
-          style={{ background: '#34D399' }}
-        >
-          {saving && <span className="spinner"></span>}
-          {saving ? '儲存中...' : '儲存設定'}
-        </button>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          <span
+            style={{
+              padding: '7px 12px',
+              borderRadius: '999px',
+              fontSize: '12px',
+              fontWeight: 700,
+              background: isDirty ? '#FEF3C7' : '#ECFDF5',
+              color: isDirty ? '#B45309' : '#047857',
+            }}
+          >
+            {isDirty ? '有未儲存變更' : '內容已同步'}
+          </span>
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={!isDirty || saving}
+            className="btn btn-small btn-interactive"
+            style={{
+              background: '#34D399',
+              minWidth: '120px',
+              justifyContent: 'center',
+            }}
+          >
+            {saving && <span className="spinner"></span>}
+            {saving ? '儲存中...' : '儲存設定'}
+          </button>
+        </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: '24px' }}>
-        <div className="admin-card" style={{ padding: '24px' }}>
-          <h3 style={{ marginBottom: '20px', fontSize: '16px', fontWeight: 700, color: 'var(--text)' }}>店舖基本資料</h3>
-
-          <div style={{ marginBottom: '16px' }}>
-            <label>店名</label>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px' }}>
+        <SectionCard
+          title="店舖基本資料"
+          description="這些資料會影響前台頁面顯示、WhatsApp 聯絡與地址展示。"
+        >
+          <FieldGroup
+            label="店舖名稱"
+            hint="例如：VIVA HAIR。會顯示在後台與前台設定相關區域。"
+          >
             <input
               type="text"
               value={draft.shop_name || ''}
               onChange={(e) => updateSetting('shop_name', e.target.value)}
-              placeholder="例如：VIVA HAIR"
+              placeholder="VIVA HAIR"
             />
-          </div>
+          </FieldGroup>
 
-          <div style={{ marginBottom: '16px' }}>
-            <label>地址</label>
+          <FieldGroup
+            label="店舖地址"
+            hint="用於前台地圖、聯絡資訊與店舖介紹。"
+          >
             <input
               type="text"
               value={draft.address || ''}
               onChange={(e) => updateSetting('address', e.target.value)}
-              placeholder="店舖地址"
+              placeholder="香港某區某街 55 號"
             />
-          </div>
+          </FieldGroup>
 
-          <div style={{ marginBottom: '16px' }}>
-            <label>電話 / WhatsApp</label>
+          <FieldGroup
+            label="電話 / WhatsApp"
+            hint="建議填寫可直接聯絡的手機或 WhatsApp 號碼。"
+          >
             <input
               type="text"
               value={draft.phone || ''}
               onChange={(e) => updateSetting('phone', e.target.value)}
-              placeholder="聯絡電話"
+              placeholder="+852 1234 5678"
             />
-          </div>
-        </div>
+          </FieldGroup>
+        </SectionCard>
 
-        <div className="admin-card" style={{ padding: '24px' }}>
-          <h3 style={{ marginBottom: '20px', fontSize: '16px', fontWeight: 700, color: 'var(--text)' }}>店舖營業與休息</h3>
-
-          <div style={{ marginBottom: '20px' }}>
-            <label>營業時間</label>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <SectionCard
+          title="營業時間與休息日"
+          description="用這裡設定整體營業範圍與店舖固定休息日。"
+          tone="soft"
+        >
+          <FieldGroup
+            label="營業時間"
+            hint="預約時段會以這個區間作為基準。"
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
               <input
                 type="time"
-                value={businessStart}
-                onChange={(e) => updateSetting('business_hours', `${e.target.value} - ${businessEnd}`)}
-                style={{ padding: '10px' }}
+                value={businessHours.start}
+                onChange={(e) => updateSetting('business_hours', `${e.target.value} - ${businessHours.end}`)}
+                style={{ padding: '10px 12px' }}
               />
-              <span style={{ fontWeight: 600, color: 'var(--text-light)' }}>至</span>
+              <span style={{ fontWeight: 700, color: 'var(--text-light)' }}>至</span>
               <input
                 type="time"
-                value={businessEnd}
-                onChange={(e) => updateSetting('business_hours', `${businessStart} - ${e.target.value}`)}
-                style={{ padding: '10px' }}
+                value={businessHours.end}
+                onChange={(e) => updateSetting('business_hours', `${businessHours.start} - ${e.target.value}`)}
+                style={{ padding: '10px 12px' }}
               />
             </div>
-            <p style={{ fontSize: '12px', color: 'var(--text-light)', marginTop: '8px' }}>
-              這個時間會作為全店可預約時段的基準。
-            </p>
-          </div>
+          </FieldGroup>
 
-          <div style={{ marginBottom: '16px' }}>
-            <label>店舖全體休息日</label>
+          <FieldGroup
+            label="固定休息日"
+            hint="已選中的日子會以紅色標示。這只代表全店休息，不是個別員工假期。"
+          >
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
-              {DAY_OPTIONS.map((day) => (
-                <button
-                  key={day.key}
-                  type="button"
-                  onClick={() => toggleDayOff(day.key)}
-                  className="btn-interactive"
-                  style={{
-                    padding: '8px 16px',
-                    borderRadius: '12px',
-                    fontSize: '14px',
-                    cursor: 'pointer',
-                    border: '1px solid ' + (currentDaysOff.includes(day.key) ? '#ef4444' : 'var(--gray)'),
-                    background: currentDaysOff.includes(day.key) ? '#fef2f2' : '#fff',
-                    color: currentDaysOff.includes(day.key) ? '#ef4444' : 'var(--text)',
-                    fontWeight: currentDaysOff.includes(day.key) ? 700 : 500,
-                  }}
-                >
-                  星期{day.label}
-                </button>
-              ))}
+              {DAY_OPTIONS.map((day) => {
+                const active = currentDaysOff.includes(day.key)
+
+                return (
+                  <button
+                    key={day.key}
+                    type="button"
+                    onClick={() => toggleDayOff(day.key)}
+                    className="btn-interactive"
+                    style={{
+                      padding: '9px 14px',
+                      borderRadius: '12px',
+                      fontSize: '13px',
+                      cursor: 'pointer',
+                      border: '1px solid ' + (active ? '#ef4444' : 'var(--gray)'),
+                      background: active ? '#fef2f2' : '#fff',
+                      color: active ? '#dc2626' : 'var(--text)',
+                      fontWeight: 700,
+                      minWidth: '76px',
+                    }}
+                  >
+                    {day.label}
+                  </button>
+                )
+              })}
             </div>
-            <p style={{ fontSize: '12px', color: 'var(--text-light)', marginTop: '10px' }}>
-              這裡只代表全店休息日，不是員工個人休假。
-            </p>
-          </div>
-        </div>
+          </FieldGroup>
+        </SectionCard>
 
-        <div className="admin-card" style={{ padding: '24px' }}>
-          <h3 style={{ marginBottom: '20px', fontSize: '16px', fontWeight: 700, color: 'var(--text)' }}>預約與取消政策</h3>
-
-          <div style={{ marginBottom: '16px' }}>
-            <label>預約政策</label>
+        <SectionCard
+          title="預約與取消政策"
+          description="這些內容會在前台顯示，方便客人預先了解規則。"
+        >
+          <FieldGroup
+            label="預約政策"
+            hint="例如：請於預約前 24 小時確認時間，遲到超過 15 分鐘可能需要重新安排。"
+          >
             <textarea
               value={draft.booking_policy || ''}
               onChange={(e) => updateSetting('booking_policy', e.target.value)}
-              placeholder="顯示在預約頁面的說明..."
-              style={{ minHeight: '100px' }}
+              placeholder="填寫預約規則、遲到處理、押金要求等..."
+              style={{ minHeight: '120px' }}
             />
-          </div>
+          </FieldGroup>
 
-          <div style={{ marginBottom: '16px' }}>
-            <label>取消政策</label>
+          <FieldGroup
+            label="取消政策"
+            hint="例如：請於預約前一天通知取消，否則可能視作爽約。"
+          >
             <textarea
               value={draft.cancellation_policy || ''}
               onChange={(e) => updateSetting('cancellation_policy', e.target.value)}
-              placeholder="描述取消或改期規則..."
-              style={{ minHeight: '100px' }}
+              placeholder="填寫取消期限、改期安排、退款說明等..."
+              style={{ minHeight: '120px' }}
             />
-          </div>
-        </div>
+          </FieldGroup>
+        </SectionCard>
       </div>
     </div>
   )
