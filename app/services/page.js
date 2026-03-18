@@ -14,6 +14,7 @@ export default function ServicesPage() {
   const [activeTab, setActiveTab] = useState('services')
   const [authUser, setAuthUser] = useState(null)
   const [profile, setProfile] = useState(null)
+  const [buyingTicketId, setBuyingTicketId] = useState(null)
 
   useEffect(() => {
     const load = async () => {
@@ -30,8 +31,14 @@ export default function ServicesPage() {
 
       const user = authRes?.data?.user || null
       setAuthUser(user)
+
       if (user) {
-        const { data } = await supabase.from('member_profiles').select('full_name, phone').eq('id', user.id).maybeSingle()
+        const { data } = await supabase
+          .from('member_profiles')
+          .select('full_name, phone')
+          .eq('id', user.id)
+          .maybeSingle()
+
         setProfile(data || null)
       }
     }
@@ -41,11 +48,18 @@ export default function ServicesPage() {
     const { data: sub } = supabase.auth.onAuthStateChange(async (_event, session) => {
       const user = session?.user || null
       setAuthUser(user)
+
       if (!user) {
         setProfile(null)
         return
       }
-      const { data } = await supabase.from('member_profiles').select('full_name, phone').eq('id', user.id).maybeSingle()
+
+      const { data } = await supabase
+        .from('member_profiles')
+        .select('full_name, phone')
+        .eq('id', user.id)
+        .maybeSingle()
+
       setProfile(data || null)
     })
 
@@ -53,8 +67,8 @@ export default function ServicesPage() {
   }, [])
 
   const ticketHint = useMemo(() => {
-    if (!authUser) return '登入會員後可購買並存入會員套票。'
-    return `目前會員：${profile?.full_name || authUser.email || '已登入'}`
+    if (!authUser) return '登入會員後即可購買套票，並在預約時使用。'
+    return `目前登入會員：${profile?.full_name || authUser.email || '已登入會員'}`
   }, [authUser, profile])
 
   const handleBuyTicket = async (ticket) => {
@@ -63,33 +77,37 @@ export default function ServicesPage() {
       return
     }
 
-    const expiryDate = new Date()
-    expiryDate.setFullYear(expiryDate.getFullYear() + 1)
+    try {
+      setBuyingTicketId(ticket.id)
 
-    const { error } = await supabase.from('user_tickets').insert({
-      member_user_id: authUser.id,
-      ticket_id: ticket.id,
-      ticket_name: ticket.name,
-      remaining_count: ticket.count,
-      expiry_date: expiryDate.toISOString(),
-    })
+      const response = await fetch('/api/tickets/purchase', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ticketId: ticket.id }),
+      })
 
-    if (error) {
-      toast.error('套票購買失敗: ' + error.message)
-      return
+      const payload = await response.json()
+      if (!response.ok) {
+        throw new Error(payload?.error || 'Ticket purchase failed')
+      }
+
+      toast.success(`已購買 ${ticket.name}，可到會員中心查看`)
+    } catch (error) {
+      toast.error(`套票購買失敗: ${error.message}`)
+    } finally {
+      setBuyingTicketId(null)
     }
-
-    toast.success(`已購買 ${ticket.name}，可到預約頁使用`)
   }
 
   return (
     <div style={{ minHeight: '100vh', background: '#FAF8F5', paddingBottom: '60px' }}>
       <div style={{ background: '#fff', padding: '60px 20px', textAlign: 'center', marginBottom: '40px' }}>
         <h1 style={{ fontSize: '32px', color: '#3D3D3D', marginBottom: '16px' }}>
-          服務與<span style={{ color: '#A68B6A' }}>套票</span>
+          服務與
+          <span style={{ color: '#A68B6A' }}>套票</span>
         </h1>
-        <p style={{ color: '#666', maxWidth: '640px', margin: '0 auto', lineHeight: 1.7 }}>
-          集中瀏覽單次服務、服務套票與會員套票。會員身份現已統一以 Supabase Auth 與 member profile 為準。
+        <p style={{ color: '#666', maxWidth: '680px', margin: '0 auto', lineHeight: 1.7 }}>
+          集中查看單次服務、服務套票與會員票券。會員身份統一以 Supabase Auth 和 member profile 為準。
         </p>
       </div>
 
@@ -98,7 +116,7 @@ export default function ServicesPage() {
           {[
             { id: 'services', label: '單次服務' },
             { id: 'packages', label: '服務套票' },
-            { id: 'tickets', label: '會員套票' },
+            { id: 'tickets', label: '會員票券' },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -133,7 +151,7 @@ export default function ServicesPage() {
                 </div>
                 <h3 style={{ fontSize: '18px', fontWeight: 700, marginBottom: '8px' }}>{service.name}</h3>
                 <p style={{ fontSize: '14px', color: '#666', lineHeight: 1.6, flex: 1, marginBottom: '20px' }}>
-                  {service.description || '由專業髮型師提供洗剪吹與造型建議。'}
+                  {service.description || '由專業髮型師提供洗剪吹和造型建議。'}
                 </p>
                 <Link href="/booking" className="btn btn-interactive" style={{ textAlign: 'center', padding: '12px', background: '#f3f4f6', color: '#333', fontWeight: 600 }}>
                   立即預約
@@ -154,7 +172,7 @@ export default function ServicesPage() {
                 <div style={{ fontSize: '32px', fontWeight: 800, color: '#A68B6A', marginBottom: '20px' }}>{formatCurrency(pkg.price)}</div>
                 <div style={{ background: '#FAF8F5', padding: '20px', borderRadius: '12px', marginBottom: '24px' }}>
                   <p style={{ fontSize: '15px', color: '#555', lineHeight: 1.8, whiteSpace: 'pre-line', margin: 0 }}>
-                    {pkg.description || '套票詳情可於預約前向店舖查詢。'}
+                    {pkg.description || '服務套票詳情可於預約前向店舖查詢。'}
                   </p>
                 </div>
                 <Link href="/booking" className="btn btn-interactive" style={{ display: 'block', textAlign: 'center', padding: '14px', background: '#A68B6A', color: '#fff', fontWeight: 700 }}>
@@ -185,7 +203,7 @@ export default function ServicesPage() {
                   <div style={{ padding: '24px', flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
                     <div style={{ marginBottom: '20px' }}>
                       <p style={{ fontSize: '14px', color: '#666', lineHeight: 1.6 }}>
-                        購買後會存入會員帳戶，預約相應服務時可直接扣減次數。
+                        購買後票券會存入會員帳戶，預約相關服務時可直接扣減次數。
                       </p>
                       <div style={{ marginTop: '12px', padding: '8px 12px', background: '#f0fdf4', borderRadius: '8px', color: '#166534', fontSize: '13px', fontWeight: 600, display: 'inline-block' }}>
                         平均每次 {formatCurrency(ticket.count ? ticket.price / ticket.count : ticket.price)}
@@ -194,10 +212,11 @@ export default function ServicesPage() {
                     <button
                       type="button"
                       onClick={() => handleBuyTicket(ticket)}
+                      disabled={buyingTicketId === ticket.id}
                       className="btn btn-interactive"
-                      style={{ width: '100%', padding: '12px', background: '#3D3D3D', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: 600 }}
+                      style={{ width: '100%', padding: '12px', background: '#3D3D3D', color: '#fff', border: 'none', borderRadius: '8px', cursor: buyingTicketId === ticket.id ? 'not-allowed' : 'pointer', fontSize: '14px', fontWeight: 600 }}
                     >
-                      購買會員套票
+                      {buyingTicketId === ticket.id ? '處理中...' : '購買會員票券'}
                     </button>
                   </div>
                 </div>
