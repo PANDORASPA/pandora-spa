@@ -29,6 +29,7 @@ export default function BookingPage() {
   const router = useRouter()
 
   const [loading, setLoading] = useState(true)
+  const [bootstrapError, setBootstrapError] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [authUser, setAuthUser] = useState(null)
   const [shopSettings, setShopSettings] = useState({})
@@ -115,14 +116,21 @@ export default function BookingPage() {
   useEffect(() => {
     const bootstrap = async () => {
       setLoading(true)
+      setBootstrapError('')
       try {
-        const [{ data: auth }, servicesRes, staffRes, couponsRes, settingsRes] = await Promise.all([
+        const [authResult, servicesResult, staffResult, couponsResult, settingsResult] = await Promise.allSettled([
           supabase.auth.getUser(),
           supabase.from('services').select('*').eq('enabled', true).order('sort_order'),
           supabase.from('staff').select('*').eq('enabled', true).order('name'),
           supabase.from('coupons').select('*').eq('enabled', true),
           supabase.from('settings').select('*'),
         ])
+
+        const auth = authResult.status === 'fulfilled' ? authResult.value?.data : null
+        const servicesRes = servicesResult.status === 'fulfilled' ? servicesResult.value : { data: [] }
+        const staffRes = staffResult.status === 'fulfilled' ? staffResult.value : { data: [] }
+        const couponsRes = couponsResult.status === 'fulfilled' ? couponsResult.value : { data: [] }
+        const settingsRes = settingsResult.status === 'fulfilled' ? settingsResult.value : { data: [] }
 
         const user = auth?.user || auth?.data?.user || null
         setAuthUser(user)
@@ -132,8 +140,27 @@ export default function BookingPage() {
         setShopSettings(buildSettingsMap(settingsRes.data || []))
 
         if (user) {
-          await loadMemberContext(user)
+          try {
+            await loadMemberContext(user)
+          } catch (error) {
+            console.error('Failed to load member context', error)
+          }
         }
+
+        const failures = [
+          authResult.status === 'rejected' ? 'auth' : '',
+          servicesResult.status === 'rejected' ? 'services' : '',
+          staffResult.status === 'rejected' ? 'staff' : '',
+          couponsResult.status === 'rejected' ? 'coupons' : '',
+          settingsResult.status === 'rejected' ? 'settings' : '',
+        ].filter(Boolean)
+
+        if (failures.length > 0) {
+          setBootstrapError(`載入部分資料失敗：${failures.join(', ')}`)
+        }
+      } catch (error) {
+        console.error('Failed to bootstrap booking page', error)
+        setBootstrapError(error?.message || '載入預約頁失敗')
       } finally {
         setLoading(false)
       }
@@ -313,6 +340,12 @@ export default function BookingPage() {
 
       <section style={{ padding: '24px 16px 40px' }}>
         <div style={{ maxWidth: '920px', margin: '0 auto', display: 'grid', gap: '24px' }}>
+          {bootstrapError && (
+            <div style={{ background: '#FEF2F2', color: '#991B1B', border: '1px solid #FECACA', borderRadius: '16px', padding: '16px 18px' }}>
+              {bootstrapError}
+            </div>
+          )}
+
           {!authUser && (
             <div style={{ background: '#fff', borderRadius: '18px', padding: '20px', border: '1px dashed #d1d5db' }}>
               <div style={{ fontWeight: 800, marginBottom: '8px', color: '#A68B6A' }}>請先登入會員</div>
