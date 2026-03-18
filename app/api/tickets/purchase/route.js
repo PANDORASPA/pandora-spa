@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import { getServerClient } from '../../../../lib/supabase/server'
 import { getServiceClient } from '../../../../lib/supabase/service'
 
+const normalizeText = (value) => String(value || '').trim()
+
 export async function POST(request) {
   try {
     const authSupabase = getServerClient()
@@ -32,6 +34,8 @@ export async function POST(request) {
 
     const expiryDate = new Date()
     expiryDate.setFullYear(expiryDate.getFullYear() + 1)
+    const orderRef = `ORD${Date.now().toString().slice(-6)}`
+    const ticketLabel = `Ticket: ${normalizeText(ticket.name) || `#${ticket.id}`}`
 
     const insertPayload = {
       member_user_id: user.id,
@@ -44,22 +48,26 @@ export async function POST(request) {
     const { data, error } = await supabase.from('user_tickets').insert(insertPayload).select('*').single()
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-    await supabase.from('orders').insert({
-      name: user.email || 'Member',
-      phone: '',
+    const orderPayload = {
+      user_name: normalizeText(user.email) || 'Member',
       address: '',
       delivery: 'digital',
       payment: 'manual',
-      product_name: `Ticket: ${ticket.name}`,
-      items: `Ticket: ${ticket.name}`,
+      items: ticketLabel,
       total: Number(ticket.price || 0),
       status: 'pending',
       created_at: new Date().toISOString(),
       member_user_id: user.id,
-      ref: `ORD${Date.now().toString().slice(-6)}`,
-    })
+      ref: orderRef,
+    }
 
-    return NextResponse.json({ ticket: data }, { status: 200 })
+    const { error: orderError } = await supabase.from('orders').insert(orderPayload)
+    if (orderError) {
+      await supabase.from('user_tickets').delete().eq('id', data.id)
+      return NextResponse.json({ error: orderError.message }, { status: 500 })
+    }
+
+    return NextResponse.json({ ticket: data, ref: orderRef }, { status: 200 })
   } catch (error) {
     return NextResponse.json({ error: error?.message || 'Unknown error' }, { status: 500 })
   }
