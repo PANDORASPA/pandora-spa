@@ -12,6 +12,8 @@ function RegisterInner() {
   const redirectTo = searchParams.get('redirectTo') || '/account'
 
   const [email, setEmail] = useState('')
+  const [fullName, setFullName] = useState('')
+  const [phone, setPhone] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -20,33 +22,53 @@ function RegisterInner() {
     let supabase
     try {
       supabase = getBrowserClient()
-    } catch (e) {
+    } catch (error) {
       return
     }
+
     supabase.auth.getUser().then(({ data }) => {
       if (data?.user) router.replace(redirectTo)
     })
-  }, [router, redirectTo])
+  }, [redirectTo, router])
 
-  const handleRegister = async (e) => {
-    e.preventDefault()
+  const handleRegister = async (event) => {
+    event.preventDefault()
     if (password !== confirmPassword) {
       toast.error('兩次密碼不一致')
       return
     }
+
     setLoading(true)
     try {
       const supabase = getBrowserClient()
-      const { data, error } = await supabase.auth.signUp({ email, password })
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            full_name: fullName,
+            phone,
+          },
+        },
+      })
+
       if (error) throw error
+
       if (data?.user) {
+        await supabase.from('member_profiles').upsert({
+          id: data.user.id,
+          email,
+          full_name: fullName || null,
+          phone: phone || null,
+        })
         toast.success('註冊成功')
       } else {
-        toast.success('註冊成功，請查收電郵完成驗證')
+        toast.success('註冊成功，請先完成電郵確認')
       }
+
       router.replace(redirectTo)
-    } catch (err) {
-      toast.error('註冊失敗: ' + (err?.message || '未知錯誤'))
+    } catch (error) {
+      toast.error('註冊失敗: ' + (error?.message || '請稍後再試'))
     } finally {
       setLoading(false)
     }
@@ -62,13 +84,35 @@ function RegisterInner() {
         <div style={{ maxWidth: '420px', margin: '0 auto', background: '#fff', borderRadius: '16px', padding: '24px', boxShadow: '0 2px 10px rgba(0,0,0,0.05)' }}>
           <form onSubmit={handleRegister} style={{ display: 'grid', gap: '14px' }}>
             <div>
+              <label style={{ display: 'block', fontWeight: 600, marginBottom: '6px' }}>稱呼</label>
+              <input
+                type="text"
+                value={fullName}
+                onChange={(event) => setFullName(event.target.value)}
+                placeholder="你的名字"
+                style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #e5e5e5' }}
+              />
+            </div>
+
+            <div>
               <label style={{ display: 'block', fontWeight: 600, marginBottom: '6px' }}>電郵</label>
               <input
                 type="email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(event) => setEmail(event.target.value)}
                 placeholder="you@example.com"
                 required
+                style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #e5e5e5' }}
+              />
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontWeight: 600, marginBottom: '6px' }}>電話</label>
+              <input
+                type="tel"
+                value={phone}
+                onChange={(event) => setPhone(event.target.value)}
+                placeholder="聯絡電話"
                 style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #e5e5e5' }}
               />
             </div>
@@ -78,8 +122,8 @@ function RegisterInner() {
               <input
                 type="password"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
+                onChange={(event) => setPassword(event.target.value)}
+                placeholder="至少 6 個字元"
                 required
                 style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #e5e5e5' }}
               />
@@ -90,8 +134,8 @@ function RegisterInner() {
               <input
                 type="password"
                 value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                placeholder="••••••••"
+                onChange={(event) => setConfirmPassword(event.target.value)}
+                placeholder="再次輸入密碼"
                 required
                 style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #e5e5e5' }}
               />
@@ -125,4 +169,3 @@ export default function Register() {
     </Suspense>
   )
 }
-
