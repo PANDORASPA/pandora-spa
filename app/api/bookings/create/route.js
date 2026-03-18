@@ -233,7 +233,7 @@ export async function POST(request) {
     if (userTicketId) {
       const ticketRes = await supabase
         .from('user_tickets')
-        .select('id,remaining_count,member_user_id,customer_id,ticket_name,tickets(service_id)')
+        .select('id,remaining_count,member_user_id,customer_id,ticket_name,ticket_id,tickets(*)')
         .eq('id', userTicketId)
         .maybeSingle()
 
@@ -248,7 +248,8 @@ export async function POST(request) {
       if (Number(userTicket.remaining_count || 0) <= 0) {
         return NextResponse.json({ error: 'Ticket has no remaining uses.' }, { status: 400 })
       }
-      if (Number(userTicket?.tickets?.service_id || 0) !== Number(service.id)) {
+      const ticketServiceId = Number(userTicket?.tickets?.service_id)
+      if (Number.isFinite(ticketServiceId) && ticketServiceId !== Number(service.id)) {
         return NextResponse.json({ error: 'Ticket does not match this service.' }, { status: 400 })
       }
 
