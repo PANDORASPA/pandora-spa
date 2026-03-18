@@ -18,7 +18,9 @@ export default async function Account() {
   return (
     <>
       <section style={{ padding: '30px 16px', background: '#FAF8F5', textAlign: 'center' }}>
-        <h1 style={{ fontSize: '28px' }}>會員<span style={{ color: '#A68B6A' }}>中心</span></h1>
+        <h1 style={{ fontSize: '28px' }}>
+          會員<span style={{ color: '#A68B6A' }}>中心</span>
+        </h1>
       </section>
 
       <section style={{ padding: '24px 16px' }}>
@@ -28,12 +30,16 @@ export default async function Account() {
               {(profile?.full_name || profile?.email || user.email || '會員').toString().charAt(0)}
             </div>
             <h2 style={{ marginBottom: '5px' }}>{profile?.full_name || '會員'}</h2>
-            <p style={{ color: '#666', fontSize: '14px', marginBottom: '10px' }}>{profile?.email || user.email}</p>
+            <p style={{ color: '#666', fontSize: '14px', marginBottom: '6px' }}>{profile?.email || user.email}</p>
+            {profile?.phone && <p style={{ color: '#999', fontSize: '13px' }}>{profile.phone}</p>}
           </div>
 
           <div style={{ display: 'grid', gap: '12px', marginBottom: '16px' }}>
             <Link href="/account/bookings" className="btn btn-interactive" style={{ background: '#A68B6A', color: '#fff', padding: '14px', borderRadius: '12px', fontWeight: 700, textAlign: 'center' }}>
-              📅 我的預約
+              我的預約
+            </Link>
+            <Link href="/services" className="btn btn-interactive" style={{ background: '#fff', color: '#333', padding: '14px', borderRadius: '12px', fontWeight: 700, textAlign: 'center', border: '1px solid #e5e7eb' }}>
+              查看服務與套票
             </Link>
           </div>
 
@@ -43,4 +49,3 @@ export default async function Account() {
     </>
   )
 }
-
