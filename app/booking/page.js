@@ -19,6 +19,12 @@ const buildSettingsMap = (rows) =>
     return acc
   }, {})
 
+const getTicketServiceId = (ticket) => {
+  const raw = ticket?.tickets?.service_id ?? ticket?.service_id ?? null
+  const parsed = Number(raw)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
 export default function BookingPage() {
   const router = useRouter()
 
@@ -50,7 +56,10 @@ export default function BookingPage() {
 
   const filteredTickets = useMemo(() => {
     if (!selectedService) return []
-    return userTickets.filter((ticket) => Number(ticket?.tickets?.service_id) === Number(selectedService.id))
+    return userTickets.filter((ticket) => {
+      const linkedServiceId = getTicketServiceId(ticket)
+      return linkedServiceId == null || linkedServiceId === Number(selectedService.id)
+    })
   }, [selectedService, userTickets])
 
   const selectedTicket = useMemo(
@@ -192,7 +201,7 @@ export default function BookingPage() {
       supabase.from('member_profiles').select('full_name, phone').eq('id', user.id).maybeSingle(),
       supabase
         .from('user_tickets')
-        .select('id,remaining_count,ticket_name,member_user_id,customer_id,tickets(service_id)')
+        .select('id,remaining_count,ticket_name,member_user_id,customer_id,ticket_id,tickets(*)')
         .or(`member_user_id.eq.${user.id},customer_id.eq.${user.id}`)
         .gt('remaining_count', 0),
     ])
