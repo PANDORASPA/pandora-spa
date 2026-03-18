@@ -10,8 +10,8 @@ export async function POST(request) {
     const name = normalizeText(body?.name)
     const phone = normalizeText(body?.phone)
     const address = normalizeText(body?.address)
-    const delivery = normalizeText(body?.delivery || '門市自取')
-    const payment = normalizeText(body?.payment || '現金')
+    const delivery = normalizeText(body?.delivery || 'pickup')
+    const payment = normalizeText(body?.payment || 'cash')
     const items = Array.isArray(body?.items) ? body.items : []
     const total = Number(body?.total || 0)
 
@@ -36,13 +36,13 @@ export async function POST(request) {
     const productNames = items.map((item) => normalizeText(item?.name)).filter(Boolean)
     const orderRef = `ORD${Date.now().toString().slice(-6)}`
 
+    // The live orders table currently stores a single contact label instead of
+    // separate name/phone/product columns, so we keep the payload compatible.
     const payload = {
-      name,
-      phone,
-      address: delivery === '送貨上門' ? address : '',
+      user_name: phone ? `${name} (${phone})` : name,
+      address: delivery.toLowerCase() === 'pickup' ? '' : address,
       delivery,
       payment,
-      product_name: productNames.join(', '),
       items: productNames.join(', '),
       total,
       status: 'pending',
