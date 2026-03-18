@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { getServerClient } from '../../../lib/supabase/server'
+import BookingList from './BookingList'
 
 export default async function AccountBookings() {
   const supabase = getServerClient()
@@ -32,30 +33,7 @@ export default async function AccountBookings() {
             </Link>
           </div>
 
-          {!bookings || bookings.length === 0 ? (
-            <div style={{ background: '#fff', borderRadius: '16px', padding: '24px', textAlign: 'center', color: '#666', boxShadow: '0 2px 10px rgba(0,0,0,0.05)' }}>
-              暫時沒有預約記錄
-            </div>
-          ) : (
-            <div style={{ display: 'grid', gap: '12px' }}>
-              {bookings.map((b) => (
-                <div key={b.id} style={{ background: '#fff', borderRadius: '16px', padding: '18px', boxShadow: '0 2px 10px rgba(0,0,0,0.05)' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'flex-start' }}>
-                    <div>
-                      <div style={{ fontWeight: 800, marginBottom: '6px' }}>{b.service || b.service_name || '服務'}</div>
-                      <div style={{ color: '#666', fontSize: '14px' }}>
-                        {(b.appointment_date || b.date || '').toString()} {b.start_time || b.time || ''}
-                      </div>
-                      {b.staff_name && <div style={{ color: '#666', fontSize: '13px', marginTop: '4px' }}>髮型師：{b.staff_name}</div>}
-                    </div>
-                    <span style={{ padding: '6px 10px', borderRadius: '999px', fontSize: '12px', background: '#f3f4f6', color: '#374151', fontWeight: 700 }}>
-                      {b.status || 'pending'}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+          <BookingList initialBookings={bookings} />
         </div>
       </section>
     </>
