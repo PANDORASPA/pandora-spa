@@ -37,6 +37,8 @@ export default function Booking() {
   const [authForm, setAuthForm] = useState({ phone: '', password: '', name: '', email: '' })
   const [reviews, setReviews] = useState([])
   const [authUser, setAuthUser] = useState(null)
+  const [editId, setEditId] = useState(null)
+  const [originalBooking, setOriginalBooking] = useState(null)
 
   // Fetch services, coupons, staff, bookings and shifts from Supabase
   useEffect(() => {
@@ -145,8 +147,28 @@ export default function Booking() {
       const params = new URLSearchParams(window.location.search)
       const staffId = params.get('staffId')
       if (staffId) setSelectedStaff(staffId)
+
+      const eId = params.get('editId')
+      if (eId) {
+        setEditId(eId)
+        supabase.from('bookings').select('*').eq('id', eId).single().then(({ data }) => {
+          if (data) {
+            setOriginalBooking(data)
+            if (data.staff_id) {
+              setSelectedStaff(data.staff_id.toString())
+            }
+          }
+        })
+      }
     } catch (e) {}
   }, [])
+
+  useEffect(() => {
+    if (allServices.length > 0 && originalBooking && !selectedService) {
+      const svc = allServices.find(s => String(s.id) === String(originalBooking.service_id) || s.name === originalBooking.service)
+      if (svc) setSelectedService(svc)
+    }
+  }, [allServices, originalBooking])
 
   const fetchUserTickets = async (userId) => {
     const { data } = await supabase
@@ -332,6 +354,7 @@ export default function Booking() {
     if (tMin == null) return false
 
     return bookings.some(b => {
+      if (editId && String(b.id) === String(editId)) return false // Ignore current booking when editing
       if (String(b.staff_id) !== String(staffId)) return false
       const onDate = String(b.date || '') === String(dateStr) || normalizeDateKey(b.appointment_date) === dateISO
       if (!onDate) return false
@@ -704,7 +727,7 @@ export default function Booking() {
       }
     }
 
-    const ref = 'VIVA' + Date.now().toString().slice(-6)
+    const ref = (editId && originalBooking?.ref) ? originalBooking.ref : ('VIVA' + Date.now().toString().slice(-6))
     const dateStr = `${selectedDate}/${currentMonth + 1}/${currentYear}`
     const dateISO = formatDateKey(selectedDate, currentYear, currentMonth)
     const baseDurationMin = selectedService?.timeMins || 60
@@ -750,6 +773,7 @@ export default function Booking() {
     }
 
     const overlapped = (staffBookings || []).some(b => {
+      if (editId && String(b.id) === String(editId)) return false
       const startRaw = b.start_time || b.time
       const bStartMin = parseTimeToMinutes(startRaw)
       if (bStartMin == null) return false
@@ -799,10 +823,19 @@ export default function Booking() {
       service_id: selectedService.id,
     }
 
-    let insertRes = await supabase.from('bookings').insert([bookingExtended]).select()
-    if (insertRes.error && (insertRes.error.code === 'PGRST204' || String(insertRes.error.message || '').includes('schema cache'))) {
-      insertRes = await supabase.from('bookings').insert([booking]).select()
+    let insertRes
+    if (editId) {
+      insertRes = await supabase.from('bookings').update(bookingExtended).eq('id', editId).select()
+      if (insertRes.error && (insertRes.error.code === 'PGRST204' || String(insertRes.error.message || '').includes('schema cache'))) {
+        insertRes = await supabase.from('bookings').update(booking).eq('id', editId).select()
+      }
+    } else {
+      insertRes = await supabase.from('bookings').insert([bookingExtended]).select()
+      if (insertRes.error && (insertRes.error.code === 'PGRST204' || String(insertRes.error.message || '').includes('schema cache'))) {
+        insertRes = await supabase.from('bookings').insert([booking]).select()
+      }
     }
+
     const data = insertRes.data
     const error = insertRes.error
 
@@ -813,17 +846,21 @@ export default function Booking() {
 
     // Update bookings state for blocking
     if (data && data[0]) {
-      setBookings([...bookings, data[0]])
+      if (editId) {
+        setBookings(bookings.map(b => b.id === editId ? data[0] : b))
+      } else {
+        setBookings([...bookings, data[0]])
+      }
     }
 
     // WhatsApp Notification Link
     const shopPhone = shopSettings.phone || '85212345678'
-    const waMsg = `您好，我想確認預約：\n編號：${ref}\n服務：${selectedService.name}\n日期：${selectedDate}/${currentMonth + 1}/${currentYear}\n時間：${selectedTime}\n姓名：${formData.name}`
+    const waMsg = `您好，我想確認${editId ? '更改後的' : ''}預約：\n編號：${editId && originalBooking ? originalBooking.ref : ref}\n服務：${selectedService.name}\n日期：${selectedDate}/${currentMonth + 1}/${currentYear}\n時間：${selectedTime}\n姓名：${formData.name}`
     const waUrl = `https://wa.me/${shopPhone.replace(/\D/g, '')}?text=${encodeURIComponent(waMsg)}`
     setWaUrl(waUrl)
 
-    toast.success('預約成功！')
-    setBookingRef(ref)
+    toast.success(editId ? '預約更改成功！' : '預約成功！')
+    setBookingRef(editId && originalBooking ? originalBooking.ref : ref)
     setShowModal(true)
   }
 
