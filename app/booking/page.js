@@ -119,7 +119,7 @@ export default function BookingPage() {
       setBootstrapError('')
       try {
         const [authResult, servicesResult, staffResult, couponsResult, settingsResult] = await Promise.allSettled([
-          supabase.auth.getUser(),
+          supabase.auth.getSession(),
           supabase.from('services').select('*').eq('enabled', true).order('sort_order'),
           supabase.from('staff').select('*').eq('enabled', true).order('name'),
           supabase.from('coupons').select('*').eq('enabled', true),
@@ -132,7 +132,7 @@ export default function BookingPage() {
         const couponsRes = couponsResult.status === 'fulfilled' ? couponsResult.value : { data: [] }
         const settingsRes = settingsResult.status === 'fulfilled' ? settingsResult.value : { data: [] }
 
-        const user = auth?.user || auth?.data?.user || null
+        const user = auth?.session?.user || null
         setAuthUser(user)
         setServices(servicesRes.data || [])
         setStaffList(staffRes.data || [])
@@ -148,12 +148,15 @@ export default function BookingPage() {
         }
 
         const failures = [
-          authResult.status === 'rejected' ? 'auth' : '',
           servicesResult.status === 'rejected' ? 'services' : '',
           staffResult.status === 'rejected' ? 'staff' : '',
           couponsResult.status === 'rejected' ? 'coupons' : '',
           settingsResult.status === 'rejected' ? 'settings' : '',
         ].filter(Boolean)
+
+        if (authResult.status === 'rejected') {
+          console.warn('Booking page auth bootstrap failed; continuing as guest.', authResult.reason)
+        }
 
         if (failures.length > 0) {
           setBootstrapError(`載入部分資料失敗：${failures.join(', ')}`)
