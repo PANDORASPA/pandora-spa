@@ -1,10 +1,10 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '../../lib/supabase'
 
-export default function Articles() {
+export default function ArticlesPage() {
   const [articles, setArticles] = useState([])
   const [loading, setLoading] = useState(true)
 
@@ -12,9 +12,10 @@ export default function Articles() {
     async function fetchArticles() {
       setLoading(true)
       const { data } = await supabase.from('articles').select('*').eq('enabled', true).order('sort_order')
-      if (data) setArticles(data)
+      setArticles(data || [])
       setLoading(false)
     }
+
     fetchArticles()
   }, [])
 
@@ -24,27 +25,43 @@ export default function Articles() {
 
   return (
     <>
-      <section style={{ padding: '30px 16px', minHeight: 'auto', background: '#FAF8F5' }}>
-        <div style={{ textAlign: 'center' }}>
-          <h1 style={{ fontSize: '28px', color: '#3D3D3D' }}>文章<span style={{ color: '#A68B6A' }}>資訊</span></h1>
+      <section style={{ padding: '36px 16px', background: '#FAF8F5' }}>
+        <div style={{ textAlign: 'center', maxWidth: '760px', margin: '0 auto' }}>
+          <h1 style={{ fontSize: '30px', color: '#3D3D3D', marginBottom: '10px' }}>
+            造型
+            <span style={{ color: '#A68B6A' }}>專欄</span>
+          </h1>
+          <p style={{ color: '#666', lineHeight: 1.7 }}>
+            整理髮型靈感、護理建議和店舖公告，讓內容區不再只是占位骨架。
+          </p>
         </div>
       </section>
 
-      <section style={{ padding: '24px 12px' }}>
-        <div style={{ maxWidth: '800px', margin: '0 auto' }}>
+      <section style={{ padding: '28px 12px 48px' }}>
+        <div style={{ maxWidth: '860px', margin: '0 auto' }}>
           {articles.length === 0 ? (
-            <p style={{ textAlign: 'center', color: '#999', padding: '40px' }}>暫時沒有文章</p>
+            <div style={{ background: '#fff', border: '1px solid #E8E0D5', borderRadius: '16px', padding: '28px', textAlign: 'center' }}>
+              <p style={{ color: '#666', marginBottom: '12px' }}>暫時未有公開文章。</p>
+              <Link href="/team" className="btn" style={{ display: 'inline-block' }}>
+                認識團隊
+              </Link>
+            </div>
           ) : (
             <div style={{ display: 'grid', gap: '16px' }}>
-              {articles.map(article => (
+              {articles.map((article) => (
                 <Link key={article.id} href={`/articles/${article.id}`} style={{ textDecoration: 'none' }}>
-                  <div style={{ background: '#fff', border: '1px solid #E8E0D5', borderRadius: '12px', padding: '16px', cursor: 'pointer' }}>
-                    <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '8px', color: '#333' }}>{article.title}</h3>
-                    <p style={{ fontSize: '13px', color: '#666', marginBottom: '8px' }}>{article.excerpt}</p>
+                  <article style={{ background: '#fff', border: '1px solid #E8E0D5', borderRadius: '16px', padding: '18px 18px 20px' }}>
                     {article.category && (
-                      <span style={{ fontSize: '11px', color: '#A68B6A', background: '#FAF8F5', padding: '4px 8px', borderRadius: '4px' }}>{article.category}</span>
+                      <span style={{ display: 'inline-block', marginBottom: '10px', fontSize: '12px', color: '#A68B6A', background: '#FAF8F5', padding: '5px 10px', borderRadius: '999px' }}>
+                        {article.category}
+                      </span>
                     )}
-                  </div>
+                    <h2 style={{ fontSize: '18px', color: '#333', marginBottom: '8px' }}>{article.title}</h2>
+                    <p style={{ fontSize: '14px', color: '#666', lineHeight: 1.7, marginBottom: '12px' }}>
+                      {article.excerpt || '店舖內容正在整理中。'}
+                    </p>
+                    <div style={{ fontSize: '13px', color: '#A68B6A', fontWeight: 600 }}>閱讀全文</div>
+                  </article>
                 </Link>
               ))}
             </div>
