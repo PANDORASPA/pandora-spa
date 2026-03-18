@@ -24,6 +24,52 @@ const tabGroups = [
   { name: 'System', tabs: [{ id: 'settings', name: 'Settings' }] },
 ]
 
+const pad2 = (value) => String(value).padStart(2, '0')
+
+const getLocalISODate = (date = new Date()) => {
+  return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`
+}
+
+const normalizeDateValue = (value) => {
+  if (!value) return ''
+  const text = String(value).trim()
+  if (!text) return ''
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text
+
+  const parts = text.split(/[\/.-]/).map((part) => part.trim())
+  if (parts.length === 3) {
+    const [a, b, c] = parts
+    if (a.length === 4) return `${a.padStart(4, '0')}-${b.padStart(2, '0')}-${c.padStart(2, '0')}`
+    return `${c.padStart(4, '0')}-${b.padStart(2, '0')}-${a.padStart(2, '0')}`
+  }
+
+  return text
+}
+
+const normalizeTimeValue = (value) => {
+  if (!value) return ''
+  const text = String(value).trim()
+  if (!text) return ''
+  return text.length >= 5 ? text.substring(0, 5) : text
+}
+
+const getBookingDateKey = (booking) => normalizeDateValue(booking?.appointment_date || booking?.date)
+const getBookingTimeKey = (booking) => normalizeTimeValue(booking?.start_time || booking?.time)
+const getBookingCustomerName = (booking) => booking?.customer_name || booking?.name || ''
+const getBookingCustomerPhone = (booking) => booking?.customer_phone || booking?.phone || ''
+const getBookingServiceName = (booking) => booking?.service_name || booking?.service || ''
+const getBookingServiceId = (booking, serviceRows = []) => {
+  const directId = Number(booking?.service_id)
+  if (Number.isFinite(directId) && directId > 0) return directId
+
+  const serviceName = String(getBookingServiceName(booking)).trim().toLowerCase()
+  if (!serviceName) return null
+
+  const matched = (serviceRows || []).find((service) => String(service?.name || '').trim().toLowerCase() === serviceName)
+  const matchedId = Number(matched?.id)
+  return Number.isFinite(matchedId) && matchedId > 0 ? matchedId : null
+}
+
 export default function Admin() {
   const router = useRouter()
 
@@ -346,20 +392,81 @@ export default function Admin() {
   }
 
   const updateBookingStaff = async (id, staffId) => {
-    const matchedStaff = staff.find((item) => item.id.toString() === String(staffId))
-    await supabase
-      .from('bookings')
-      .update({
-        staff_id: parseInt(staffId),
-        staff_name: matchedStaff ? matchedStaff.name : null,
-      })
-      .eq('id', id)
-    setBookings((current) =>
-      current.map((booking) =>
-        booking.id === id ? { ...booking, staff_id: parseInt(staffId), staff_name: matchedStaff ? matchedStaff.name : null } : booking
+    const nextStaffId = staffId === '' || staffId == null ? null : Number(staffId)
+    const targetBooking = bookings.find((booking) => booking.id === id)
+
+    if (nextStaffId == null) {
+      await supabase
+        .from('bookings')
+        .update({
+          staff_id: null,
+          staff_name: null,
+        })
+        .eq('id', id)
+
+      setBookings((current) =>
+        current.map((booking) => (booking.id === id ? { ...booking, staff_id: null, staff_name: null } : booking))
       )
-    )
-    toast.success('Saved')
+      toast.success('Saved')
+      return true
+    }
+
+    const bookingDate = getBookingDateKey(targetBooking)
+    const bookingTime = getBookingTimeKey(targetBooking)
+    const serviceId = getBookingServiceId(targetBooking, services)
+    const currentStaffId = targetBooking?.staff_id == null ? null : Number(targetBooking.staff_id)
+
+    if (currentStaffId != null && currentStaffId === nextStaffId) {
+      return true
+    }
+
+    if (!bookingDate || !bookingTime || !serviceId) {
+      toast.error('Unable to verify availability for this booking')
+      return false
+    }
+
+    const params = new URLSearchParams({
+      date: bookingDate,
+      serviceId: String(serviceId),
+      staffId: String(nextStaffId),
+    })
+
+    try {
+      const response = await fetch(`/api/availability?${params.toString()}`)
+      const payload = await response.json().catch(() => ({}))
+
+      if (!response.ok) {
+        throw new Error(payload?.error || 'Availability check failed')
+      }
+
+      const availableSlots = Array.isArray(payload?.slots) ? payload.slots : []
+      if (!availableSlots.includes(bookingTime)) {
+        toast.error('Selected staff is unavailable for this slot')
+        return false
+      }
+
+      const matchedStaff = staff.find((item) => item.id.toString() === String(nextStaffId))
+      await supabase
+        .from('bookings')
+        .update({
+          staff_id: nextStaffId,
+          staff_name: matchedStaff ? matchedStaff.name : null,
+        })
+        .eq('id', id)
+
+      setBookings((current) =>
+        current.map((booking) =>
+          booking.id === id
+            ? { ...booking, staff_id: nextStaffId, staff_name: matchedStaff ? matchedStaff.name : null }
+            : booking
+        )
+      )
+      toast.success('Saved')
+      return true
+    } catch (error) {
+      toast.error('Availability check failed: ' + (error?.message || 'Unknown error'))
+      return false
+    }
   }
 
   const addStaff = () => {
@@ -444,10 +551,11 @@ export default function Admin() {
     router.push('/admin/login')
   }
 
-  const today = new Date().toLocaleDateString('zh-HK')
+  const todayISO = getLocalISODate()
+  const todaysBookings = bookings.filter((booking) => getBookingDateKey(booking) === todayISO)
   const stats = {
-    todayBookings: bookings.filter((booking) => booking.date === today).length,
-    todayRevenue: bookings.filter((booking) => booking.date === today).reduce((sum, booking) => sum + (booking.final_price || 0), 0),
+    todayBookings: todaysBookings.length,
+    todayRevenue: todaysBookings.reduce((sum, booking) => sum + Number(booking.final_price || booking.service_price || 0), 0),
     totalUsers: users.length,
     pending: bookings.filter((booking) => booking.status === 'pending').length,
     completed: bookings.filter((booking) => booking.status === 'completed').length,
@@ -456,7 +564,8 @@ export default function Admin() {
 
   const popularServices = Object.entries(
     bookings.reduce((acc, booking) => {
-      acc[booking.service] = (acc[booking.service] || 0) + 1
+      const serviceKey = getBookingServiceName(booking) || 'Unknown'
+      acc[serviceKey] = (acc[serviceKey] || 0) + 1
       return acc
     }, {})
   )
@@ -533,19 +642,20 @@ export default function Admin() {
               <div className="admin-card" style={{ padding: '24px' }}>
                 <h3 style={{ marginBottom: '20px', fontSize: '18px', fontWeight: 700 }}>Today's Bookings</h3>
                 <div style={{ display: 'grid', gap: '12px' }}>
-                  {bookings.filter((booking) => booking.date === today).length === 0 ? (
+                  {todaysBookings.length === 0 ? (
                     <div style={{ padding: '40px 20px', textAlign: 'center', background: '#fafafa', borderRadius: '12px' }}>No bookings today</div>
                   ) : (
-                    bookings
-                      .filter((booking) => booking.date === today)
+                    todaysBookings
                       .map((booking) => (
                         <div key={booking.id} style={{ padding: '16px', background: '#fff', borderRadius: '12px', border: '1px solid var(--gray)', display: 'flex', alignItems: 'center', gap: '16px' }}>
                           <div style={{ width: '60px', textAlign: 'center', paddingRight: '16px', borderRight: '1px solid var(--gray)' }}>
-                            <div style={{ fontSize: '16px', fontWeight: 800, color: 'var(--primary)' }}>{booking.time}</div>
+                            <div style={{ fontSize: '16px', fontWeight: 800, color: 'var(--primary)' }}>{getBookingTimeKey(booking) || '-'}</div>
                           </div>
                           <div style={{ flex: 1 }}>
-                            <div style={{ fontWeight: 700, fontSize: '15px' }}>{booking.name}</div>
-                            <div style={{ fontSize: '12px', color: 'var(--text-light)' }}>{booking.service} - {booking.staff_name || 'Unassigned'}</div>
+                            <div style={{ fontWeight: 700, fontSize: '15px' }}>{getBookingCustomerName(booking) || '-'}</div>
+                            <div style={{ fontSize: '12px', color: 'var(--text-light)' }}>
+                              {getBookingServiceName(booking) || '-'} - {booking.staff_name || 'Unassigned'}
+                            </div>
                           </div>
                           <button type="button" onClick={() => setSelectedBooking(booking)} style={{ border: 'none', background: 'transparent', color: '#A68B6A', cursor: 'pointer', fontWeight: 700 }}>
                             View
@@ -641,18 +751,24 @@ export default function Admin() {
             </div>
             <div style={{ padding: '25px' }}>
               <div style={{ background: '#f9fafb', padding: '20px', borderRadius: '15px', marginBottom: '20px' }}>
-                <div style={{ marginBottom: '12px', fontSize: '15px' }}><strong style={{ color: '#666' }}>Date:</strong> {selectedBooking.date} {selectedBooking.time}</div>
-                <div style={{ marginBottom: '12px', fontSize: '15px' }}><strong style={{ color: '#666' }}>Service:</strong> {selectedBooking.service}</div>
-                <div style={{ marginBottom: '12px', fontSize: '15px' }}><strong style={{ color: '#666' }}>Customer:</strong> {selectedBooking.name}</div>
-                <div style={{ marginBottom: '12px', fontSize: '15px' }}><strong style={{ color: '#666' }}>Phone:</strong> {selectedBooking.phone}</div>
+                <div style={{ marginBottom: '12px', fontSize: '15px' }}><strong style={{ color: '#666' }}>Date:</strong> {getBookingDateKey(selectedBooking) || '-' } {getBookingTimeKey(selectedBooking) || ''}</div>
+                <div style={{ marginBottom: '12px', fontSize: '15px' }}><strong style={{ color: '#666' }}>Service:</strong> {getBookingServiceName(selectedBooking) || '-'}</div>
+                <div style={{ marginBottom: '12px', fontSize: '15px' }}><strong style={{ color: '#666' }}>Customer:</strong> {getBookingCustomerName(selectedBooking) || '-'}</div>
+                <div style={{ marginBottom: '12px', fontSize: '15px' }}><strong style={{ color: '#666' }}>Phone:</strong> {getBookingCustomerPhone(selectedBooking) || '-'}</div>
                 <div style={{ marginBottom: '15px', fontSize: '15px' }}>
                   <strong style={{ color: '#666' }}>Staff:</strong>
                   <select
-                    value={selectedBooking.staff_id || ''}
+                    value={selectedBooking.staff_id == null ? '' : String(selectedBooking.staff_id)}
                     onChange={async (event) => {
-                      await updateBookingStaff(selectedBooking.id, event.target.value)
-                      const matchedStaff = staff.find((item) => item.id.toString() === event.target.value)
-                      setSelectedBooking({ ...selectedBooking, staff_id: parseInt(event.target.value), staff_name: matchedStaff ? matchedStaff.name : null })
+                      const nextStaffId = event.target.value === '' ? null : Number(event.target.value)
+                      const ok = await updateBookingStaff(selectedBooking.id, event.target.value)
+                      if (!ok) return
+                      const matchedStaff = nextStaffId == null ? null : staff.find((item) => item.id.toString() === String(nextStaffId))
+                      setSelectedBooking({
+                        ...selectedBooking,
+                        staff_id: nextStaffId,
+                        staff_name: matchedStaff ? matchedStaff.name : null,
+                      })
                     }}
                     style={{ marginLeft: '10px', padding: '6px 10px', borderRadius: '8px', border: '1px solid #ddd', fontSize: '14px', outline: 'none' }}
                   >
