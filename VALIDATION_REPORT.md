@@ -10,6 +10,8 @@
   - `20260318000400`
 - Remote signup fix migration is applied:
   - `20260318000500`
+- Remote booking guard migration is applied:
+  - `20260318000600`
 - Local `.env.local` now points to the current Supabase project URL and keys.
 - `supabase/config.toml` was aligned with the linked project's auth settings to reduce CLI config drift warnings.
 - `npm run build` completes successfully.
@@ -27,6 +29,12 @@
   - `blocked_slots`
 - Live member signup now succeeds again.
 - Signup automatically creates a matching `member_profiles` row.
+- Live booking rows can now persist normalized timestamp fields used by overlap protection.
+- Live overlap protection now blocks duplicate staff/time bookings with the `bookings_no_overlap` exclusion constraint.
+- Live test inserts succeeded for:
+  - booking row creation
+  - `user_tickets` row creation
+  - `orders` row creation
 
 ## Latest Validation
 
@@ -34,6 +42,13 @@
 - A fresh test account was created successfully.
 - The linked `member_profiles` row is present immediately after signup.
 - Current profile sync creates the row reliably, but profile fields such as `full_name` and `phone` are still `null` until the app updates them later.
+- The live `orders` schema differs from the original baseline migration:
+  - missing `name`
+  - missing `phone`
+  - missing `product_name`
+- The app has been updated to use the live-compatible `orders.user_name` + `items` shape.
+- Staff scheduling also required live-schema compatibility for `staff.daysoff`.
+- Ticket usage now supports both service-specific tickets and generic tickets with no `service_id`.
 
 ## Impact
 
@@ -44,6 +59,7 @@
   - booking creation
   - ticket purchase
   - product order
+- Database-level booking collision protection is no longer a blind spot.
 
 ## Recommended Next Check
 
@@ -54,9 +70,13 @@
    - ticket purchase
    - product order
 2. Verify the app updates `member_profiles.full_name` and `member_profiles.phone` as expected after registration/profile save.
-3. Validate admin-side schedule changes against live availability blocking:
+3. Manually verify the browser-based checkout and booking UI against the now-fixed live schema:
+   - product checkout modal -> `/api/orders/create`
+   - booking page ticket selection
+   - account booking list / reschedule
+4. Validate admin-side schedule changes against live availability blocking:
    - shop `days_off`
    - staff weekly schedule
    - date-specific `staff_shifts`
    - `blocked_slots`
-4. Manually verify non-admin users are redirected away from `/admin`.
+5. Manually verify non-admin users are redirected away from `/admin`.
