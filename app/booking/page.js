@@ -49,6 +49,39 @@ export default function BookingPage() {
   const [bookingRef, setBookingRef] = useState('')
   const [waUrl, setWaUrl] = useState('')
 
+  const refreshAvailability = async () => {
+    if (!selectedServiceId || !selectedDate) {
+      setAvailableSlots([])
+      setSelectedTime('')
+      return
+    }
+
+    setLoadingSlots(true)
+    try {
+      const params = new URLSearchParams({
+        date: selectedDate,
+        serviceId: String(selectedServiceId),
+      })
+      if (selectedStaffId && selectedStaffId !== 'random') {
+        params.set('staffId', selectedStaffId)
+      }
+
+      const response = await fetch(`/api/availability?${params.toString()}`)
+      const result = await response.json()
+      if (!response.ok) throw new Error(result?.error || 'Failed to fetch available slots')
+
+      const nextSlots = result.slots || []
+      setAvailableSlots(nextSlots)
+      setSelectedTime((current) => (current && nextSlots.includes(current) ? current : ''))
+    } catch (error) {
+      setAvailableSlots([])
+      setSelectedTime('')
+      toast.error(error?.message || '鐒℃硶璁€鍙栧彲闋愮磩鏅傛')
+    } finally {
+      setLoadingSlots(false)
+    }
+  }
+
   const selectedService = useMemo(
     () => services.find((service) => String(service.id) === String(selectedServiceId)) || null,
     [services, selectedServiceId]
@@ -158,35 +191,7 @@ export default function BookingPage() {
   }, [])
 
   useEffect(() => {
-    const fetchSlots = async () => {
-      if (!selectedServiceId || !selectedDate) {
-        setAvailableSlots([])
-        return
-      }
-
-      setLoadingSlots(true)
-      try {
-        const params = new URLSearchParams({
-          date: selectedDate,
-          serviceId: String(selectedServiceId),
-        })
-        if (selectedStaffId && selectedStaffId !== 'random') {
-          params.set('staffId', selectedStaffId)
-        }
-
-        const response = await fetch(`/api/availability?${params.toString()}`)
-        const result = await response.json()
-        if (!response.ok) throw new Error(result?.error || 'Failed to fetch available slots')
-        setAvailableSlots(result.slots || [])
-      } catch (error) {
-        setAvailableSlots([])
-        toast.error(error?.message || '無法讀取可預約時段')
-      } finally {
-        setLoadingSlots(false)
-      }
-    }
-
-    fetchSlots()
+    refreshAvailability()
   }, [selectedDate, selectedServiceId, selectedStaffId])
 
   useEffect(() => {
@@ -276,6 +281,8 @@ export default function BookingPage() {
       setBookingRef(ref)
       setWaUrl(`https://wa.me/${shopPhone}?text=${encodeURIComponent(message)}`)
       setShowModal(true)
+      setSelectedTime('')
+      await refreshAvailability()
       toast.success(editId ? '預約已更新' : '預約成功')
 
       if (selectedTicket) {
