@@ -1,64 +1,78 @@
-# VIVA HAIR 髮型屋預約系統
+# VIVA HAIR
 
-一個簡約時尚既髮型屋預約網站，用 Next.js 開發。
+Hair salon booking and admin system built with Next.js and Supabase.
 
-## 功能
+## What is already here
 
-- 首頁展示同服務推廣
-- 網上預約系統
-- 套票購買
-- 產品商店
-- 會員系統
-- 管理後台
+- Public site with services, packages, articles, FAQs, products, and booking entry points.
+- Supabase Auth for member login, registration, account access, and member bookings.
+- Server-side booking availability and create routes.
+- Admin dashboard tabs for bookings, staff, services, inventory, coupons, articles, FAQs, customers, analytics, and settings.
 
-## 快速開始
+## Setup
+
+1. Install dependencies.
 
 ```bash
-# 安裝
 npm install
+```
 
-# 開發
+2. Copy `.env.example` to `.env.local` and fill in the Supabase values.
+
+3. Apply the SQL files in the order documented in [`SUPABASE_SETUP_ORDER.md`](./SUPABASE_SETUP_ORDER.md).
+
+4. Start the app.
+
+```bash
 npm run dev
+```
 
-# 構建
+5. Build for production.
+
+```bash
 npm run build
-
-# 發布
-npm run start
 ```
 
-## 環境變量
+## Environment Variables
 
-如使用 Supabase 數據庫，請複製 `.env.example` 為 `.env.local` 並填入相關 keys。
+Required:
 
-## 技術
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
 
-- Next.js 14
-- React
-- CSS Modules / Inline Styles
-- LocalStorage (預設數據存儲)
+Optional:
 
-## 目錄結構
+- `NEXT_PUBLIC_SITE_URL`
 
-```
-viva-hair-next/
-├── app/
-│   ├── page.js         # 首頁
-│   ├── layout.js       #  Layout
-│   ├── globals.css     # 全局樣式
-│   ├── booking/        # 預約頁面
-│   ├── services/       # 服務頁面
-│   ├── tickets/        # 套票頁面
-│   ├── products/       # 產品頁面
-│   ├── articles/       # 文章頁面
-│   ├── coupons/        # 優惠碼頁面
-│   ├── faq/            # 常見問題
-│   ├── login/          # 登入/註冊
-│   └── admin/          # 管理後台
-├── .env.example        # 環境變量樣板
-├── package.json
-└── next.config.js
-```
+## Authentication Flow
+
+- Member auth uses Supabase Auth.
+- `/account` is protected by middleware and requires a valid session.
+- `member_profiles` is the profile extension table for authenticated users.
+- Admin access is intended to be controlled by Supabase-backed roles and SQL policies, not by a front-end password or `localStorage`.
+
+## Booking Flow
+
+- The canonical booking shape uses `appointment_date`, `start_time`, `end_time`, `buffer_end_time`, `duration_min`, `buffer_min`, `user_id`, `service_id`, and `staff_id`.
+- Legacy `date` and `time` fields are transitional compatibility fields only.
+- Availability checks and booking creation should go through server routes, not direct browser writes.
+
+## Admin Flow
+
+- Admin reads and writes should be protected by RLS and server-side policy checks.
+- The old `localStorage`-based admin gate is a legacy development pattern and should not be used as a security boundary.
+
+## SQL Notes
+
+- The current SQL files are intentionally split by concern and history.
+- The canonical execution order is documented in [`SUPABASE_SETUP_ORDER.md`](./SUPABASE_SETUP_ORDER.md).
+- `sql-fix-permissions.sql` is a legacy repair script and should not be part of a fresh baseline.
+
+## Troubleshooting
+
+- If `npm run build` fails because dependencies are missing, run `npm install` first.
+- If Supabase queries fail, confirm that your `.env.local` has the correct project URL, anon key, and service role key.
 
 ## License
 
