@@ -30,11 +30,34 @@ export async function middleware(request) {
   } = await supabase.auth.getUser()
 
   const pathname = request.nextUrl.pathname
+  const adminAuthPath = '/admin/login'
   if (pathname.startsWith('/account') && !user) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     url.searchParams.set('redirectTo', pathname + request.nextUrl.search)
     return NextResponse.redirect(url)
+  }
+
+  if (pathname.startsWith('/admin') && pathname !== adminAuthPath) {
+    if (!user) {
+      const url = request.nextUrl.clone()
+      url.pathname = adminAuthPath
+      url.searchParams.set('redirectTo', pathname + request.nextUrl.search)
+      return NextResponse.redirect(url)
+    }
+
+    const { data: profile } = await supabase
+      .from('member_profiles')
+      .select('is_admin')
+      .eq('id', user.id)
+      .maybeSingle()
+
+    if (!profile?.is_admin) {
+      const url = request.nextUrl.clone()
+      url.pathname = adminAuthPath
+      url.searchParams.set('redirectTo', pathname + request.nextUrl.search)
+      return NextResponse.redirect(url)
+    }
   }
 
   return response
@@ -43,4 +66,3 @@ export async function middleware(request) {
 export const config = {
   matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
 }
-
