@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getAvailableSlots } from '../../../../lib/booking/availability'
 import { addMinutesToTime, parseList } from '../../../../lib/time'
+import { addMinutesToHKTimestamp, timeToHKTimestamp } from '../../../../lib/booking/availability'
 import { getServerClient } from '../../../../lib/supabase/server'
 import { getServiceClient } from '../../../../lib/supabase/service'
 
@@ -189,6 +190,9 @@ export async function POST(request) {
 
     const endTime = addMinutesToTime(startTime, durationMin)
     const bufferEndTime = addMinutesToTime(endTime, bufferMin)
+    const startAt = timeToHKTimestamp(dateISO, startTime)
+    const endAt = addMinutesToHKTimestamp(dateISO, startTime, durationMin)
+    const bufferEndAt = addMinutesToHKTimestamp(dateISO, startTime, durationMin + bufferMin)
     let finalPrice = Number(service.price) || 0
 
     if (couponCode) {
@@ -278,6 +282,9 @@ export async function POST(request) {
       start_time: startTime,
       end_time: endTime,
       buffer_end_time: bufferEndTime,
+      start_at: startAt,
+      end_at: endAt,
+      buffer_end_at: bufferEndAt,
       duration_min: durationMin,
       buffer_min: bufferMin,
     }
