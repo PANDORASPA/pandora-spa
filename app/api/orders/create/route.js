@@ -18,9 +18,11 @@ export async function POST(request) {
     if (!name || !phone) {
       return NextResponse.json({ error: 'Name and phone are required.' }, { status: 400 })
     }
+
     if (items.length === 0) {
       return NextResponse.json({ error: 'Order items are required.' }, { status: 400 })
     }
+
     if (!Number.isFinite(total) || total < 0) {
       return NextResponse.json({ error: 'Invalid order total.' }, { status: 400 })
     }
@@ -50,6 +52,7 @@ export async function POST(request) {
     }
 
     const { data, error } = await supabase.from('orders').insert(payload).select('*').single()
+
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
