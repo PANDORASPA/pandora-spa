@@ -70,6 +70,15 @@ const getBookingServiceId = (booking, serviceRows = []) => {
   return Number.isFinite(matchedId) && matchedId > 0 ? matchedId : null
 }
 
+const parseBusinessHours = (value) => {
+  const text = String(value || '11:00 - 20:00')
+  const parts = text.split('-').map((part) => part.trim())
+  return {
+    start: parts[0] || '11:00',
+    end: parts[1] || '20:00',
+  }
+}
+
 export default function Admin() {
   const router = useRouter()
 
@@ -224,18 +233,24 @@ export default function Admin() {
     try {
       const existingIds = (staffShifts || []).map((s) => Number(s.id)).filter((n) => Number.isFinite(n))
       let nextId = (existingIds.length ? Math.max(...existingIds) : 0) + 1
+      const businessHours = parseBusinessHours(settings?.business_hours)
 
       const payload = (shifts || []).map((shift) => {
         const row = { ...shift }
+        const staffRow = staff.find((item) => item.id === row.staff_id)
+        const dayKey = row.date ? String(new Date(`${row.date}T00:00:00Z`).getUTCDay()) : null
+        const baselineStart = dayKey ? String(staffRow?.schedule?.[dayKey]?.start || businessHours.start).substring(0, 5) : businessHours.start
+        const baselineEnd = dayKey ? String(staffRow?.schedule?.[dayKey]?.end || businessHours.end).substring(0, 5) : businessHours.end
         row.date = row.date ? String(row.date).substring(0, 10) : row.date
         if (!row.id) {
           row.id = nextId
           nextId += 1
         }
-        if (row.start_time) row.start_time = String(row.start_time).substring(0, 5)
-        if (row.end_time) row.end_time = String(row.end_time).substring(0, 5)
+        row.is_off = Boolean(row.is_off)
+        row.start_time = row.is_off ? null : String(row.start_time || baselineStart).substring(0, 5)
+        row.end_time = row.is_off ? null : String(row.end_time || baselineEnd).substring(0, 5)
         return row
-      })
+      }).filter((row) => row.date && row.staff_id)
 
       const { error } = await supabase.from('staff_shifts').upsert(payload, { onConflict: 'staff_id, date' })
       if (error) throw error
@@ -259,7 +274,9 @@ export default function Admin() {
           const payload = stripTransientFields({ ...row })
           if (payload.date) payload.date = String(payload.date).substring(0, 10)
           if (payload.start_time) payload.start_time = String(payload.start_time).substring(0, 5)
+          else if (payload.start_time === '') payload.start_time = null
           if (payload.end_time) payload.end_time = String(payload.end_time).substring(0, 5)
+          else if (payload.end_time === '') payload.end_time = null
           if (payload.day_of_week != null && payload.day_of_week !== '') payload.day_of_week = Number(payload.day_of_week)
           if (payload.is_all_day == null) delete payload.is_all_day
           if (typeof payload.id === 'number' && payload.id > 2147483647) delete payload.id
@@ -309,9 +326,21 @@ export default function Admin() {
   const saveStaff = async () => {
     setSaving(true)
     try {
+      const businessHours = parseBusinessHours(settings?.business_hours)
       for (const item of staff) {
         const payload = { ...item }
+        const normalizedSchedule = Object.entries(item.schedule || {}).reduce((acc, [dayKey, value]) => {
+          const start = String(value?.start || '').substring(0, 5)
+          const end = String(value?.end || '').substring(0, 5)
+          if (!start && !end) return acc
+          acc[dayKey] = {
+            start: start || businessHours.start,
+            end: end || businessHours.end,
+          }
+          return acc
+        }, {})
         payload.daysoff = Array.isArray(item.daysOff) ? item.daysOff : []
+        payload.schedule = normalizedSchedule
         delete payload.daysOff
         if (typeof payload.id === 'number' && payload.id > 2147483647) delete payload.id
         const { error } = await supabase.from('staff').upsert(payload)
