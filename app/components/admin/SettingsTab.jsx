@@ -2,6 +2,16 @@
 
 import { useEffect, useState } from 'react'
 
+const DAY_OPTIONS = [
+  { key: '0', label: '日' },
+  { key: '1', label: '一' },
+  { key: '2', label: '二' },
+  { key: '3', label: '三' },
+  { key: '4', label: '四' },
+  { key: '5', label: '五' },
+  { key: '6', label: '六' },
+]
+
 const normalizeDaysOff = (value) => {
   if (!value) return []
   if (Array.isArray(value)) return value.map((item) => String(item).trim()).filter(Boolean)
@@ -16,12 +26,15 @@ const normalizeDaysOff = (value) => {
       return Array.isArray(parsed)
         ? parsed.map((item) => String(item).trim()).filter(Boolean)
         : [String(parsed).trim()].filter(Boolean)
-    } catch (e) {
+    } catch {
       return []
     }
   }
 
-  return trimmed.split(',').map((item) => item.trim()).filter(Boolean)
+  return trimmed
+    .split(',')
+    .map((item) => String(item).trim())
+    .filter(Boolean)
 }
 
 export default function SettingsTab({ settings, saveSettings, saving = false }) {
@@ -37,21 +50,22 @@ export default function SettingsTab({ settings, saveSettings, saving = false }) 
     setDraft((current) => ({ ...current, [key]: value }))
   }
 
-  const toggleDayOff = (dayName) => {
-    const currentDaysOff = normalizeDaysOff(draft.days_off)
-    const nextDaysOff = currentDaysOff.includes(dayName)
-      ? currentDaysOff.filter((item) => item !== dayName)
-      : [...currentDaysOff, dayName]
-
-    updateSetting('days_off', JSON.stringify(nextDaysOff))
-  }
-
   const handleSave = async () => {
     await saveSettings(draft)
   }
 
-  const daysOff = normalizeDaysOff(draft.days_off)
-  const businessHours = String(draft.business_hours || '11:00 - 20:00').split('-').map((item) => item.trim())
+  const currentDaysOff = normalizeDaysOff(draft.days_off)
+  const toggleDayOff = (dayKey) => {
+    const nextDaysOff = currentDaysOff.includes(dayKey)
+      ? currentDaysOff.filter((item) => item !== dayKey)
+      : [...currentDaysOff, dayKey]
+
+    updateSetting('days_off', JSON.stringify(nextDaysOff))
+  }
+
+  const businessHours = String(draft.business_hours || '11:00 - 20:00')
+    .split('-')
+    .map((item) => item.trim())
   const businessStart = businessHours[0] || '11:00'
   const businessEnd = businessHours[1] || '20:00'
 
@@ -72,9 +86,9 @@ export default function SettingsTab({ settings, saveSettings, saving = false }) 
         }}
       >
         <div>
-          <div style={{ fontWeight: 800, color: 'var(--text)' }}>設定草稿</div>
+          <div style={{ fontWeight: 800, color: 'var(--text)' }}>店舖設定草稿</div>
           <div style={{ fontSize: '13px', color: 'var(--text-light)' }}>
-            {isDirty ? '有未儲存變更' : '目前已與資料庫同步'}
+            {isDirty ? '有未儲存修改' : '目前設定已同步'}
           </div>
         </div>
         <button
@@ -85,22 +99,24 @@ export default function SettingsTab({ settings, saveSettings, saving = false }) 
           style={{ background: '#34D399' }}
         >
           {saving && <span className="spinner"></span>}
-          {saving ? '鍎插瓨涓?..' : '儲存設定'}
+          {saving ? '儲存中...' : '儲存設定'}
         </button>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: '24px' }}>
         <div className="admin-card" style={{ padding: '24px' }}>
-          <h3 style={{ marginBottom: '20px', fontSize: '16px', fontWeight: 700, color: 'var(--text)' }}>店舖基本設定</h3>
+          <h3 style={{ marginBottom: '20px', fontSize: '16px', fontWeight: 700, color: 'var(--text)' }}>店舖基本資料</h3>
+
           <div style={{ marginBottom: '16px' }}>
             <label>店名</label>
             <input
               type="text"
               value={draft.shop_name || ''}
               onChange={(e) => updateSetting('shop_name', e.target.value)}
-              placeholder="例如: VIVA SALON"
+              placeholder="例如：VIVA HAIR"
             />
           </div>
+
           <div style={{ marginBottom: '16px' }}>
             <label>地址</label>
             <input
@@ -110,6 +126,7 @@ export default function SettingsTab({ settings, saveSettings, saving = false }) 
               placeholder="店舖地址"
             />
           </div>
+
           <div style={{ marginBottom: '16px' }}>
             <label>電話 / WhatsApp</label>
             <input
@@ -122,7 +139,7 @@ export default function SettingsTab({ settings, saveSettings, saving = false }) 
         </div>
 
         <div className="admin-card" style={{ padding: '24px' }}>
-          <h3 style={{ marginBottom: '20px', fontSize: '16px', fontWeight: 700, color: 'var(--text)' }}>營業與休息設定</h3>
+          <h3 style={{ marginBottom: '20px', fontSize: '16px', fontWeight: 700, color: 'var(--text)' }}>店舖營業與休息</h3>
 
           <div style={{ marginBottom: '20px' }}>
             <label>營業時間</label>
@@ -142,44 +159,45 @@ export default function SettingsTab({ settings, saveSettings, saving = false }) 
               />
             </div>
             <p style={{ fontSize: '12px', color: 'var(--text-light)', marginTop: '8px' }}>
-              會影響預約頁面的可用時段計算
+              這個時間會作為全店可預約時段的基準。
             </p>
           </div>
 
           <div style={{ marginBottom: '16px' }}>
-            <label>每週休息日</label>
+            <label>店舖全體休息日</label>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
-              {['日', '一', '二', '三', '四', '五', '六'].map((day) => (
+              {DAY_OPTIONS.map((day) => (
                 <button
-                  key={day}
+                  key={day.key}
                   type="button"
-                  onClick={() => toggleDayOff(day)}
+                  onClick={() => toggleDayOff(day.key)}
                   className="btn-interactive"
                   style={{
                     padding: '8px 16px',
                     borderRadius: '12px',
                     fontSize: '14px',
                     cursor: 'pointer',
-                    border: '1px solid ' + (daysOff.includes(day) ? '#ef4444' : 'var(--gray)'),
-                    background: daysOff.includes(day) ? '#fef2f2' : '#fff',
-                    color: daysOff.includes(day) ? '#ef4444' : 'var(--text)',
-                    fontWeight: daysOff.includes(day) ? 700 : 500,
+                    border: '1px solid ' + (currentDaysOff.includes(day.key) ? '#ef4444' : 'var(--gray)'),
+                    background: currentDaysOff.includes(day.key) ? '#fef2f2' : '#fff',
+                    color: currentDaysOff.includes(day.key) ? '#ef4444' : 'var(--text)',
+                    fontWeight: currentDaysOff.includes(day.key) ? 700 : 500,
                   }}
                 >
-                  {day}
+                  星期{day.label}
                 </button>
               ))}
             </div>
             <p style={{ fontSize: '12px', color: 'var(--text-light)', marginTop: '10px' }}>
-              紅色代表店舖全日休息日
+              這裡只代表全店休息日，不是員工個人休假。
             </p>
           </div>
         </div>
 
         <div className="admin-card" style={{ padding: '24px' }}>
           <h3 style={{ marginBottom: '20px', fontSize: '16px', fontWeight: 700, color: 'var(--text)' }}>預約與取消政策</h3>
+
           <div style={{ marginBottom: '16px' }}>
-            <label>預約條款</label>
+            <label>預約政策</label>
             <textarea
               value={draft.booking_policy || ''}
               onChange={(e) => updateSetting('booking_policy', e.target.value)}
@@ -187,12 +205,13 @@ export default function SettingsTab({ settings, saveSettings, saving = false }) 
               style={{ minHeight: '100px' }}
             />
           </div>
+
           <div style={{ marginBottom: '16px' }}>
             <label>取消政策</label>
             <textarea
               value={draft.cancellation_policy || ''}
               onChange={(e) => updateSetting('cancellation_policy', e.target.value)}
-              placeholder="描述取消預約的規則..."
+              placeholder="描述取消或改期規則..."
               style={{ minHeight: '100px' }}
             />
           </div>
