@@ -19,16 +19,17 @@ function LoginInner() {
     let supabase
     try {
       supabase = getBrowserClient()
-    } catch (e) {
+    } catch (error) {
       return
     }
+
     supabase.auth.getUser().then(({ data }) => {
       if (data?.user) router.replace(redirectTo)
     })
-  }, [router, redirectTo])
+  }, [redirectTo, router])
 
-  const handleLogin = async (e) => {
-    e.preventDefault()
+  const handleLogin = async (event) => {
+    event.preventDefault()
     setLoading(true)
     try {
       const supabase = getBrowserClient()
@@ -36,8 +37,8 @@ function LoginInner() {
       if (error) throw error
       toast.success('登入成功')
       router.replace(redirectTo)
-    } catch (err) {
-      toast.error('登入失敗: ' + (err?.message || '未知錯誤'))
+    } catch (error) {
+      toast.error('登入失敗: ' + (error?.message || '請稍後再試'))
     } finally {
       setLoading(false)
     }
@@ -54,34 +55,15 @@ function LoginInner() {
           <form onSubmit={handleLogin} style={{ display: 'grid', gap: '14px' }}>
             <div>
               <label style={{ display: 'block', fontWeight: 600, marginBottom: '6px' }}>電郵</label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@example.com"
-                required
-                style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #e5e5e5' }}
-              />
+              <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@example.com" required style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #e5e5e5' }} />
             </div>
 
             <div>
               <label style={{ display: 'block', fontWeight: 600, marginBottom: '6px' }}>密碼</label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                required
-                style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #e5e5e5' }}
-              />
+              <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="輸入密碼" required style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #e5e5e5' }} />
             </div>
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="btn btn-interactive"
-              style={{ width: '100%', background: '#A68B6A', color: '#fff', padding: '12px', borderRadius: '12px', fontWeight: 700 }}
-            >
+            <button type="submit" disabled={loading} className="btn btn-interactive" style={{ width: '100%', background: '#A68B6A', color: '#fff', padding: '12px', borderRadius: '12px', fontWeight: 700 }}>
               {loading ? '登入中...' : '登入'}
             </button>
           </form>
@@ -90,7 +72,7 @@ function LoginInner() {
             <Link href={`/register?redirectTo=${encodeURIComponent(redirectTo)}`} style={{ color: '#A68B6A', fontWeight: 700 }}>
               註冊新帳戶
             </Link>
-            <span style={{ color: '#999' }}>忘記密碼（稍後加入）</span>
+            <span style={{ color: '#999' }}>忘記密碼可在 Supabase Auth 補回</span>
           </div>
         </div>
       </section>
@@ -105,4 +87,3 @@ export default function Login() {
     </Suspense>
   )
 }
-
