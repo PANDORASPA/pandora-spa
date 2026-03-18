@@ -1,47 +1,54 @@
 # Supabase Setup Order
 
-This repository currently keeps SQL in separate files by concern and by iteration history. Use the order below as the canonical path for a clean setup or for validating an existing dev database.
+The canonical database source now lives under [`supabase/migrations`](./supabase/migrations). The root-level SQL files remain in the repository only as legacy reference material from the pre-migration cleanup stage.
 
-## Canonical Order
+## Canonical Migration Order
 
-1. [`supabase-setup.sql`](./supabase-setup.sql)
-   - Creates the legacy base tables and seed data that the project still expects.
-   - Treat this as the historical baseline for the current codebase.
+Apply the files in filename order:
 
-2. [`sql-update.sql`](./sql-update.sql)
-   - Adds the booking v2 columns and supporting schedule tables.
-   - Introduces `buffer_min`, `appointment_date`, `start_time`, `end_time`, `staff_service_map`, `staff_breaks`, `staff_time_off`, and `blocked_slots`.
+1. [`supabase/migrations/20260318000100_baseline_core_schema.sql`](./supabase/migrations/20260318000100_baseline_core_schema.sql)
+   - Creates the current baseline business tables, core indexes, and public read policies.
+   - Excludes demo content.
 
-3. [`sql-booking-v2.sql`](./sql-booking-v2.sql)
-   - Backfills and normalizes booking data into the newer booking shape.
-   - Adds overlap protection and indexes for staff/date lookups.
+2. [`supabase/migrations/20260318000200_booking_v2.sql`](./supabase/migrations/20260318000200_booking_v2.sql)
+   - Adds booking v2 normalization, overlap protection, and scheduling helper tables.
 
-4. [`sql-auth-membership.sql`](./sql-auth-membership.sql)
-   - Creates `member_profiles`.
-   - Adds the `auth.users` trigger that seeds profiles.
-   - Enables row-level security for member-owned booking reads and writes.
+3. [`supabase/migrations/20260318000300_auth_membership.sql`](./supabase/migrations/20260318000300_auth_membership.sql)
+   - Creates `member_profiles`, auth trigger wiring, and member-owned booking/profile policies.
 
-5. [`sql-admin-auth-rls.sql`](./sql-admin-auth-rls.sql)
-   - Adds `is_admin` to member profiles.
-   - Tightens admin policies around staff, services, coupons, settings, bookings, orders, tickets, reviews, and shifts.
+4. [`supabase/migrations/20260318000400_admin_auth_rls.sql`](./supabase/migrations/20260318000400_admin_auth_rls.sql)
+   - Adds admin flags and the RLS policies used by the current admin and member flows.
 
-## Legacy / Do Not Use As Baseline
+## Optional Seed
 
-- [`sql-fix-permissions.sql`](./sql-fix-permissions.sql) is a legacy emergency repair script.
-- It broadens access too much for a clean setup and should not be part of a fresh baseline.
-- Only inspect it if you are diagnosing an already broken development database.
+- [`supabase/seed.sql`](./supabase/seed.sql) contains clean demo content for local development and internal demos.
+- Do not treat the seed file as production content.
+- Fresh production setup should run migrations first, then only run selected data imports that reflect real shop content.
 
 ## Recommended Fresh Setup
 
-1. Create a new Supabase project or a clean development database.
-2. Run the canonical order above from top to bottom.
-3. Mark at least one user as admin in `member_profiles`.
-4. Populate the tables with the desired services, staff, settings, and content.
-5. Verify the public pages, booking flow, `/account`, and admin access after the SQL is applied.
+1. Create a clean Supabase project or reset a development database.
+2. Apply the files in `supabase/migrations` in filename order.
+3. Optionally run `supabase/seed.sql` for demo or development content.
+4. Create or register at least one member account through the app.
+5. Mark one row in `member_profiles` as admin:
+
+```sql
+update public.member_profiles
+set is_admin = true
+where email = 'you@example.com';
+```
+
+6. Verify `/account`, booking, product order, ticket purchase, and `/admin`.
+
+## Legacy SQL Status
+
+- [`supabase-setup.sql`](./supabase-setup.sql), [`sql-update.sql`](./sql-update.sql), [`sql-booking-v2.sql`](./sql-booking-v2.sql), [`sql-auth-membership.sql`](./sql-auth-membership.sql), and [`sql-admin-auth-rls.sql`](./sql-admin-auth-rls.sql) are now legacy source material.
+- They should not be used as the fresh setup path going forward.
+- [`sql-fix-permissions.sql`](./sql-fix-permissions.sql) remains an emergency legacy repair script and must not be used as part of a clean baseline.
 
 ## Compatibility Notes
 
-- `bookings` currently supports both legacy fields (`date`, `time`) and the newer structured fields (`appointment_date`, `start_time`, `end_time`, `buffer_end_time`).
-- The newer structured fields should be treated as the source of truth for new work.
-- When extending schema, prefer adding idempotent `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` statements instead of rewriting the legacy tables in place.
-
+- `bookings` still keeps legacy `date` and `time` fields for compatibility, but new work should treat `appointment_date`, `start_time`, `end_time`, and `buffer_end_time` as source of truth.
+- `orders.member_user_id` and `user_tickets.member_user_id` are the current member ownership fields used by the app.
+- `users` is a historical table from the legacy schema and is not the active member identity source.
