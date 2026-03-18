@@ -49,6 +49,15 @@ export default function Admin() {
   const [settings, setSettings] = useState({})
   const [selectedBooking, setSelectedBooking] = useState(null)
 
+  const normalizeStaffRow = (row) => ({
+    ...row,
+    daysOff: Array.isArray(row?.daysOff)
+      ? row.daysOff
+      : Array.isArray(row?.daysoff)
+        ? row.daysoff
+        : [],
+  })
+
   useEffect(() => {
     const checkAdmin = async () => {
       try {
@@ -110,7 +119,7 @@ export default function Admin() {
     if (t.data) setTickets(t.data)
     if (c.data) setCoupons(c.data)
     if (cust.data) setUsers(cust.data)
-    if (st.data) setStaff(st.data)
+    if (st.data) setStaff(st.data.map(normalizeStaffRow))
     if (art.data) setArticles(art.data)
     if (f.data) setFaqs(f.data)
     if (sh.data) setStaffShifts(sh.data)
@@ -184,6 +193,8 @@ export default function Admin() {
     try {
       for (const item of staff) {
         const payload = { ...item }
+        payload.daysoff = Array.isArray(item.daysOff) ? item.daysOff : []
+        delete payload.daysOff
         if (typeof payload.id === 'number' && payload.id > 2147483647) delete payload.id
         const { error } = await supabase.from('staff').upsert(payload)
         if (error) throw error
@@ -292,6 +303,7 @@ export default function Admin() {
         schedule: {},
         services: [],
         daysOff: [],
+        daysoff: [],
         photo_url: '',
         bio: '',
         break_start: '15:00',
