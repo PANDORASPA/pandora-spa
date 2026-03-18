@@ -10,6 +10,14 @@ const normalizeItem = (item) => ({
   __deleted: Boolean(item?.__deleted),
 })
 
+const normalizeTicketItem = (item) => ({
+  ...normalizeItem(item),
+  times: Number(item?.times ?? item?.count ?? 0),
+  orig: Number(item?.orig ?? item?.price ?? 0),
+  features: item?.features || '',
+  emoji: item?.emoji || '🎁',
+})
+
 const stripTransientFields = (item) => {
   const payload = { ...item }
   delete payload.__isNew
@@ -33,13 +41,13 @@ export default function InventoryTab({
 }) {
   const [products, setProducts] = useState(() => (initialProducts || []).map(normalizeItem))
   const [packagesState, setPackagesState] = useState(() => (initialPackages || []).map(normalizeItem))
-  const [ticketsState, setTicketsState] = useState(() => (initialTickets || []).map(normalizeItem))
+  const [ticketsState, setTicketsState] = useState(() => (initialTickets || []).map(normalizeTicketItem))
   const [subTab, setSubTab] = useState('products')
   const [saving, setSaving] = useState(false)
 
   useEffect(() => setProducts((initialProducts || []).map(normalizeItem)), [initialProducts])
   useEffect(() => setPackagesState((initialPackages || []).map(normalizeItem)), [initialPackages])
-  useEffect(() => setTicketsState((initialTickets || []).map(normalizeItem)), [initialTickets])
+  useEffect(() => setTicketsState((initialTickets || []).map(normalizeTicketItem)), [initialTickets])
 
   const getStateForKind = (kind) => {
     if (kind === 'packages') return [packagesState, setPackagesState]
@@ -65,9 +73,11 @@ export default function InventoryTab({
         id: Date.now(),
         name: 'New Ticket',
         price: 0,
-        count: 10,
+        times: 10,
+        orig: 0,
+        features: '',
+        emoji: '🎁',
         enabled: true,
-        service_id: services?.[0]?.id || null,
         __isNew: true,
         __deleted: false,
       }
@@ -372,36 +382,44 @@ export default function InventoryTab({
                   />
                 </div>
                 <div>
-                  <label>Count</label>
+                  <label>Uses</label>
                   <input
                     type="number"
-                    value={current.count || 0}
+                    value={current.times || 0}
                     onChange={(e) =>
-                      updateItem('tickets', current.id, (row) => ({ ...row, count: parseInt(e.target.value) || 0 }))
+                      updateItem('tickets', current.id, (row) => ({ ...row, times: parseInt(e.target.value) || 0 }))
                     }
                     disabled={deleted}
                   />
                 </div>
               </div>
               <div style={{ marginBottom: '12px' }}>
-                <label>Service</label>
-                <select
-                  value={current.service_id || ''}
+                <label>Original Price ($)</label>
+                <input
+                  type="number"
+                  value={current.orig || 0}
                   onChange={(e) =>
-                    updateItem('tickets', current.id, (row) => ({
-                      ...row,
-                      service_id: e.target.value ? parseInt(e.target.value) : null,
-                    }))
+                    updateItem('tickets', current.id, (row) => ({ ...row, orig: parseInt(e.target.value) || 0 }))
                   }
                   disabled={deleted}
-                >
-                  <option value="">Select a service...</option>
-                  {services.map((service) => (
-                    <option key={service.id} value={service.id}>
-                      {service.name}
-                    </option>
-                  ))}
-                </select>
+                />
+              </div>
+              <div style={{ marginBottom: '12px' }}>
+                <label>Features</label>
+                <textarea
+                  value={current.features || ''}
+                  onChange={(e) => updateItem('tickets', current.id, (row) => ({ ...row, features: e.target.value }))}
+                  disabled={deleted}
+                  style={{ minHeight: '90px', resize: 'vertical' }}
+                />
+              </div>
+              <div style={{ marginBottom: '12px' }}>
+                <label>Emoji</label>
+                <input
+                  value={current.emoji || ''}
+                  onChange={(e) => updateItem('tickets', current.id, (row) => ({ ...row, emoji: e.target.value }))}
+                  disabled={deleted}
+                />
               </div>
             </>
           ))
