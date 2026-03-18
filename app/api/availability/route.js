@@ -28,6 +28,24 @@ const safeSelect = async (promise) => {
   return res
 }
 
+const normalizeServiceIds = (value) => {
+  if (!value) return []
+  if (Array.isArray(value)) return value.map((item) => Number(item)).filter(Number.isFinite)
+  if (typeof value === 'string') {
+    const text = value.trim()
+    if (!text) return []
+    if (text.startsWith('[')) {
+      try {
+        const parsed = JSON.parse(text)
+        return Array.isArray(parsed) ? parsed.map((item) => Number(item)).filter(Number.isFinite) : []
+      } catch {
+        return []
+      }
+    }
+  }
+  return []
+}
+
 export async function GET(request) {
   try {
     const url = new URL(request.url)
@@ -75,7 +93,12 @@ export async function GET(request) {
     const { data: staffList, error: staffErr } = staffId ? await staffQuery.eq('id', staffId) : await staffQuery
     if (staffErr) return NextResponse.json({ error: staffErr.message }, { status: 500 })
 
-    const staffIds = (staffList || []).map(s => s.id).filter(Boolean)
+    const eligibleStaffList = (staffList || []).filter((member) => {
+      const serviceIds = normalizeServiceIds(member?.services)
+      return serviceIds.length === 0 || serviceIds.includes(serviceId)
+    })
+
+    const staffIds = eligibleStaffList.map((s) => s.id).filter(Boolean)
     if (staffIds.length === 0) return NextResponse.json({ slots: [], staffAvailability: {} }, { status: 200 })
 
     const { data: shifts, error: shiftsErr } = await supabase
@@ -142,7 +165,7 @@ export async function GET(request) {
     }
 
     const staffAvailability = {}
-    for (const staff of staffList || []) {
+    for (const staff of eligibleStaffList) {
       const shift = byStaffShift.get(staff.id) || null
       const slots = getAvailableSlots({
         staff,
