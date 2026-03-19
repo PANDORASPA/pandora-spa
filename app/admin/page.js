@@ -11,6 +11,7 @@ import CouponsTab from '../components/admin/CouponsTab'
 import InventoryTab from '../components/admin/InventoryTab'
 import OrdersTab from '../components/admin/OrdersTab'
 import AnalyticsTab from '../components/admin/AnalyticsTab'
+import DashboardTab from '../components/admin/DashboardTab'
 import ArticlesTab from '../components/admin/ArticlesTab'
 import FaqsTab from '../components/admin/FaqsTab'
 import StaffTab from '../components/admin/StaffTab'
@@ -964,17 +965,9 @@ export default function Admin() {
     pending: bookings.filter((booking) => booking.status === 'pending').length,
     completed: bookings.filter((booking) => booking.status === 'completed').length,
     cancelled: bookings.filter((booking) => booking.status === 'cancelled').length,
+    orderRevenue: orders.reduce((sum, order) => sum + Number(order.total || 0), 0),
+    activeTickets: userTickets.filter((ticket) => Number(ticket?.remaining_count || 0) > 0).length,
   }
-
-  const popularServices = Object.entries(
-    bookings.reduce((acc, booking) => {
-      const serviceKey = getBookingServiceName(booking) || 'Unknown'
-      acc[serviceKey] = (acc[serviceKey] || 0) + 1
-      return acc
-    }, {})
-  )
-    .sort(([, a], [, b]) => b - a)
-    .slice(0, 5)
 
   const activeTabMeta = tabMeta[activeTab] || {
     title: 'Admin',
@@ -982,109 +975,9 @@ export default function Admin() {
     description: 'Manage operational data and storefront configuration.',
   }
 
-  const renderDashboard = () => (
-    <div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', marginBottom: '30px' }}>
-        <div className="admin-card" style={{ padding: '24px' }}>
-          <div style={{ fontSize: '12px', color: 'var(--text-light)', fontWeight: 600, marginBottom: '8px' }}>Today Bookings</div>
-          <div style={{ fontSize: '32px', fontWeight: 800 }}>{stats.todayBookings}</div>
-        </div>
-        <div className="admin-card" style={{ padding: '24px' }}>
-          <div style={{ fontSize: '12px', color: 'var(--text-light)', fontWeight: 600, marginBottom: '8px' }}>Today Revenue</div>
-          <div style={{ fontSize: '32px', fontWeight: 800 }}>${stats.todayRevenue.toLocaleString()}</div>
-        </div>
-        <div className="admin-card" style={{ padding: '24px' }}>
-          <div style={{ fontSize: '12px', color: 'var(--text-light)', fontWeight: 600, marginBottom: '8px' }}>Pending</div>
-          <div style={{ fontSize: '32px', fontWeight: 800 }}>{stats.pending}</div>
-        </div>
-        <div className="admin-card" style={{ padding: '24px' }}>
-          <div style={{ fontSize: '12px', color: 'var(--text-light)', fontWeight: 600, marginBottom: '8px' }}>Members</div>
-          <div style={{ fontSize: '32px', fontWeight: 800 }}>{stats.totalUsers}</div>
-        </div>
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr', gap: '24px' }}>
-        <div className="admin-card" style={{ padding: '24px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '16px', alignItems: 'flex-start', marginBottom: '20px' }}>
-            <div>
-              <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 700 }}>Today's Bookings</h3>
-              <div style={{ marginTop: '6px', fontSize: '12px', color: 'var(--text-light)' }}>
-                Open the Bookings record view for the unified operational detail panel.
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => setActiveTab('bookings')}
-              style={{ border: '1px solid rgba(166, 139, 106, 0.24)', background: '#FBF6EF', color: '#7C6245', cursor: 'pointer', fontWeight: 700, padding: '10px 12px', borderRadius: '10px' }}
-            >
-              Open bookings
-            </button>
-          </div>
-          <div style={{ display: 'grid', gap: '12px' }}>
-            {todaysBookings.length === 0 ? (
-              <div style={{ padding: '40px 20px', textAlign: 'center', background: '#fafafa', borderRadius: '12px' }}>No bookings today</div>
-            ) : (
-              todaysBookings.map((booking) => (
-                <div key={booking.id} style={{ padding: '16px', background: '#fff', borderRadius: '12px', border: '1px solid var(--gray)', display: 'flex', alignItems: 'center', gap: '16px' }}>
-                  <div style={{ width: '60px', textAlign: 'center', paddingRight: '16px', borderRight: '1px solid var(--gray)' }}>
-                    <div style={{ fontSize: '16px', fontWeight: 800, color: 'var(--primary)' }}>{getBookingTimeKey(booking) || '-'}</div>
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 700, fontSize: '15px' }}>{getBookingCustomerName(booking) || '-'}</div>
-                    <div style={{ fontSize: '12px', color: 'var(--text-light)' }}>
-                      {getBookingServiceName(booking) || '-'} - {booking.staff_name || 'Unassigned'}
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab('bookings')}
-                    style={{ border: 'none', background: 'transparent', color: '#A68B6A', cursor: 'pointer', fontWeight: 700 }}
-                  >
-                    Open
-                  </button>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-
-        <div style={{ display: 'grid', gap: '24px' }}>
-          <div className="admin-card" style={{ padding: '24px' }}>
-            <h3 style={{ marginBottom: '20px', fontSize: '16px', fontWeight: 700 }}>Popular Services</h3>
-            {popularServices.map(([name, count], idx) => (
-              <div key={name} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 0', borderBottom: idx === popularServices.length - 1 ? 'none' : '1px solid #f9f9f9' }}>
-                <div style={{ width: '24px', height: '24px', borderRadius: '6px', background: 'var(--gray)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 800 }}>{idx + 1}</div>
-                <div style={{ flex: 1, fontSize: '14px', fontWeight: 600 }}>{name}</div>
-                <div style={{ fontSize: '13px', color: 'var(--primary)', fontWeight: 700 }}>{count}</div>
-              </div>
-            ))}
-          </div>
-
-          <div className="admin-card" style={{ padding: '24px', background: 'linear-gradient(135deg, #A68B6A, #8B7355)', color: '#fff' }}>
-            <h3 style={{ marginBottom: '16px', fontSize: '16px', fontWeight: 700, color: '#fff' }}>Quick Actions</h3>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-              <button onClick={() => setActiveTab('bookings')} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', padding: '12px', borderRadius: '8px', cursor: 'pointer', fontWeight: 600, fontSize: '13px' }}>
-                Bookings
-              </button>
-              <button onClick={() => setActiveTab('inventory')} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', padding: '12px', borderRadius: '8px', cursor: 'pointer', fontWeight: 600, fontSize: '13px' }}>
-                Inventory
-              </button>
-              <button onClick={() => setActiveTab('staff')} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', padding: '12px', borderRadius: '8px', cursor: 'pointer', fontWeight: 600, fontSize: '13px' }}>
-                Staff
-              </button>
-              <button onClick={() => setActiveTab('settings')} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', padding: '12px', borderRadius: '8px', cursor: 'pointer', fontWeight: 600, fontSize: '13px' }}>
-                Settings
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-
   const renderActiveContent = () => {
-    if (activeTab === 'dashboard') return renderDashboard()
-    if (activeTab === 'analytics') return <AnalyticsTab bookings={bookings} orders={orders} reviews={reviews} />
+    if (activeTab === 'dashboard') return <DashboardTab stats={stats} bookings={bookings} orders={orders} transactions={transactions} customers={users} userTickets={userTickets} onOpenTab={setActiveTab} />
+    if (activeTab === 'analytics') return <AnalyticsTab bookings={bookings} orders={orders} transactions={transactions} users={users} userTickets={userTickets} reviews={reviews} />
     if (activeTab === 'orders') return <OrdersTab orders={orders} bookings={bookings} customers={users} transactions={transactions} locations={locations} providerGroups={providerGroups} saving={saving} />
     if (activeTab === 'bookings') return <BookingsTab bookings={bookings} staff={staff} services={services} locations={locations} providerGroups={providerGroups} resources={resources} transactions={transactions} orders={orders} bookingResourceAllocations={bookingResourceAllocations} onUpdateStatus={updateStatus} onUpdateBookingStaff={updateBookingStaff} />
     if (activeTab === 'staff') {
