@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'react-hot-toast'
@@ -18,6 +18,7 @@ let tempSeed = -1
 const nextTempId = () => tempSeed--
 const todayISO = () => new Date().toISOString().slice(0, 10)
 const monthKeyFromDate = (value) => String(value || '').slice(0, 7)
+
 const addMonths = (monthKey, delta) => {
   const date = new Date(`${monthKey}-01T12:00:00Z`)
   date.setUTCMonth(date.getUTCMonth() + delta, 1)
@@ -40,9 +41,61 @@ const buildMonthGrid = (monthKey) => {
   })
 }
 
-const cardStyle = { border: '1px solid #E5E7EB', borderRadius: '18px', padding: '16px', background: '#fff' }
+const formatTime = (value) => String(value || '').slice(0, 5)
 
-function RowsEditor({ title, description, rows, onAdd, onRemove, renderRow, setRows }) {
+const cardStyle = {
+  border: '1px solid #E5E7EB',
+  borderRadius: '18px',
+  padding: '16px',
+  background: '#fff',
+}
+
+const getPreviewStatusCopy = (entry = {}) => {
+  const status = entry?.status || 'off'
+  if (status === 'available') {
+    const availableCount = Number(entry?.availableCount || 0)
+    return {
+      tone: 'success',
+      label: bookingOpsCopy.calendarAvailable,
+      hint: availableCount > 0 ? `可預約 ${availableCount} 個時段` : '有上班，正在整理可預約時段',
+    }
+  }
+  if (status === 'off') {
+    return {
+      tone: 'muted',
+      label: bookingOpsCopy.calendarRest,
+      hint: bookingOpsCopy.offDayHint,
+    }
+  }
+  if (entry?.reason === 'provider_mismatch') {
+    return {
+      tone: 'warning',
+      label: bookingOpsCopy.calendarLimited,
+      hint: bookingOpsCopy.providerMismatchHint,
+    }
+  }
+  if (entry?.reason === 'location_required') {
+    return {
+      tone: 'warning',
+      label: bookingOpsCopy.calendarLimited,
+      hint: bookingOpsCopy.locationRequiredHint,
+    }
+  }
+  if (entry?.reason === 'no_bookable_slots') {
+    return {
+      tone: 'warning',
+      label: bookingOpsCopy.calendarLimited,
+      hint: bookingOpsCopy.partialBlockedHint,
+    }
+  }
+  return {
+    tone: 'warning',
+    label: bookingOpsCopy.calendarFull,
+    hint: bookingOpsCopy.fullDayHint,
+  }
+}
+
+function RowsEditor({ title, description, emptyDescription, rows, onAdd, onRemove, renderRow, setRows }) {
   return (
     <div className="admin-card" style={{ ...cardStyle, display: 'grid', gap: '14px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
@@ -56,13 +109,26 @@ function RowsEditor({ title, description, rows, onAdd, onRemove, renderRow, setR
       </div>
 
       {!rows.length ? (
-        <EmptyState title={`尚未設定${title}`} description="新增一筆資料後，前台可預約時段會按照這些設定扣減或覆蓋。" />
+        <EmptyState title={`尚未設定${title}`} description={emptyDescription || '按「新增」即可建立一筆設定。'} />
       ) : (
         <div style={{ display: 'grid', gap: '10px' }}>
           {rows.map((row) => (
-            <div key={row.id} style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr)) 88px', gap: '10px', alignItems: 'center' }}>
+            <div
+              key={row.id}
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'minmax(130px, 1.2fr) repeat(3, minmax(110px, 0.9fr)) 88px',
+                gap: '10px',
+                alignItems: 'center',
+              }}
+            >
               {renderRow(row, (patch) => setRows((current) => current.map((item) => (item.id === row.id ? { ...item, ...patch } : item))))}
-              <button type="button" className="btn btn-small btn-interactive" onClick={() => onRemove(row.id)} style={{ background: '#FEF2F2', color: '#B91C1C' }}>
+              <button
+                type="button"
+                className="btn btn-small btn-interactive"
+                onClick={() => onRemove(row.id)}
+                style={{ background: '#FEF2F2', color: '#B91C1C' }}
+              >
                 刪除
               </button>
             </div>
@@ -118,8 +184,11 @@ export default function SchedulingTab({
   const previewGrid = useMemo(() => buildMonthGrid(previewMonth), [previewMonth])
 
   useEffect(() => {
-    if (!selectedStaff && staff[0]) setSelectedStaffId(staff[0].id)
-  }, [selectedStaff, staff])
+    if (!staff.length) return
+    if (!selectedStaff || !staff.some((item) => Number(item.id) === Number(selectedStaff.id))) {
+      setSelectedStaffId(staff[0].id)
+    }
+  }, [staff, selectedStaff])
 
   useEffect(() => {
     if (!selectedStaff) return
@@ -129,8 +198,8 @@ export default function SchedulingTab({
         .map((row) => ({
           ...row,
           date: String(row.date || '').slice(0, 10),
-          start_time: String(row.start_time || '').slice(0, 5),
-          end_time: String(row.end_time || '').slice(0, 5),
+          start_time: formatTime(row.start_time),
+          end_time: formatTime(row.end_time),
         })),
     )
     setShiftDeletedIds([])
@@ -140,8 +209,8 @@ export default function SchedulingTab({
         .map((row) => ({
           ...row,
           day_of_week: String(row.day_of_week ?? '1'),
-          start_time: String(row.start_time || '').slice(0, 5),
-          end_time: String(row.end_time || '').slice(0, 5),
+          start_time: formatTime(row.start_time),
+          end_time: formatTime(row.end_time),
           label: row.label || '',
           enabled: row.enabled !== false,
         })),
@@ -153,8 +222,8 @@ export default function SchedulingTab({
         .map((row) => ({
           ...row,
           date: String(row.date || '').slice(0, 10),
-          start_time: String(row.start_time || '').slice(0, 5),
-          end_time: String(row.end_time || '').slice(0, 5),
+          start_time: formatTime(row.start_time),
+          end_time: formatTime(row.end_time),
           reason: row.reason || '',
           is_all_day: Boolean(row.is_all_day),
         })),
@@ -166,8 +235,8 @@ export default function SchedulingTab({
         .map((row) => ({
           ...row,
           date: String(row.date || '').slice(0, 10),
-          start_time: String(row.start_time || '').slice(0, 5),
-          end_time: String(row.end_time || '').slice(0, 5),
+          start_time: formatTime(row.start_time),
+          end_time: formatTime(row.end_time),
           reason: row.reason || '',
           source: row.source || 'manual',
         })),
@@ -182,7 +251,13 @@ export default function SchedulingTab({
         : services[0]?.id != null
           ? String(services[0].id)
           : ''
-    setPreviewServiceId((current) => current || nextService)
+
+    setPreviewServiceId((current) => {
+      if (!nextService) return ''
+      if (!current) return nextService
+      const currentValid = services.some((service) => String(service.id) === String(current))
+      return currentValid ? current : nextService
+    })
   }, [selectedStaff, services])
 
   useEffect(() => {
@@ -190,37 +265,43 @@ export default function SchedulingTab({
       setPreviewDates([])
       return
     }
+
     previewControllerRef.current?.abort?.()
     const controller = new AbortController()
     previewControllerRef.current = controller
     setPreviewLoading(true)
     setPreviewError('')
+    setPreviewDates([])
+
     const params = new URLSearchParams({
       staffId: String(selectedStaff.id),
       serviceId: String(previewServiceId),
       year: previewMonth.slice(0, 4),
       month: previewMonth.slice(5, 7),
     })
-    if (selectedStaff.location_id != null && selectedStaff.location_id !== '') params.set('locationId', String(selectedStaff.location_id))
+
+    if (selectedStaff.location_id != null && selectedStaff.location_id !== '') {
+      params.set('locationId', String(selectedStaff.location_id))
+    }
+
     fetch(`/api/availability/month-summary?${params.toString()}`, { signal: controller.signal })
       .then(async (response) => {
         const payload = await response.json().catch(() => ({}))
-        if (!response.ok) throw new Error(payload?.error || '無法載入前台月曆預覽')
+        if (!response.ok) throw new Error(payload?.error || bookingOpsCopy.loadFailed)
         return payload
       })
       .then((payload) => setPreviewDates(Array.isArray(payload?.dates) ? payload.dates : []))
       .catch((error) => {
         if (error?.name !== 'AbortError') {
-          setPreviewDates([])
-          setPreviewError(error?.message || '無法載入前台月曆預覽')
+          setPreviewError(error?.message || bookingOpsCopy.loadFailed)
         }
       })
       .finally(() => {
         if (!controller.signal.aborted) setPreviewLoading(false)
       })
+
     return () => controller.abort()
   }, [previewMonth, previewServiceId, selectedStaff])
-
   const removeRow = (setRows, setDeletedIds, id) => {
     setRows((current) => current.filter((row) => row.id !== id))
     if (Number(id) > 0) setDeletedIds((current) => [...current, Number(id)])
@@ -228,12 +309,16 @@ export default function SchedulingTab({
 
   const saveAll = async () => {
     if (!selectedStaff?.id) return
-    await onSave(selectedStaff.id, { silentSuccess: true })
-    await onSaveShifts({ rows: shiftRows, deletedIds: shiftDeletedIds }, { silentSuccess: true })
-    await onSaveBreaks({ rows: breakRows, deletedIds: breakDeletedIds }, { silentSuccess: true })
-    await onSaveTimeOff({ rows: timeOffRows, deletedIds: timeOffDeletedIds }, { silentSuccess: true })
-    await onSaveBlockedSlots({ rows: blockedRows, deletedIds: blockedDeletedIds }, { silentSuccess: true })
-    toast.success('已儲存目前服務供應者')
+    try {
+      await onSave?.(selectedStaff.id, { silentSuccess: true })
+      await onSaveShifts?.({ rows: shiftRows, deletedIds: shiftDeletedIds }, { silentSuccess: true })
+      await onSaveBreaks?.({ rows: breakRows, deletedIds: breakDeletedIds }, { silentSuccess: true })
+      await onSaveTimeOff?.({ rows: timeOffRows, deletedIds: timeOffDeletedIds }, { silentSuccess: true })
+      await onSaveBlockedSlots?.({ rows: blockedRows, deletedIds: blockedDeletedIds }, { silentSuccess: true })
+      toast.success('已儲存目前服務供應者')
+    } catch (error) {
+      toast.error(error?.message || '儲存失敗，請再試一次')
+    }
   }
 
   if (!staff.length) {
@@ -242,11 +327,11 @@ export default function SchedulingTab({
         <SectionHeader
           eyebrow="服務供應者"
           title="排班設定"
-          description="先建立服務供應者，再設定每週上班時間、休息時段與前台可預約對照。"
+          description="先建立服務供應者，之後即可設定每週上班時間、日期覆蓋、休息、休假與封鎖時段。"
         />
         <EmptyState
           title="尚未建立服務供應者"
-          description="新增一位服務供應者後，就可以設定每日上班、下班與前台月曆顯示。"
+          description="新增一位服務供應者後，就可以設定每日上班與下班時間，並在前台月曆對照可預約結果。"
           actions={
             <button type="button" className="btn btn-interactive" onClick={onAddStaff}>
               新增服務供應者
@@ -262,14 +347,14 @@ export default function SchedulingTab({
       <SectionHeader
         eyebrow="排班中心"
         title="服務供應者排班與前台對照"
-        description="設定每週上班時間、日期覆蓋、固定休息、休假與封鎖時段。前台月曆會直接跟住這裡的設定顯示。"
+        description="設定每週上班與下班時間、日期覆蓋、固定休息、休假與封鎖時段，前台月曆會直接反映這些排班規則。"
         actions={
           <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
             <button type="button" className="btn btn-secondary btn-interactive" onClick={onAddStaff} disabled={saving}>
               新增服務供應者
             </button>
             <button type="button" className="btn btn-interactive" onClick={saveAll} disabled={saving || !selectedStaff}>
-              {saving ? '儲存中...' : '儲存目前服務供應者'}
+              {saving ? '儲存中…' : '儲存目前服務供應者'}
             </button>
           </div>
         }
@@ -279,6 +364,7 @@ export default function SchedulingTab({
         <div className="admin-card" style={{ padding: '16px', border: '1px solid #E5E7EB', display: 'grid', gap: '10px' }}>
           {staff.map((item) => {
             const selected = Number(item.id) === Number(selectedStaff?.id)
+            const serviceCount = (item.services || []).length
             return (
               <button
                 key={item.id}
@@ -297,7 +383,7 @@ export default function SchedulingTab({
                 <div style={{ fontSize: '13px', color: '#6B7280', marginTop: '4px' }}>{item.role || '服務供應者'}</div>
                 <div style={{ marginTop: '8px', display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                   <Pill tone={item.enabled === false ? 'warning' : 'success'}>{item.enabled === false ? '停用' : '啟用'}</Pill>
-                  <Pill>{(item.services || []).length} 個服務</Pill>
+                  <Pill tone={serviceCount ? 'success' : 'muted'}>{serviceCount} 個服務</Pill>
                 </div>
               </button>
             )
@@ -309,7 +395,7 @@ export default function SchedulingTab({
             <div className="admin-card" style={{ ...cardStyle, display: 'grid', gap: '14px' }}>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
                 <label style={{ display: 'grid', gap: '8px' }}>
-                  <span style={{ fontSize: '13px', fontWeight: 800 }}>名稱</span>
+                  <span style={{ fontSize: '13px', fontWeight: 800 }}>姓名</span>
                   <input value={selectedStaff.name || ''} onChange={(event) => onUpdateField(selectedStaff.id, 'name', event.target.value)} style={fieldStyle} />
                 </label>
                 <label style={{ display: 'grid', gap: '8px' }}>
@@ -321,7 +407,7 @@ export default function SchedulingTab({
                   <input value={selectedStaff.phone || ''} onChange={(event) => onUpdateField(selectedStaff.id, 'phone', event.target.value)} style={fieldStyle} />
                 </label>
                 <label style={{ display: 'grid', gap: '8px' }}>
-                  <span style={{ fontSize: '13px', fontWeight: 800 }}>預設地點</span>
+                  <span style={{ fontSize: '13px', fontWeight: 800 }}>地點</span>
                   <select
                     value={selectedStaff.location_id ?? ''}
                     onChange={(event) => onUpdateField(selectedStaff.id, 'location_id', event.target.value === '' ? null : Number(event.target.value))}
@@ -360,11 +446,15 @@ export default function SchedulingTab({
               </div>
               <label style={{ display: 'grid', gap: '8px' }}>
                 <span style={{ fontSize: '13px', fontWeight: 800 }}>簡介</span>
-                <textarea value={selectedStaff.bio || ''} onChange={(event) => onUpdateField(selectedStaff.id, 'bio', event.target.value)} style={{ ...fieldStyle, minHeight: '90px', resize: 'vertical' }} />
+                <textarea
+                  value={selectedStaff.bio || ''}
+                  onChange={(event) => onUpdateField(selectedStaff.id, 'bio', event.target.value)}
+                  style={{ ...fieldStyle, minHeight: '90px', resize: 'vertical' }}
+                />
               </label>
               <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                 {services.map((service) => {
-                  const checked = (selectedStaff.services || []).includes(service.id)
+                  const checked = (selectedStaff.services || []).map(String).includes(String(service.id))
                   return (
                     <label
                       key={service.id}
@@ -386,52 +476,90 @@ export default function SchedulingTab({
                 })}
               </div>
               <button type="button" className="btn btn-danger btn-interactive" onClick={() => onDeleteStaff(selectedStaff.id)} disabled={saving}>
-                刪除此服務供應者
+                刪除這位服務供應者
               </button>
             </div>
-
             <div className="admin-card" style={{ ...cardStyle, display: 'grid', gap: '16px' }}>
               <div>
                 <div style={{ fontSize: '12px', color: '#A68B6A', fontWeight: 800, letterSpacing: '0.08em' }}>每週時間表</div>
                 <div style={{ marginTop: '4px', fontSize: '20px', fontWeight: 900 }}>設定上班時間與下班時間</div>
                 <div style={{ marginTop: '6px', color: '#6B7280', fontSize: '13px', lineHeight: 1.6 }}>
-                  前台只會顯示符合上班時間且可預約的時段。固定休息、休假與封鎖時段會再進一步扣減可預約時段。
+                  前台只會顯示符合上班時間且可預約的時段。固定休息、休假與封鎖時段會再進一步扣減可預約時間。
                 </div>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
-                {WEEK_DAYS.map((day) => {
-                  const schedule = selectedStaff.schedule?.[day.key] || {}
-                  const isOff = (selectedStaff.daysOff || []).includes(day.key)
-                  return (
-                    <div key={day.key} style={{ ...cardStyle, padding: '14px', background: isOff ? '#F8FAFC' : '#fff' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', alignItems: 'center', marginBottom: '10px' }}>
-                        <div style={{ fontSize: '15px', fontWeight: 800 }}>{day.label}</div>
-                        <label style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#6B7280' }}>
-                          <input type="checkbox" checked={isOff} onChange={() => onToggleDailyOff(selectedStaff.id, day.key)} />
-                          休息
-                        </label>
-                      </div>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+              <div style={{ overflowX: 'auto', paddingBottom: '4px' }}>
+                <div style={{ minWidth: '1180px', display: 'grid', gridTemplateColumns: 'repeat(7, minmax(160px, 1fr))', gap: '12px' }}>
+                  {WEEK_DAYS.map((day) => {
+                    const schedule = selectedStaff.schedule?.[day.key] || {}
+                    const isOff = (selectedStaff.daysOff || []).some((value) => String(value) === day.key)
+                    const hasWorkingHours = Boolean(schedule.start && schedule.end && !isOff)
+                    return (
+                      <div
+                        key={day.key}
+                        style={{
+                          ...cardStyle,
+                          minHeight: '240px',
+                          padding: '14px',
+                          display: 'grid',
+                          gap: '12px',
+                          background: isOff ? '#F8FAFC' : '#fff',
+                          borderColor: isOff ? '#E5E7EB' : 'rgba(166, 139, 106, 0.18)',
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', alignItems: 'flex-start' }}>
+                          <div>
+                            <div style={{ fontSize: '12px', color: '#A68B6A', fontWeight: 800 }}>{day.label}</div>
+                            <div style={{ marginTop: '4px', fontSize: '18px', fontWeight: 900 }}>{day.label}</div>
+                          </div>
+                          <label style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#6B7280' }}>
+                            <input type="checkbox" checked={isOff} onChange={() => onToggleDailyOff(selectedStaff.id, day.key)} />
+                            休息
+                          </label>
+                        </div>
                         <label style={{ display: 'grid', gap: '6px' }}>
                           <span style={{ fontSize: '12px', fontWeight: 700 }}>上班時間</span>
-                          <input type="time" value={String(schedule.start || '').slice(0, 5)} onChange={(event) => onUpdateSchedule(selectedStaff.id, day.key, 'start', event.target.value)} style={fieldStyle} disabled={isOff} />
+                          <input
+                            type="time"
+                            value={formatTime(schedule.start)}
+                            onChange={(event) => onUpdateSchedule(selectedStaff.id, day.key, 'start', event.target.value)}
+                            style={fieldStyle}
+                            disabled={isOff}
+                          />
                         </label>
                         <label style={{ display: 'grid', gap: '6px' }}>
                           <span style={{ fontSize: '12px', fontWeight: 700 }}>下班時間</span>
-                          <input type="time" value={String(schedule.end || '').slice(0, 5)} onChange={(event) => onUpdateSchedule(selectedStaff.id, day.key, 'end', event.target.value)} style={fieldStyle} disabled={isOff} />
+                          <input
+                            type="time"
+                            value={formatTime(schedule.end)}
+                            onChange={(event) => onUpdateSchedule(selectedStaff.id, day.key, 'end', event.target.value)}
+                            style={fieldStyle}
+                            disabled={isOff}
+                          />
                         </label>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                          <Pill tone={isOff ? 'muted' : hasWorkingHours ? 'success' : 'warning'}>{isOff ? bookingOpsCopy.rest : hasWorkingHours ? bookingOpsCopy.working : '未設定'}</Pill>
+                          <div style={{ fontSize: '12px', color: '#6B7280', lineHeight: 1.5 }}>
+                            {isOff ? '前台不會顯示可預約時段' : hasWorkingHours ? `${formatTime(schedule.start)} - ${formatTime(schedule.end)}` : '請先設定上班與下班時間'}
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  )
-                })}
+                    )
+                  })}
+                </div>
               </div>
             </div>
 
             <RowsEditor
               title="日期覆蓋"
-              description="設定某日上班、下班或某日休息。"
+              description="用來設定特定日期上班、下班或整日休息。"
+              emptyDescription="當某一天需要特別調整上班或休息時，先新增一筆日期覆蓋。"
               rows={shiftRows}
-              onAdd={() => setShiftRows((current) => [...current, { id: nextTempId(), staff_id: selectedStaff.id, date: todayISO(), start_time: '11:00', end_time: '20:00', is_off: false }])}
+              onAdd={() =>
+                setShiftRows((current) => [
+                  ...current,
+                  { id: nextTempId(), staff_id: selectedStaff.id, date: todayISO(), start_time: '11:00', end_time: '20:00', is_off: false },
+                ])
+              }
               onRemove={(id) => removeRow(setShiftRows, setShiftDeletedIds, id)}
               setRows={setShiftRows}
               renderRow={(row, update) => (
@@ -449,7 +577,8 @@ export default function SchedulingTab({
 
             <RowsEditor
               title="固定休息時段"
-              description="每週固定扣減的休息時段。"
+              description="每週固定會扣減的休息時間。"
+              emptyDescription="例如：午飯時間、茶點時間或固定輪休。"
               rows={breakRows}
               onAdd={() => setBreakRows((current) => [...current, { id: nextTempId(), staff_id: selectedStaff.id, day_of_week: '1', start_time: '13:00', end_time: '14:00', label: '', enabled: true }])}
               onRemove={(id) => removeRow(setBreakRows, setBreakDeletedIds, id)}
@@ -465,16 +594,22 @@ export default function SchedulingTab({
                   </select>
                   <input type="time" value={row.start_time || ''} onChange={(event) => update({ start_time: event.target.value })} style={smallFieldStyle} />
                   <input type="time" value={row.end_time || ''} onChange={(event) => update({ end_time: event.target.value })} style={smallFieldStyle} />
-                  <input value={row.label || ''} onChange={(event) => update({ label: event.target.value })} style={smallFieldStyle} placeholder="備註" />
+                  <input value={row.label || ''} onChange={(event) => update({ label: event.target.value })} style={smallFieldStyle} placeholder="說明" />
                 </>
               )}
             />
 
             <RowsEditor
               title="休假時段"
-              description="設定某日或全日休假。"
+              description="用來設定特定日期的全日或部分休假。"
+              emptyDescription="當某一天需要放假，或只開某一段時間時，可在這裡處理。"
               rows={timeOffRows}
-              onAdd={() => setTimeOffRows((current) => [...current, { id: nextTempId(), staff_id: selectedStaff.id, date: todayISO(), start_time: '11:00', end_time: '20:00', reason: '', is_all_day: false }])}
+              onAdd={() =>
+                setTimeOffRows((current) => [
+                  ...current,
+                  { id: nextTempId(), staff_id: selectedStaff.id, date: todayISO(), start_time: '11:00', end_time: '20:00', reason: '', is_all_day: false },
+                ])
+              }
               onRemove={(id) => removeRow(setTimeOffRows, setTimeOffDeletedIds, id)}
               setRows={setTimeOffRows}
               renderRow={(row, update) => (
@@ -484,7 +619,7 @@ export default function SchedulingTab({
                   <input type="time" value={row.end_time || ''} onChange={(event) => update({ end_time: event.target.value })} style={smallFieldStyle} disabled={row.is_all_day} />
                   <label style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#6B7280' }}>
                     <input type="checkbox" checked={Boolean(row.is_all_day)} onChange={(event) => update({ is_all_day: event.target.checked })} />
-                    全日
+                    全天
                   </label>
                 </>
               )}
@@ -492,7 +627,8 @@ export default function SchedulingTab({
 
             <RowsEditor
               title="封鎖時段"
-              description="用於臨時封鎖特定時段，不讓前台顯示。"
+              description="用來封鎖特定日期和時段，避免前台出現可預約狀態。"
+              emptyDescription="例如會議、內部工作、設備保養等不能預約的時間。"
               rows={blockedRows}
               onAdd={() => setBlockedRows((current) => [...current, { id: nextTempId(), staff_id: selectedStaff.id, date: todayISO(), start_time: '11:00', end_time: '12:00', reason: '', source: 'manual' }])}
               onRemove={(id) => removeRow(setBlockedRows, setBlockedDeletedIds, id)}
@@ -506,12 +642,14 @@ export default function SchedulingTab({
                 </>
               )}
             />
-
             <div className="admin-card" style={{ ...cardStyle, display: 'grid', gap: '14px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
                 <div>
                   <div style={{ fontSize: '12px', color: '#A68B6A', fontWeight: 800, letterSpacing: '0.08em' }}>前台可預約對照</div>
                   <div style={{ marginTop: '4px', fontSize: '20px', fontWeight: 900 }}>月曆預覽</div>
+                  <div style={{ marginTop: '6px', color: '#6B7280', fontSize: '13px', lineHeight: 1.6 }}>
+                    與前台共用同一份月曆摘要，直接對照「上班 / 可預約」、「上班 / 已滿」、「上班 / 規則限制」與「休息」。
+                  </div>
                 </div>
                 <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                   <button type="button" className="btn btn-small btn-interactive" onClick={() => setPreviewMonth((current) => addMonths(current, -1))} disabled={previewLoading}>
@@ -522,24 +660,33 @@ export default function SchedulingTab({
                   </button>
                 </div>
               </div>
-              <label style={{ display: 'grid', gap: '8px' }}>
+
+              <label style={{ display: 'grid', gap: '8px', maxWidth: '360px' }}>
                 <span style={{ fontSize: '13px', fontWeight: 800 }}>對照服務</span>
                 <select value={previewServiceId} onChange={(event) => setPreviewServiceId(event.target.value)} style={fieldStyle}>
-                  {services.map((service) => (
-                    <option key={service.id} value={service.id}>
-                      {service.name}
-                    </option>
-                  ))}
+                  {services.length ? (
+                    services.map((service) => (
+                      <option key={service.id} value={service.id}>
+                        {service.name}
+                      </option>
+                    ))
+                  ) : (
+                    <option value="">沒有可對照的服務</option>
+                  )}
                 </select>
               </label>
+
               <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                <Pill tone="success">{bookingOpsCopy.available}</Pill>
-                <Pill tone="warning">{bookingOpsCopy.full}</Pill>
-                <Pill tone="muted">{bookingOpsCopy.rest}</Pill>
+                <Pill tone="success">{bookingOpsCopy.calendarAvailable}</Pill>
+                <Pill tone="warning">{bookingOpsCopy.calendarFull}</Pill>
+                <Pill tone="warning">{bookingOpsCopy.calendarLimited}</Pill>
+                <Pill tone="muted">{bookingOpsCopy.calendarRest}</Pill>
               </div>
+
               <div style={{ fontSize: '18px', fontWeight: 900 }}>{monthTitle(previewMonth)}</div>
-              {previewLoading ? <div style={{ color: '#6B7280' }}>{bookingOpsCopy.loadingDates}</div> : null}
+              {previewLoading ? <div style={{ color: '#6B7280' }}>{bookingOpsCopy.loadingCalendar}</div> : null}
               {previewError ? <div style={{ color: '#B91C1C' }}>{previewError}</div> : null}
+
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: '8px' }}>
                 {['一', '二', '三', '四', '五', '六', '日'].map((weekday) => (
                   <div key={weekday} style={{ textAlign: 'center', fontSize: '12px', color: '#6B7280', fontWeight: 800 }}>
@@ -547,15 +694,19 @@ export default function SchedulingTab({
                   </div>
                 ))}
               </div>
+
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: '10px' }}>
                 {previewGrid.map(({ dateISO, inMonth, dayLabel }) => {
-                  const status = previewMap.get(dateISO)?.status || 'off'
+                  const entry = previewMap.get(dateISO)
+                  const status = entry?.status || 'off'
+                  const previewCopy = getPreviewStatusCopy(entry)
+
                   return (
                     <div
                       key={dateISO}
                       style={{
                         ...cardStyle,
-                        minHeight: '86px',
+                        minHeight: '92px',
                         padding: '10px',
                         opacity: inMonth ? 1 : 0.45,
                         color: status === 'off' ? '#9CA3AF' : '#111827',
@@ -565,8 +716,11 @@ export default function SchedulingTab({
                     >
                       <div style={{ fontSize: '15px', fontWeight: 900 }}>{dayLabel}</div>
                       {inMonth ? (
-                        <div style={{ marginTop: '8px', fontSize: '12px', fontWeight: 700 }}>
-                          {status === 'available' ? '上班 / 可預約' : status === 'full' ? '上班 / 已滿' : '休息'}
+                        <div style={{ marginTop: '8px', display: 'grid', gap: '6px' }}>
+                          <Pill tone={previewCopy.tone}>{previewCopy.label}</Pill>
+                          <div style={{ fontSize: '12px', fontWeight: 700, color: status === 'off' ? '#9CA3AF' : '#6B7280', lineHeight: 1.4 }}>
+                            {previewCopy.hint}
+                          </div>
                         </div>
                       ) : null}
                     </div>
