@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { EmptyState, Pill, RecordFilterBar, SectionHeader, fieldStyle, parseDate, parseTime, smallFieldStyle } from './opsUi'
 
 const STATUS_OPTIONS = [
@@ -78,6 +78,14 @@ export default function BookingsTab({
   const [dateFromFilter, setDateFromFilter] = useState('')
   const [dateToFilter, setDateToFilter] = useState('')
   const [selectedBooking, setSelectedBooking] = useState(null)
+
+  useEffect(() => {
+    if (!selectedBooking?.id) return
+    const nextBooking = (bookings || []).find((booking) => String(booking?.id) === String(selectedBooking.id))
+    if (nextBooking) {
+      setSelectedBooking(nextBooking)
+    }
+  }, [bookings, selectedBooking?.id])
 
   const staffNameMap = useMemo(() => {
     return (staff || []).reduce((acc, item) => {
