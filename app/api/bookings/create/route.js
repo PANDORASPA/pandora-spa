@@ -272,6 +272,7 @@ export async function POST(request) {
       name: customerName,
       phone: customerPhone,
       coupon: couponCode || null,
+      user_ticket_id: userTicket?.id || null,
       status: 'pending',
       user_id: user.id,
       customer_name: customerName,
