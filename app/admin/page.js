@@ -400,9 +400,11 @@ export default function Admin() {
     }
   }
 
-  const saveShifts = async (shifts, options = {}) => {
+  const saveShifts = async (payloadOrRows, options = {}) => {
     const silentSuccess = Boolean(options?.silentSuccess)
     try {
+      const shifts = Array.isArray(payloadOrRows) ? payloadOrRows : payloadOrRows?.rows || []
+      const deletedIds = Array.isArray(payloadOrRows?.deletedIds) ? payloadOrRows.deletedIds : []
       const existingIds = (staffShifts || []).map((s) => Number(s.id)).filter((n) => Number.isFinite(n))
       let nextId = (existingIds.length ? Math.max(...existingIds) : 0) + 1
       const businessHours = parseBusinessHours(settings?.business_hours)
@@ -414,6 +416,9 @@ export default function Admin() {
         const baselineStart = dayKey ? String(staffRow?.schedule?.[dayKey]?.start || businessHours.start).substring(0, 5) : businessHours.start
         const baselineEnd = dayKey ? String(staffRow?.schedule?.[dayKey]?.end || businessHours.end).substring(0, 5) : businessHours.end
         row.date = row.date ? String(row.date).substring(0, 10) : row.date
+        if (!Number.isInteger(Number(row.id)) || Number(row.id) <= 0 || Number(row.id) > 2147483647) {
+          delete row.id
+        }
         if (!row.id) {
           row.id = nextId
           nextId += 1
@@ -432,10 +437,14 @@ export default function Admin() {
       setSaving(true)
       const { error } = await supabase.from('staff_shifts').upsert(payload, { onConflict: 'staff_id, date' })
       if (error) throw error
+      if (deletedIds.length > 0) {
+        const { error: deleteError } = await supabase.from('staff_shifts').delete().in('id', deletedIds)
+        if (deleteError) throw deleteError
+      }
 
       const { data } = await supabase.from('staff_shifts').select('*')
       if (data) setStaffShifts(data)
-      toast.success('儲存成功')
+      if (!silentSuccess) toast.success('儲存成功')
     } catch (error) {
       toast.error('班次儲存失敗：' + (error?.message || '未知錯誤'))
     } finally {
@@ -464,7 +473,11 @@ export default function Admin() {
           if (payload.label != null) payload.label = String(payload.label).trim()
           if (payload.reason != null) payload.reason = String(payload.reason).trim()
           if (payload.source != null) payload.source = String(payload.source).trim() || 'manual'
-          if (typeof payload.id === 'number' && payload.id > 2147483647) delete payload.id
+          if (!Number.isInteger(Number(payload.id)) || Number(payload.id) <= 0 || Number(payload.id) > 2147483647) {
+            delete payload.id
+          } else {
+            payload.id = Number(payload.id)
+          }
           return payload
         })
 
@@ -488,7 +501,7 @@ export default function Admin() {
       }
 
       await fetchData()
-      toast.success('儲存成功')
+      if (!silentSuccess) toast.success('儲存成功')
     } catch (error) {
       toast.error(`${table} 儲存失敗：${error?.message || '未知錯誤'}`)
     } finally {
@@ -613,12 +626,16 @@ export default function Admin() {
           location_id: normalizeNullableNumber(item.location_id),
           provider_group_id: normalizeNullableNumber(item.provider_group_id),
         }
-        if (typeof payload.id === 'number' && payload.id > 2147483647) delete payload.id
+        if (!Number.isInteger(Number(payload.id)) || Number(payload.id) <= 0 || Number(payload.id) > 2147483647) {
+          delete payload.id
+        } else {
+          payload.id = Number(payload.id)
+        }
         const { error } = await supabase.from('staff').upsert(payload)
         if (error) throw error
       }
       await fetchData()
-      toast.success('儲存成功')
+      if (!silentSuccess) toast.success('儲存成功')
     } catch (error) {
       toast.error('服務供應者儲存失敗：' + (error?.message || '未知錯誤'))
     } finally {
