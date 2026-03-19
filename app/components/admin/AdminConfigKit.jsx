@@ -59,7 +59,7 @@ export function EmptyState({ title, description }) {
 
 export function ChipRow({ items = [], emptyLabel = '沒有資料', tone = 'neutral' }) {
   if (!items.length) {
-    return <EmptyState title={emptyLabel} description="當相關設定或資料未接通時，這個區塊會顯示相容提示。" />
+    return <EmptyState title={emptyLabel} description="相關設定或資料未接通時，這裡會顯示相容提示。" />
   }
 
   return (
