@@ -15,6 +15,7 @@ import ArticlesTab from '../components/admin/ArticlesTab'
 import FaqsTab from '../components/admin/FaqsTab'
 import StaffTab from '../components/admin/StaffTab'
 import BookingsTab from '../components/admin/BookingsTab'
+import { analyzeScheduleRows } from '../../lib/booking/admin-schedule'
 
 const tabGroups = [
   { name: 'Overview', tabs: [{ id: 'dashboard', name: 'Dashboard' }, { id: 'analytics', name: 'Analytics' }, { id: 'bookings', name: 'Bookings' }, { id: 'orders', name: 'Orders' }] },
@@ -77,6 +78,13 @@ const parseBusinessHours = (value) => {
     start: parts[0] || '11:00',
     end: parts[1] || '20:00',
   }
+}
+
+const formatScheduleIssues = (issues = []) => {
+  return issues
+    .map((issue) => issue?.message || '資料驗證失敗')
+    .filter(Boolean)
+    .join('；')
 }
 
 export default function Admin() {
@@ -229,7 +237,6 @@ export default function Admin() {
   }
 
   const saveShifts = async (shifts) => {
-    setSaving(true)
     try {
       const existingIds = (staffShifts || []).map((s) => Number(s.id)).filter((n) => Number.isFinite(n))
       let nextId = (existingIds.length ? Math.max(...existingIds) : 0) + 1
@@ -252,12 +259,18 @@ export default function Admin() {
         return row
       }).filter((row) => row.date && row.staff_id)
 
+      const { issues } = analyzeScheduleRows({ table: 'staff_shifts', rows: payload, bookings })
+      if (issues.length > 0) {
+        throw new Error(formatScheduleIssues(issues))
+      }
+
+      setSaving(true)
       const { error } = await supabase.from('staff_shifts').upsert(payload, { onConflict: 'staff_id, date' })
       if (error) throw error
 
-      toast.success('Saved')
       const { data } = await supabase.from('staff_shifts').select('*')
       if (data) setStaffShifts(data)
+      toast.success('Saved')
     } catch (error) {
       toast.error('Shift save failed: ' + (error?.message || 'Unknown error'))
     } finally {
@@ -266,23 +279,35 @@ export default function Admin() {
   }
 
   const saveScheduleTable = async ({ table, rows = [], deletedIds = [], onConflict }) => {
-    setSaving(true)
     try {
       const normalizedRows = (rows || [])
         .filter((row) => !row?.__deleted)
         .map((row) => {
           const payload = stripTransientFields({ ...row })
+          if (payload.staff_id != null && payload.staff_id !== '') payload.staff_id = Number(payload.staff_id)
           if (payload.date) payload.date = String(payload.date).substring(0, 10)
           if (payload.start_time) payload.start_time = String(payload.start_time).substring(0, 5)
           else if (payload.start_time === '') payload.start_time = null
           if (payload.end_time) payload.end_time = String(payload.end_time).substring(0, 5)
           else if (payload.end_time === '') payload.end_time = null
           if (payload.day_of_week != null && payload.day_of_week !== '') payload.day_of_week = Number(payload.day_of_week)
+          if (payload.is_off != null) payload.is_off = Boolean(payload.is_off)
           if (payload.is_all_day == null) delete payload.is_all_day
+          else payload.is_all_day = Boolean(payload.is_all_day)
+          if (payload.enabled != null) payload.enabled = Boolean(payload.enabled)
+          if (payload.label != null) payload.label = String(payload.label).trim()
+          if (payload.reason != null) payload.reason = String(payload.reason).trim()
+          if (payload.source != null) payload.source = String(payload.source).trim() || 'manual'
           if (typeof payload.id === 'number' && payload.id > 2147483647) delete payload.id
           return payload
         })
 
+      const { issues } = analyzeScheduleRows({ table, rows: normalizedRows, bookings })
+      if (issues.length > 0) {
+        throw new Error(formatScheduleIssues(issues))
+      }
+
+      setSaving(true)
       if (normalizedRows.length > 0) {
         const query = onConflict
           ? supabase.from(table).upsert(normalizedRows, { onConflict })
