@@ -42,6 +42,88 @@ const restoreTicketIfNeeded = async (supabase, booking) => {
   if (updateRes.error) throw updateRes.error
 }
 
+const normalizeAllocationRows = (rows) =>
+  (rows || []).map((row) => ({
+    booking_id: row.booking_id,
+    resource_id: row.resource_id,
+    quantity: row.quantity,
+  }))
+
+const sameAllocationSet = (leftRows, rightRows) => {
+  const normalize = (rows) =>
+    normalizeAllocationRows(rows)
+      .map((row) => `${row.booking_id}:${row.resource_id}:${row.quantity}`)
+      .sort()
+  const left = normalize(leftRows)
+  const right = normalize(rightRows)
+  return left.length === right.length && left.every((value, index) => value === right[index])
+}
+
+const restoreBookingState = async ({ supabase, bookingId, userId, previousPayload, previousAllocations }) => {
+  const bookingRestoreRes = await supabase
+    .from('bookings')
+    .update(previousPayload)
+    .eq('id', bookingId)
+    .eq('user_id', userId)
+    .select('*')
+    .single()
+
+  if (bookingRestoreRes.error) {
+    return { ok: false, stage: 'restore_booking', error: bookingRestoreRes.error.message }
+  }
+
+  const cleanupAllocationsRes = await supabase.from('booking_resource_allocations').delete().eq('booking_id', bookingId)
+  if (cleanupAllocationsRes.error) {
+    return { ok: false, stage: 'cleanup_allocations', error: cleanupAllocationsRes.error.message }
+  }
+
+  if ((previousAllocations || []).length > 0) {
+    const restoreAllocationsRes = await supabase
+      .from('booking_resource_allocations')
+      .insert(normalizeAllocationRows(previousAllocations))
+    if (restoreAllocationsRes.error) {
+      return { ok: false, stage: 'restore_allocations', error: restoreAllocationsRes.error.message }
+    }
+  }
+
+  const verifyBookingRes = await supabase
+    .from('bookings')
+    .select(
+      'service,service_price,final_price,date,time,staff_id,staff_name,name,phone,coupon,user_ticket_id,status,user_id,customer_name,customer_phone,customer_email,service_id,location_id,provider_group_id,appointment_date,start_time,end_time,buffer_end_time,start_at,end_at,buffer_end_at,duration_min,buffer_min',
+    )
+    .eq('id', bookingId)
+    .eq('user_id', userId)
+    .maybeSingle()
+  if (verifyBookingRes.error) {
+    return { ok: false, stage: 'verify_booking', error: verifyBookingRes.error.message }
+  }
+
+  const verifyAllocationsRes = await supabase.from('booking_resource_allocations').select('*').eq('booking_id', bookingId)
+  if (verifyAllocationsRes.error) {
+    return { ok: false, stage: 'verify_allocations', error: verifyAllocationsRes.error.message }
+  }
+
+  const restoredBooking = verifyBookingRes.data || {}
+  const bookingMatches = Object.entries(previousPayload).every(([key, value]) => restoredBooking[key] === value)
+  const allocationsMatch = sameAllocationSet(previousAllocations, verifyAllocationsRes.data || [])
+
+  if (!bookingMatches || !allocationsMatch) {
+    return {
+      ok: false,
+      stage: 'verify_restore',
+      error: 'Rollback verification failed.',
+      details: {
+        bookingMatches,
+        allocationsMatch,
+        allocationCount: (verifyAllocationsRes.data || []).length,
+        expectedAllocationCount: (previousAllocations || []).length,
+      },
+    }
+  }
+
+  return { ok: true, booking: bookingRestoreRes.data, allocations: verifyAllocationsRes.data || [] }
+}
+
 export async function PATCH(request, { params }) {
   try {
     const authSupabase = getServerClient()
@@ -62,6 +144,8 @@ export async function PATCH(request, { params }) {
 
     const body = await request.json()
     const action = body?.action || 'reschedule'
+    const shouldForceAllocationFailure =
+      process.env.ALLOW_SMOKE_FAULTS === '1' && request.headers.get('x-smoke-force-allocation-fail') === '1'
 
     if (action === 'cancel') {
       await restoreTicketIfNeeded(supabase, existingBooking)
@@ -192,24 +276,87 @@ export async function PATCH(request, { params }) {
       serviceResources: context.serviceResources,
     })
 
+    const rollbackWithError = async ({ error, code = 'resource_full', stage, details = null }) => {
+      const restoreResult = await restoreBookingState({
+        supabase,
+        bookingId,
+        userId: user.id,
+        previousPayload,
+        previousAllocations: previousAllocationsRes.data || [],
+      })
+
+      if (!restoreResult.ok) {
+        return NextResponse.json(
+          {
+            error: 'Rollback failed after reschedule error.',
+            code: 'rollback_failed',
+            details: {
+              originalError: error,
+              originalCode: code,
+              originalStage: stage,
+              restoreStage: restoreResult.stage,
+              restoreError: restoreResult.error,
+              restoreDetails: restoreResult.details || null,
+            },
+          },
+          { status: 500 },
+        )
+      }
+
+      return NextResponse.json(
+        {
+          error,
+          code,
+          details: {
+            stage,
+            rollbackVerified: true,
+            ...(details ? { evidence: details } : {}),
+          },
+        },
+        { status: 500 },
+      )
+    }
+
     const deleteAllocationsRes = await supabase.from('booking_resource_allocations').delete().eq('booking_id', bookingId)
     if (deleteAllocationsRes.error) {
-      await supabase.from('bookings').update(previousPayload).eq('id', bookingId).eq('user_id', user.id)
-      return NextResponse.json({ error: deleteAllocationsRes.error.message }, { status: 500 })
+      return rollbackWithError({
+        error: deleteAllocationsRes.error.message,
+        code: 'resource_full',
+        stage: 'delete_allocations',
+      })
     }
 
     if (nextAllocations.length > 0) {
+      if (shouldForceAllocationFailure) {
+        return rollbackWithError({
+          error: 'Smoke-forced resource allocation failure.',
+          code: 'resource_full',
+          stage: 'forced_allocation_failure',
+          details: { smokeForced: true },
+        })
+      }
+
       const insertAllocationsRes = await supabase.from('booking_resource_allocations').insert(nextAllocations)
       if (insertAllocationsRes.error) {
-        await supabase.from('bookings').update(previousPayload).eq('id', bookingId).eq('user_id', user.id)
-        if ((previousAllocationsRes.data || []).length > 0) {
-          await supabase.from('booking_resource_allocations').insert(previousAllocationsRes.data.map((row) => ({
-            booking_id: row.booking_id,
-            resource_id: row.resource_id,
-            quantity: row.quantity,
-          })))
-        }
-        return NextResponse.json({ error: 'Resource allocation failed: ' + insertAllocationsRes.error.message, code: 'resource_full' }, { status: 500 })
+        return rollbackWithError({
+          error: 'Resource allocation failed: ' + insertAllocationsRes.error.message,
+          code: 'resource_full',
+          stage: 'insert_allocations',
+        })
+      }
+
+      const verifyAllocationsRes = await supabase.from('booking_resource_allocations').select('id').eq('booking_id', bookingId)
+      if (verifyAllocationsRes.error || (verifyAllocationsRes.data || []).length < nextAllocations.length) {
+        return rollbackWithError({
+          error: 'Resource allocation verification failed.',
+          code: 'resource_full',
+          stage: 'verify_allocations',
+          details: {
+            expectedAllocationCount: nextAllocations.length,
+            actualAllocationCount: (verifyAllocationsRes.data || []).length,
+            verifyError: verifyAllocationsRes.error?.message || null,
+          },
+        })
       }
     }
 
