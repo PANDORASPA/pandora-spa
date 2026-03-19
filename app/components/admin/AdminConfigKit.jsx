@@ -20,9 +20,9 @@ export function AdminSection({ eyebrow, title, description, actions, tone = 'neu
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'flex-start', flexWrap: 'wrap', marginBottom: '14px' }}>
         <div>
-          {eyebrow && <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.1em', color: '#A68B6A' }}>{eyebrow}</div>}
+          {eyebrow ? <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.1em', color: '#A68B6A' }}>{eyebrow}</div> : null}
           <h3 style={{ margin: eyebrow ? '6px 0 0' : 0, fontSize: '16px', fontWeight: 800, color: 'var(--text)' }}>{title}</h3>
-          {description && <p style={{ margin: '6px 0 0', fontSize: '13px', lineHeight: 1.6, color: 'var(--text-light)' }}>{description}</p>}
+          {description ? <p style={{ margin: '6px 0 0', fontSize: '13px', lineHeight: 1.6, color: 'var(--text-light)' }}>{description}</p> : null}
         </div>
         {actions}
       </div>
@@ -34,15 +34,7 @@ export function AdminSection({ eyebrow, title, description, actions, tone = 'neu
 export function StatusPill({ children, tone = 'neutral', style = {} }) {
   const palette = toneStyles[tone] || toneStyles.neutral
   return (
-    <span
-      className="badge badge-outline"
-      style={{
-        ...palette,
-        border: 'none',
-        fontWeight: 700,
-        ...style,
-      }}
-    >
+    <span className="badge badge-outline" style={{ ...palette, border: 'none', fontWeight: 700, ...style }}>
       {children}
     </span>
   )
@@ -67,7 +59,7 @@ export function EmptyState({ title, description }) {
 
 export function ChipRow({ items = [], emptyLabel = '沒有資料', tone = 'neutral' }) {
   if (!items.length) {
-    return <EmptyState title={emptyLabel} description="當相關設定或資料接通後，這個區塊會自動顯示內容。" />
+    return <EmptyState title={emptyLabel} description="當相關設定或資料未接通時，這個區塊會顯示相容提示。" />
   }
 
   return (
