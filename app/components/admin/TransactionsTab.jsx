@@ -262,7 +262,7 @@ export default function TransactionsTab({
       <SectionHeader
         eyebrow="TRANSACTIONS"
         title="Operational ledger"
-        description="Track transaction refs, payment methods, linked bookings, and reconciliation status from one operational screen."
+        description="Track transaction refs, payment methods, linked bookings, and the resolved operational scope from one operational screen."
         actions={
           <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
             <Pill>{filteredTransactions.length} visible</Pill>
@@ -333,8 +333,8 @@ export default function TransactionsTab({
                 <th style={{ padding: '14px 12px', textAlign: 'left', color: 'var(--text-light)' }}>Kind</th>
                 <th style={{ padding: '14px 12px', textAlign: 'left', color: 'var(--text-light)' }}>Amount</th>
                 <th style={{ padding: '14px 12px', textAlign: 'left', color: 'var(--text-light)' }}>Payment</th>
-                <th style={{ padding: '14px 12px', textAlign: 'left', color: 'var(--text-light)' }}>Linked</th>
-                <th style={{ padding: '14px 12px', textAlign: 'left', color: 'var(--text-light)' }}>Scope</th>
+                <th style={{ padding: '14px 12px', textAlign: 'left', color: 'var(--text-light)' }}>Booking / Order</th>
+                <th style={{ padding: '14px 12px', textAlign: 'left', color: 'var(--text-light)' }}>Scope / Link</th>
                 <th style={{ padding: '14px 12px', textAlign: 'left', color: 'var(--text-light)' }}>Notes</th>
                 <th style={{ padding: '14px 12px', textAlign: 'left', color: 'var(--text-light)' }}>Status</th>
                 <th style={{ padding: '14px 12px', textAlign: 'center', color: 'var(--text-light)' }}>Action</th>
@@ -406,6 +406,18 @@ export default function TransactionsTab({
                         <div style={{ fontSize: '11px', color: 'var(--text-light)', marginTop: '4px' }}>{row.provider || row.payment_ref || ''}</div>
                       </td>
                       <td style={{ padding: '12px' }}>
+                        <div style={{ marginBottom: '6px' }}>
+                          <span
+                            className="badge"
+                            style={{
+                              border: 'none',
+                              background: row.__location || row.__providerGroup ? '#ECFDF5' : '#FEF3C7',
+                              color: row.__location || row.__providerGroup ? '#047857' : '#B45309',
+                            }}
+                          >
+                            {row.__location || row.__providerGroup ? 'Scoped' : 'Scope missing'}
+                          </span>
+                        </div>
                         <div style={{ fontWeight: 700 }}>{bookingLabel}</div>
                         <div style={{ fontSize: '11px', color: 'var(--text-light)', marginTop: '4px' }}>{orderLabel}</div>
                         <div style={{ fontSize: '11px', color: 'var(--text-light)', marginTop: '4px' }}>{customerLabel}</div>
