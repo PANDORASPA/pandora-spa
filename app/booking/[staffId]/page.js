@@ -302,12 +302,12 @@ export default function BookingStaffDetailPage({ params }) {
   }, [editId])
 
   const dateWindow = useMemo(() => buildDateWindow(normalizeDateISO(selectedDate) || getHKISODate()), [selectedDate])
+  const dateSummaryStartDate = dateWindow[0]?.dateISO || normalizeDateISO(selectedDate) || getHKISODate()
   const dateSummaryMap = useMemo(() => new Map(dateSummaries.map((entry) => [entry.date, entry])), [dateSummaries])
+  const currentDateSummary = dateSummaryMap.get(selectedDate) || null
 
   useEffect(() => {
     if (!selectedServiceId || !staffId) return
-    const startDate = normalizeDateISO(selectedDate) || getHKISODate()
-
     dateSummaryControllerRef.current?.abort?.()
     const controller = new AbortController()
     dateSummaryControllerRef.current = controller
@@ -317,7 +317,7 @@ export default function BookingStaffDetailPage({ params }) {
     const params = new URLSearchParams({
       serviceId: String(selectedServiceId),
       staffId: String(staffId),
-      startDate,
+      startDate: dateSummaryStartDate,
       days: String(DATE_CARD_COUNT),
     })
     if (resolvedLocationId != null) params.set('locationId', String(resolvedLocationId))
@@ -342,7 +342,7 @@ export default function BookingStaffDetailPage({ params }) {
       })
 
     return () => controller.abort()
-  }, [resolvedLocationId, selectedDate, selectedServiceId, staffId])
+  }, [dateSummaryStartDate, resolvedLocationId, selectedServiceId, staffId])
 
   useEffect(() => {
     if (!dateSummaries.length) return
@@ -356,6 +356,12 @@ export default function BookingStaffDetailPage({ params }) {
     if (!selectedDate || !selectedServiceId || !staffId) {
       setSlotMatrix([])
       setSelectedTime('')
+      return
+    }
+    if (currentDateSummary?.status === 'off' || currentDateSummary?.status === 'full') {
+      setSlotMatrix([])
+      setSelectedTime('')
+      setLoadingSlots(false)
       return
     }
 
@@ -398,7 +404,7 @@ export default function BookingStaffDetailPage({ params }) {
       })
 
     return () => controller.abort()
-  }, [resolvedLocationId, selectedDate, selectedServiceId, staffId])
+  }, [currentDateSummary?.status, resolvedLocationId, selectedDate, selectedServiceId, staffId])
 
   const selectedService = useMemo(
     () => services.find((service) => String(service.id) === String(selectedServiceId)) || null,
@@ -419,7 +425,6 @@ export default function BookingStaffDetailPage({ params }) {
     })
   }, [selectedServiceId, userTickets])
 
-  const currentDateSummary = dateSummaryMap.get(selectedDate) || null
   const currentDateHint =
     currentDateSummary?.status === 'off'
       ? T.restHint
