@@ -1,0 +1,60 @@
+{
+  "generatedAt": "2026-03-19T11:23:42.190Z",
+  "baseUrl": "http://localhost:3001",
+  "seeds": {
+    "location_id": 1,
+    "provider_group_id": 1,
+    "resource_id": 1,
+    "booking_id": 27,
+    "order_id": 4,
+    "transaction_id": 1,
+    "customer_id": 3,
+    "holiday_id": 4,
+    "user_ticket_id": 4,
+    "staff_id": 3
+  },
+  "checks": {
+    "bookings_detail_seed_ready": {
+      "status": "pass",
+      "booking_location_id": 1,
+      "booking_provider_group_id": 1,
+      "allocation_quantity": 1,
+      "linked_order_ref": "SMOKE-ORD-20260319",
+      "linked_transaction_ref": "SMOKE-TX-20260319"
+    },
+    "transaction_edit_save_roundtrip": {
+      "status": "pass",
+      "before": "Smoke seed created",
+      "after": "Smoke roundtrip 2026-03-19T11:23:41.025Z",
+      "booking_id": 27,
+      "order_id": 4
+    },
+    "customer_operational_seed_ready": {
+      "status": "pass",
+      "customer_name": "12133",
+      "user_ticket_id": 4,
+      "transaction_id": 1,
+      "order_id": 4,
+      "booking_id": 27
+    },
+    "availability_resource_full": {
+      "status": "pass",
+      "slot_tested": "09:00",
+      "baseline_slots": [
+        "09:00"
+      ],
+      "after_slots": [],
+      "baseline_status": 200,
+      "after_status": 200
+    },
+    "holiday_provider_group_enforcement": {
+      "status": "pass",
+      "baseline_slots": [
+        "09:00"
+      ],
+      "after_slots": [],
+      "baseline_status": 200,
+      "after_status": 200
+    }
+  }
+}
