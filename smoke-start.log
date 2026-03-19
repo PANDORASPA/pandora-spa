@@ -1,0 +1,21 @@
+
+> viva-hair@1.0.0 start
+> next start
+
+ ⨯ Failed to start server
+Error: listen EADDRINUSE: address already in use :::3000
+    at Server.setupListenHandle [as _listen2] (node:net:1940:16)
+    at listenInCluster (node:net:1997:12)
+    at Server.listen (node:net:2102:7)
+    at C:\Users\Administrator\Desktop\viva\Hair-salon\node_modules\next\dist\server\lib\start-server.js:278:16
+    at new Promise (<anonymous>)
+    at startServer (C:\Users\Administrator\Desktop\viva\Hair-salon\node_modules\next\dist\server\lib\start-server.js:190:11)
+    at nextStart (C:\Users\Administrator\Desktop\viva\Hair-salon\node_modules\next\dist\cli\next-start.js:50:40)
+    at C:\Users\Administrator\Desktop\viva\Hair-salon\node_modules\next\dist\bin\next:155:54
+    at async main (C:\Users\Administrator\Desktop\viva\Hair-salon\node_modules\next\dist\bin\next:155:5) {
+  code: 'EADDRINUSE',
+  errno: -4091,
+  syscall: 'listen',
+  address: '::',
+  port: 3000
+}
