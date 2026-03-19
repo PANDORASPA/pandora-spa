@@ -97,7 +97,8 @@ export async function POST(request) {
     const { data: staffList, error: staffErr } = staffIdInput ? await staffQuery.eq('id', staffIdInput) : await staffQuery
     if (staffErr) return NextResponse.json({ error: staffErr.message }, { status: 500 })
 
-    const staffIds = (staffList || []).map(s => s.id).filter(Boolean)
+    const candidateStaff = (staffList || []).filter((staff) => staffCanDoService(staff, serviceId))
+    const staffIds = candidateStaff.map((staff) => staff.id).filter(Boolean)
     if (staffIds.length === 0) return NextResponse.json({ error: '找不到可用員工' }, { status: 400 })
 
     const { data: shifts, error: shiftsErr } = await supabase
@@ -161,8 +162,7 @@ export async function POST(request) {
     let chosenStaff = null
     let chosenStaffId = null
 
-    const staffCandidates = staffIdInput ? staffList : staffList.filter(s => staffCanDoService(s, serviceId))
-    for (const staff of staffCandidates || []) {
+    for (const staff of candidateStaff || []) {
       const shift = byStaffShift.get(staff.id) || null
       const slots = getAvailableSlots({
         staff,
