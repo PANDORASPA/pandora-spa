@@ -110,6 +110,16 @@ export default function OrdersTab({
     }, {})
   }, [transactions])
 
+  const transactionByOrderId = useMemo(() => {
+    return (transactions || []).reduce((acc, tx) => {
+      const orderId = Number(tx?.order_id)
+      if (!Number.isFinite(orderId)) return acc
+      if (!acc[orderId]) acc[orderId] = []
+      acc[orderId].push(tx)
+      return acc
+    }, {})
+  }, [transactions])
+
   const locationLookup = useMemo(() => {
     return (locations || []).reduce((acc, location) => {
       acc[String(location.id)] = location
@@ -126,10 +136,15 @@ export default function OrdersTab({
 
   const enrichedOrders = useMemo(() => {
     return (orders || []).map((order) => {
-      const booking = order.booking_id != null ? bookingLookup[String(order.booking_id)] || matchRecord(bookings, order.booking_id, ['booking_id']) : null
+      const reverseTransactions = Number.isFinite(Number(order?.id)) ? transactionByOrderId[Number(order.id)] || [] : []
       const transaction =
         (order.transaction_id != null ? transactionLookup[String(order.transaction_id)] || matchRecord(transactions, order.transaction_id, ['transaction_id']) : null) ||
-        (order.payment_ref ? transactionLookup[String(order.payment_ref)] || matchRecord(transactions, order.payment_ref, ['payment_ref', 'ref']) : null)
+        (order.payment_ref ? transactionLookup[String(order.payment_ref)] || matchRecord(transactions, order.payment_ref, ['payment_ref', 'ref']) : null) ||
+        reverseTransactions[0] ||
+        null
+      const booking =
+        (order.booking_id != null ? bookingLookup[String(order.booking_id)] || matchRecord(bookings, order.booking_id, ['booking_id']) : null) ||
+        (transaction?.booking_id != null ? bookingLookup[String(transaction.booking_id)] || matchRecord(bookings, transaction.booking_id, ['booking_id']) : null)
       const customer = resolveCustomer(order, customers) || (booking ? resolveCustomer(booking, customers) : null) || (transaction ? resolveCustomer(transaction, customers) : null)
       const locationId = getLinkedLocationId(order) || getLinkedLocationId(booking) || getLinkedLocationId(transaction)
       const providerGroupId = getLinkedProviderGroupId(order) || getLinkedProviderGroupId(booking) || getLinkedProviderGroupId(transaction)
@@ -145,6 +160,7 @@ export default function OrdersTab({
         ...order,
         __booking: booking,
         __transaction: transaction,
+        __transactions: reverseTransactions,
         __customer: customer,
         __location: location,
         __providerGroup: providerGroup,
@@ -152,7 +168,7 @@ export default function OrdersTab({
         __hasScope: Boolean(scopeParts.length),
       }
     })
-  }, [orders, bookings, bookingLookup, transactionLookup, transactions, customers, locations, locationLookup, providerGroups, providerGroupLookup])
+  }, [orders, bookings, bookingLookup, transactionLookup, transactionByOrderId, transactions, customers, locations, locationLookup, providerGroups, providerGroupLookup])
 
   const filterOptions = useMemo(() => {
     const deliveryValues = [...new Set(enrichedOrders.map((order) => getDeliveryText(order)).filter(Boolean))].filter((value) => value && value !== 'Not set')
