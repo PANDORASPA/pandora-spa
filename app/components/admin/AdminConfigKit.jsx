@@ -65,9 +65,9 @@ export function EmptyState({ title, description }) {
   )
 }
 
-export function ChipRow({ items = [], emptyLabel = 'No items', tone = 'neutral' }) {
+export function ChipRow({ items = [], emptyLabel = '沒有資料', tone = 'neutral' }) {
   if (!items.length) {
-    return <EmptyState title={emptyLabel} description="This section will populate when the related contract is connected." />
+    return <EmptyState title={emptyLabel} description="當相關設定或資料接通後，這個區塊會自動顯示內容。" />
   }
 
   return (
@@ -80,4 +80,3 @@ export function ChipRow({ items = [], emptyLabel = 'No items', tone = 'neutral' 
     </div>
   )
 }
-
