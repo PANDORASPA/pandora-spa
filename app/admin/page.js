@@ -29,6 +29,8 @@ const scheduleTableLabels = {
   blocked_slots: '封鎖時段',
 }
 
+const tabLoadingMessage = '載入分頁資料中...'
+
 const tabGroupsLegacy = [
   { name: '概覽', tabs: [{ id: 'dashboard', name: '總覽' }, { id: 'analytics', name: '分析' }] },
   { name: '預約', tabs: [{ id: 'bookings', name: '預約' }, { id: 'staff', name: '排程' }, { id: 'holidays', name: '假期' }, { id: 'locations', name: '地點' }, { id: 'resources', name: '資源設備' }] },
@@ -302,6 +304,9 @@ export default function Admin() {
   const [activeTab, setActiveTab] = useState('dashboard')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [baseLoaded, setBaseLoaded] = useState(false)
+  const [tabDataLoaded, setTabDataLoaded] = useState({})
+  const [tabLoadingState, setTabLoadingState] = useState({})
 
   const [bookings, setBookings] = useState([])
   const [orders, setOrders] = useState([])
@@ -358,6 +363,14 @@ export default function Admin() {
     end_time: row?.end_time ? String(row.end_time).substring(0, 5) : '',
   })
 
+  const markTabsLoaded = (tabIds = []) => {
+    setTabDataLoaded((current) => {
+      const next = { ...current }
+      for (const tabId of tabIds) next[tabId] = true
+      return next
+    })
+  }
+
   useEffect(() => {
     const checkAdmin = async () => {
       try {
@@ -383,7 +396,7 @@ export default function Admin() {
         }
 
         setIsAuthenticated(true)
-        await fetchData()
+        await loadBaseData()
       } finally {
         setAuthChecked(true)
       }
@@ -392,75 +405,40 @@ export default function Admin() {
     checkAdmin()
   }, [router])
 
-  const fetchData = async () => {
-    setLoading(true)
-    const [b, o, s, sp, p, t, ut, c, cust, st, setRows, art, f, sh, br, to, bs, r, loc, providerGroupRows, hol, res, tx, bookingResourceAllocationRows, serviceLocationRows, serviceProviderGroupRows, serviceResourceRows] = await Promise.all([
-      supabase.from('bookings').select('*').order('created_at', { ascending: false }),
-      supabase.from('orders').select('*').order('created_at', { ascending: false }),
+  const loadBaseData = async ({ showLoading = true } = {}) => {
+    if (showLoading) setLoading(true)
+
+    const [s, st, setRows, sh, br, to, bs, loc, providerGroupRows, hol, res] = await Promise.all([
       supabase.from('services').select('*').order('sort_order'),
-      supabase.from('service_packages').select('*'),
-      supabase.from('products').select('*'),
-      supabase.from('tickets').select('*'),
-      safeTableResult(supabase.from('user_tickets').select('*').order('created_at', { ascending: false })),
-      supabase.from('coupons').select('*'),
-      supabase.from('customers').select('*').order('created_at', { ascending: false }),
       supabase.from('staff').select('*').order('id'),
       supabase.from('settings').select('*'),
-      supabase.from('articles').select('*').order('sort_order'),
-      supabase.from('faqs').select('*').order('sort_order'),
       supabase.from('staff_shifts').select('*'),
       supabase.from('staff_breaks').select('*').order('staff_id').order('day_of_week'),
       supabase.from('staff_time_off').select('*').order('date'),
       supabase.from('blocked_slots').select('*').order('date'),
-      supabase.from('reviews').select('*').order('created_at', { ascending: false }),
       safeTableResult(supabase.from('locations').select('*').order('sort_order').order('name')),
       safeTableResult(supabase.from('provider_groups').select('*').order('sort_order').order('name')),
       safeTableResult(supabase.from('holidays').select('*').order('holiday_date')),
       safeTableResult(supabase.from('resources').select('*').order('sort_order').order('name')),
-      safeTableResult(supabase.from('transactions').select('*').order('created_at', { ascending: false })),
-      safeTableResult(supabase.from('booking_resource_allocations').select('*').order('booking_id').order('resource_id')),
-      safeTableResult(supabase.from('service_locations').select('*').order('service_id').order('location_id')),
-      safeTableResult(supabase.from('service_provider_groups').select('*').order('service_id').order('provider_group_id')),
-      safeTableResult(supabase.from('service_resources').select('*').order('service_id').order('resource_id')),
     ])
 
-    if (b.data) setBookings(b.data)
-    if (o.data) setOrders(o.data)
     if (s.data) setServices(s.data)
-    if (sp.data) setServicePackages(sp.data)
-    if (p.data) setProducts(p.data)
-    if (t.data) setTickets(t.data)
-    setUserTickets(ut.data || [])
-    if (c.data) setCoupons(c.data)
-    if (cust.data) setUsers(cust.data)
     if (st.data) setStaff(st.data.map(normalizeStaffRow))
-    if (art.data) setArticles(art.data)
-    if (f.data) setFaqs(f.data)
     if (sh.data) setStaffShifts(sh.data.map(normalizeScheduleRow))
     if (br.data) setStaffBreaks(br.data)
     if (to.data) setStaffTimeOff(to.data.map(normalizeScheduleRow))
     if (bs.data) setBlockedSlots(bs.data.map(normalizeScheduleRow))
-    if (r.data) setReviews(r.data)
     setLocations(loc.data || [])
     setProviderGroups(providerGroupRows.data || [])
     setHolidays(hol.data || [])
     setResources(res.data || [])
-    setTransactions(tx.data || [])
-    setBookingResourceAllocations(bookingResourceAllocationRows.data || [])
-    setServiceLocations(serviceLocationRows.data || [])
-    setServiceProviderGroups(serviceProviderGroupRows.data || [])
-    setServiceResources(serviceResourceRows.data || [])
-    setAvailableTables({
+    setAvailableTables((current) => ({
+      ...current,
       locations: Boolean(loc.available),
       providerGroups: Boolean(providerGroupRows.available),
       holidays: Boolean(hol.available),
       resources: Boolean(res.available),
-      transactions: Boolean(tx.available),
-      bookingResourceAllocations: Boolean(bookingResourceAllocationRows.available),
-      serviceLocations: Boolean(serviceLocationRows.available),
-      serviceProviderGroups: Boolean(serviceProviderGroupRows.available),
-      serviceResources: Boolean(serviceResourceRows.available),
-    })
+    }))
     if (setRows.data) {
       const nextSettings = setRows.data.reduce((acc, item) => {
         acc[item.key] = item.value
@@ -469,8 +447,172 @@ export default function Admin() {
       setSettings(nextSettings)
     }
 
-    setLoading(false)
+    setBaseLoaded(true)
+    if (showLoading) setLoading(false)
   }
+
+  const loadDashboardAnalyticsData = async () => {
+    const [b, o, tx, cust, ut, r] = await Promise.all([
+      supabase.from('bookings').select('*').order('created_at', { ascending: false }),
+      supabase.from('orders').select('*').order('created_at', { ascending: false }),
+      safeTableResult(supabase.from('transactions').select('*').order('created_at', { ascending: false })),
+      supabase.from('customers').select('*').order('created_at', { ascending: false }),
+      safeTableResult(supabase.from('user_tickets').select('*').order('created_at', { ascending: false })),
+      supabase.from('reviews').select('*').order('created_at', { ascending: false }),
+    ])
+
+    if (b.data) setBookings(b.data)
+    if (o.data) setOrders(o.data)
+    setTransactions(tx.data || [])
+    if (cust.data) setUsers(cust.data)
+    setUserTickets(ut.data || [])
+    if (r.data) setReviews(r.data)
+    setAvailableTables((current) => ({ ...current, transactions: Boolean(tx.available) }))
+    markTabsLoaded(['dashboard', 'analytics'])
+  }
+
+  const loadBookingsData = async () => {
+    const [b, o, tx, bookingResourceAllocationRows] = await Promise.all([
+      supabase.from('bookings').select('*').order('created_at', { ascending: false }),
+      supabase.from('orders').select('*').order('created_at', { ascending: false }),
+      safeTableResult(supabase.from('transactions').select('*').order('created_at', { ascending: false })),
+      safeTableResult(supabase.from('booking_resource_allocations').select('*').order('booking_id').order('resource_id')),
+    ])
+
+    if (b.data) setBookings(b.data)
+    if (o.data) setOrders(o.data)
+    setTransactions(tx.data || [])
+    setBookingResourceAllocations(bookingResourceAllocationRows.data || [])
+    setAvailableTables((current) => ({
+      ...current,
+      transactions: Boolean(tx.available),
+      bookingResourceAllocations: Boolean(bookingResourceAllocationRows.available),
+    }))
+    markTabsLoaded(['bookings'])
+  }
+
+  const loadOrdersTransactionsData = async () => {
+    const [b, o, tx, cust] = await Promise.all([
+      supabase.from('bookings').select('*').order('created_at', { ascending: false }),
+      supabase.from('orders').select('*').order('created_at', { ascending: false }),
+      safeTableResult(supabase.from('transactions').select('*').order('created_at', { ascending: false })),
+      supabase.from('customers').select('*').order('created_at', { ascending: false }),
+    ])
+
+    if (b.data) setBookings(b.data)
+    if (o.data) setOrders(o.data)
+    setTransactions(tx.data || [])
+    if (cust.data) setUsers(cust.data)
+    setAvailableTables((current) => ({ ...current, transactions: Boolean(tx.available) }))
+    markTabsLoaded(['orders', 'transactions'])
+  }
+
+  const loadCustomersData = async () => {
+    const [cust, b, o, tx, ut, sp] = await Promise.all([
+      supabase.from('customers').select('*').order('created_at', { ascending: false }),
+      supabase.from('bookings').select('*').order('created_at', { ascending: false }),
+      supabase.from('orders').select('*').order('created_at', { ascending: false }),
+      safeTableResult(supabase.from('transactions').select('*').order('created_at', { ascending: false })),
+      safeTableResult(supabase.from('user_tickets').select('*').order('created_at', { ascending: false })),
+      supabase.from('service_packages').select('*'),
+    ])
+
+    if (cust.data) setUsers(cust.data)
+    if (b.data) setBookings(b.data)
+    if (o.data) setOrders(o.data)
+    setTransactions(tx.data || [])
+    setUserTickets(ut.data || [])
+    if (sp.data) setServicePackages(sp.data)
+    setAvailableTables((current) => ({ ...current, transactions: Boolean(tx.available) }))
+    markTabsLoaded(['customers'])
+  }
+
+  const loadInventoryData = async () => {
+    const [p, sp, t] = await Promise.all([
+      supabase.from('products').select('*'),
+      supabase.from('service_packages').select('*'),
+      supabase.from('tickets').select('*'),
+    ])
+    if (p.data) setProducts(p.data)
+    if (sp.data) setServicePackages(sp.data)
+    if (t.data) setTickets(t.data)
+    markTabsLoaded(['inventory'])
+  }
+
+  const loadServiceRelationsData = async () => {
+    const [serviceLocationRows, serviceProviderGroupRows, serviceResourceRows] = await Promise.all([
+      safeTableResult(supabase.from('service_locations').select('*').order('service_id').order('location_id')),
+      safeTableResult(supabase.from('service_provider_groups').select('*').order('service_id').order('provider_group_id')),
+      safeTableResult(supabase.from('service_resources').select('*').order('service_id').order('resource_id')),
+    ])
+    setServiceLocations(serviceLocationRows.data || [])
+    setServiceProviderGroups(serviceProviderGroupRows.data || [])
+    setServiceResources(serviceResourceRows.data || [])
+    setAvailableTables((current) => ({
+      ...current,
+      serviceLocations: Boolean(serviceLocationRows.available),
+      serviceProviderGroups: Boolean(serviceProviderGroupRows.available),
+      serviceResources: Boolean(serviceResourceRows.available),
+    }))
+    markTabsLoaded(['services'])
+  }
+
+  const loadContentData = async () => {
+    const [art, f] = await Promise.all([
+      supabase.from('articles').select('*').order('sort_order'),
+      supabase.from('faqs').select('*').order('sort_order'),
+    ])
+    if (art.data) setArticles(art.data)
+    if (f.data) setFaqs(f.data)
+    markTabsLoaded(['articles', 'faqs'])
+  }
+
+  const loadCouponsData = async () => {
+    const c = await supabase.from('coupons').select('*')
+    if (c.data) setCoupons(c.data)
+    markTabsLoaded(['coupons'])
+  }
+
+  const loadTabData = async (tabId, { force = false } = {}) => {
+    if (!tabId || !isAuthenticated) return
+    if (tabDataLoaded[tabId] && !force) return
+
+    setTabLoadingState((current) => ({ ...current, [tabId]: true }))
+    try {
+      if (tabId === 'dashboard' || tabId === 'analytics') {
+        await loadDashboardAnalyticsData()
+      } else if (tabId === 'bookings') {
+        await loadBookingsData()
+      } else if (tabId === 'orders' || tabId === 'transactions') {
+        await loadOrdersTransactionsData()
+      } else if (tabId === 'customers') {
+        await loadCustomersData()
+      } else if (tabId === 'inventory') {
+        await loadInventoryData()
+      } else if (tabId === 'services') {
+        await loadServiceRelationsData()
+      } else if (tabId === 'articles' || tabId === 'faqs') {
+        await loadContentData()
+      } else if (tabId === 'coupons') {
+        await loadCouponsData()
+      } else {
+        markTabsLoaded([tabId])
+      }
+    } finally {
+      setTabLoadingState((current) => ({ ...current, [tabId]: false }))
+    }
+  }
+
+  const fetchData = async () => {
+    setTabDataLoaded({})
+    await loadBaseData({ showLoading: true })
+    await loadTabData(activeTab, { force: true })
+  }
+
+  useEffect(() => {
+    if (!isAuthenticated || !authChecked || !baseLoaded) return
+    loadTabData(activeTab)
+  }, [activeTab, authChecked, baseLoaded, isAuthenticated])
 
   const refreshStaffTableState = async (table) => {
     switch (table) {
@@ -523,10 +665,19 @@ export default function Admin() {
   }
 
   const saveCollection = async (table, rows = [], deletedIds = []) => {
-    for (const row of rows) {
-      if (row?.__deleted) continue
-      const payload = stripTransientFields(row)
-      if (typeof payload.id === 'number' && payload.id > 2147483647) delete payload.id
+    const payload = (rows || [])
+      .filter((row) => !row?.__deleted)
+      .map((row) => {
+        const item = stripTransientFields(row)
+        if (!Number.isInteger(Number(item.id)) || Number(item.id) <= 0 || Number(item.id) > 2147483647) {
+          delete item.id
+        } else {
+          item.id = Number(item.id)
+        }
+        return item
+      })
+
+    if (payload.length > 0) {
       const { error } = await supabase.from(table).upsert(payload)
       if (error) throw error
     }
@@ -670,8 +821,8 @@ export default function Admin() {
         enabled: row.enabled !== false,
       }))
       await saveCollection('locations', normalizedRows, deletedIds)
-      await fetchData()
-      toast.success('儲存成功')
+      await loadBaseData({ showLoading: false })
+      toast.success('已儲存地點')
     } catch (error) {
       toast.error('地點儲存失敗：' + (error?.message || '未知錯誤'))
     } finally {
@@ -696,8 +847,8 @@ export default function Admin() {
           is_closed: row.is_closed !== false,
         }))
       await saveCollection('holidays', normalizedRows, deletedIds)
-      await fetchData()
-      toast.success('儲存成功')
+      await loadBaseData({ showLoading: false })
+      toast.success('已儲存假期')
     } catch (error) {
       toast.error('假期儲存失敗：' + (error?.message || '未知錯誤'))
     } finally {
@@ -718,8 +869,8 @@ export default function Admin() {
         enabled: row.enabled !== false,
       }))
       await saveCollection('resources', normalizedRows, deletedIds)
-      await fetchData()
-      toast.success('儲存成功')
+      await loadBaseData({ showLoading: false })
+      toast.success('已儲存資源設備')
     } catch (error) {
       toast.error('資源設備儲存失敗：' + (error?.message || '未知錯誤'))
     } finally {
