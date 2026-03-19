@@ -33,6 +33,8 @@ const getBookingLabel = (booking) => booking?.ref || booking?.booking_ref || boo
 const getOrderLabel = (order) => order?.ref || order?.order_no || order?.code || `Order #${order?.id || ''}`
 const getLocationLabel = (location) => location?.name || location?.title || location?.code || 'Location'
 const getProviderGroupLabel = (group) => group?.name || group?.title || group?.code || 'Provider group'
+const getLinkedLocationId = (row) => row?.location_id ?? row?.branch_id ?? row?.location?.id ?? row?.branch?.id ?? ''
+const getLinkedProviderGroupId = (row) => row?.provider_group_id ?? row?.group_id ?? row?.provider_group?.id ?? ''
 
 export default function TransactionsTab({
   transactions: initialTransactions = [],
@@ -100,7 +102,9 @@ export default function TransactionsTab({
   const enrichedTransactions = useMemo(() => {
     return transactions.map((row) => {
       const booking = row.booking_id != null ? bookingLookup[String(row.booking_id)] || matchRecord(bookings, row.booking_id, ['booking_id']) : null
-      const order = row.order_id != null ? orderLookup[String(row.order_id)] || matchRecord(orders, row.order_id, ['order_id']) : null
+      const order =
+        (row.order_id != null ? orderLookup[String(row.order_id)] || matchRecord(orders, row.order_id, ['order_id']) : null) ||
+        (row.payment_ref ? orderLookup[String(row.payment_ref)] || matchRecord(orders, row.payment_ref, ['payment_ref', 'ref', 'order_no']) : null)
       const customer = row.customer_id != null
         ? customerLookup[String(row.customer_id)] || matchRecord(customers, row.customer_id, ['member_user_id', 'user_id'])
         : row.member_user_id != null
@@ -108,20 +112,32 @@ export default function TransactionsTab({
           : row.customer_name
             ? matchRecord(customers, row.customer_name, ['name', 'full_name', 'display_name', 'email', 'phone'])
             : null
-      const location = row.location_id != null ? locationLookup[String(row.location_id)] : null
-      const providerGroup = row.provider_group_id != null ? providerGroupLookup[String(row.provider_group_id)] : null
+      const resolvedCustomer =
+        customer ||
+        (order?.customer_id != null ? customerLookup[String(order.customer_id)] || matchRecord(customers, order.customer_id, ['member_user_id', 'user_id']) : null) ||
+        (order?.member_user_id != null ? customerLookup[String(order.member_user_id)] || matchRecord(customers, order.member_user_id, ['member_user_id', 'user_id']) : null) ||
+        (booking?.customer_id != null ? customerLookup[String(booking.customer_id)] || matchRecord(customers, booking.customer_id, ['member_user_id', 'user_id']) : null) ||
+        matchRecord(customers, order?.customer_name || booking?.customer_name || booking?.name, ['name', 'full_name', 'display_name', 'email', 'phone'])
+      const locationId = getLinkedLocationId(row) || getLinkedLocationId(order) || getLinkedLocationId(booking)
+      const providerGroupId = getLinkedProviderGroupId(row) || getLinkedProviderGroupId(order) || getLinkedProviderGroupId(booking)
+      const location =
+        (locationId !== '' ? locationLookup[String(locationId)] || matchRecord(locations, locationId, ['location_id', 'branch_id']) : null) ||
+        matchRecord(locations, row.location_name || order?.location_name || booking?.location_name, ['name', 'title', 'code'])
+      const providerGroup =
+        (providerGroupId !== '' ? providerGroupLookup[String(providerGroupId)] || matchRecord(providerGroups, providerGroupId, ['provider_group_id', 'group_id']) : null) ||
+        matchRecord(providerGroups, row.provider_group_name || order?.provider_group_name || booking?.provider_group_name, ['name', 'title', 'code'])
 
       return {
         ...row,
         __booking: booking,
         __order: order,
-        __customer: customer,
+        __customer: resolvedCustomer,
         __location: location,
         __providerGroup: providerGroup,
         __linkedLabel: getText(
           booking ? getBookingLabel(booking) : '',
           order ? getOrderLabel(order) : '',
-          customer ? getCustomerLabel(customer) : row.customer_name || '',
+          resolvedCustomer ? getCustomerLabel(resolvedCustomer) : row.customer_name || '',
         ),
       }
     })
@@ -523,14 +539,14 @@ export default function TransactionsTab({
                   <DetailBlock label="Booking" value={selectedTransaction.__booking ? getBookingLabel(selectedTransaction.__booking) : selectedTransaction.booking_id ? `Booking #${selectedTransaction.booking_id}` : '-'} />
                   <DetailBlock label="Order" value={selectedTransaction.__order ? getOrderLabel(selectedTransaction.__order) : selectedTransaction.order_id ? `Order #${selectedTransaction.order_id}` : '-'} />
                   <DetailBlock label="Customer" value={selectedTransaction.__customer ? getCustomerLabel(selectedTransaction.__customer) : selectedTransaction.customer_name || '-'} />
-                  <DetailBlock label="Payment method" value={selectedTransaction.payment_method || '-'} />
+                  <DetailBlock label="Payment method" value={selectedTransaction.payment_method || selectedTransaction.__order?.payment_method || selectedTransaction.__booking?.payment_method || '-'} />
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
-                  <DetailBlock label="Location" value={selectedTransaction.__location ? getLocationLabel(selectedTransaction.__location) : selectedTransaction.location_name || '-'} />
-                  <DetailBlock label="Provider group" value={selectedTransaction.__providerGroup ? getProviderGroupLabel(selectedTransaction.__providerGroup) : selectedTransaction.provider_group_name || '-'} />
-                  <DetailBlock label="Provider ref" value={selectedTransaction.provider || '-'} />
-                  <DetailBlock label="Payment ref" value={selectedTransaction.payment_ref || '-'} />
+                  <DetailBlock label="Location" value={selectedTransaction.__location ? getLocationLabel(selectedTransaction.__location) : selectedTransaction.location_name || selectedTransaction.__order?.location_name || selectedTransaction.__booking?.location_name || '-'} />
+                  <DetailBlock label="Provider group" value={selectedTransaction.__providerGroup ? getProviderGroupLabel(selectedTransaction.__providerGroup) : selectedTransaction.provider_group_name || selectedTransaction.__order?.provider_group_name || selectedTransaction.__booking?.provider_group_name || '-'} />
+                  <DetailBlock label="Provider ref" value={selectedTransaction.provider || selectedTransaction.__order?.provider || selectedTransaction.__booking?.provider || '-'} />
+                  <DetailBlock label="Payment ref" value={selectedTransaction.payment_ref || selectedTransaction.__order?.payment_ref || selectedTransaction.__booking?.payment_ref || '-'} />
                 </div>
               </div>
 
