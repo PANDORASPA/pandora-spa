@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "smoke:phase2:live": "node scripts/phase2-live-smoke.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.1.0",
