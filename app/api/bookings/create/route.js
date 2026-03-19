@@ -169,6 +169,19 @@ export async function POST(request) {
         }
         return NextResponse.json({ error: 'Resource allocation failed: ' + allocationError.message, code: 'resource_full' }, { status: 500 })
       }
+
+      const verifyAllocationsRes = await supabase.from('booking_resource_allocations').select('id').eq('booking_id', inserted.id)
+      if (verifyAllocationsRes.error || (verifyAllocationsRes.data || []).length < allocationPayload.length) {
+        await supabase.from('booking_resource_allocations').delete().eq('booking_id', inserted.id)
+        await supabase.from('bookings').delete().eq('id', inserted.id)
+        if (userTicket) {
+          await supabase
+            .from('user_tickets')
+            .update({ remaining_count: Number(userTicket.remaining_count || 0) })
+            .eq('id', userTicket.id)
+        }
+        return NextResponse.json({ error: 'Resource allocation verification failed.', code: 'resource_full' }, { status: 500 })
+      }
     }
 
     return NextResponse.json({ booking: inserted }, { status: 200 })
