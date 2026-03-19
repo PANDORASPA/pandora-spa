@@ -273,11 +273,28 @@ export default function StaffTab({
   }
 
   const saveAll = async () => {
-    await onSave?.()
-    if (onSaveShifts) await onSaveShifts(localShifts)
-    if (onSaveBreaks) await onSaveBreaks({ rows: localBreaks, deletedIds: deletedBreakIds })
-    if (onSaveTimeOff) await onSaveTimeOff({ rows: localTimeOff, deletedIds: deletedTimeOffIds })
-    if (onSaveBlockedSlots) await onSaveBlockedSlots({ rows: localBlocked, deletedIds: deletedBlockedIds })
+    if (!selectedStaff) return
+    const scopedStaffId = selectedStaff.id
+    await onSave?.(selectedStaff.id)
+    if (onSaveShifts) await onSaveShifts(localShifts.filter((row) => Number(row.staff_id) === Number(scopedStaffId)))
+    if (onSaveBreaks) {
+      await onSaveBreaks({
+        rows: localBreaks.filter((row) => Number(row.staff_id) === Number(scopedStaffId)),
+        deletedIds: deletedBreakIds,
+      })
+    }
+    if (onSaveTimeOff) {
+      await onSaveTimeOff({
+        rows: localTimeOff.filter((row) => Number(row.staff_id) === Number(scopedStaffId)),
+        deletedIds: deletedTimeOffIds,
+      })
+    }
+    if (onSaveBlockedSlots) {
+      await onSaveBlockedSlots({
+        rows: localBlocked.filter((row) => Number(row.staff_id) === Number(scopedStaffId)),
+        deletedIds: deletedBlockedIds,
+      })
+    }
   }
 
   const loadAvailability = async () => {
@@ -400,9 +417,9 @@ export default function StaffTab({
             <button type="button" onClick={onAddStaff} className="btn btn-small btn-interactive">
               + Add staff
             </button>
-          <button type="button" onClick={saveAll} disabled={saving} className="btn btn-small btn-interactive" style={{ minWidth: '140px' }}>
+          <button type="button" onClick={saveAll} disabled={saving || !selectedStaff} className="btn btn-small btn-interactive" style={{ minWidth: '170px' }}>
             {saving && <span className="spinner"></span>}
-            {saving ? 'Saving...' : 'Save scheduling'}
+            {saving ? 'Saving...' : 'Save selected staff'}
           </button>
         </div>
       </div>
