@@ -252,7 +252,7 @@ export default function OrdersTab({
       <SectionHeader
         eyebrow="ORDERS"
         title="Orders and payment flow"
-        description="Review order refs, items, delivery, payment state, and linked operational records in a consistent admin layout."
+        description="Review order refs, items, delivery, payment state, and the current operational scope or cross-links in one consistent admin layout."
         actions={
           <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
             <Pill>{filteredOrders.length} visible</Pill>
@@ -336,7 +336,7 @@ export default function OrdersTab({
                 <th style={{ padding: '14px 12px', textAlign: 'left', color: 'var(--text-light)' }}>Total</th>
                 <th style={{ padding: '14px 12px', textAlign: 'left', color: 'var(--text-light)' }}>Delivery</th>
                 <th style={{ padding: '14px 12px', textAlign: 'left', color: 'var(--text-light)' }}>Payment</th>
-                <th style={{ padding: '14px 12px', textAlign: 'left', color: 'var(--text-light)' }}>Linked / Scope</th>
+                <th style={{ padding: '14px 12px', textAlign: 'left', color: 'var(--text-light)' }}>Booking / TX / Scope</th>
                 <th style={{ padding: '14px 12px', textAlign: 'left', color: 'var(--text-light)' }}>Status</th>
                 <th style={{ padding: '14px 12px', textAlign: 'center', color: 'var(--text-light)' }}>Action</th>
               </tr>
@@ -382,6 +382,18 @@ export default function OrdersTab({
                         <div style={{ fontSize: '11px', color: 'var(--text-light)', marginTop: '3px' }}>{order.payment_ref || order.__transaction?.payment_ref || ''}</div>
                       </td>
                       <td style={{ padding: '14px 12px' }}>
+                        <div style={{ marginBottom: '6px' }}>
+                          <span
+                            className="badge"
+                            style={{
+                              border: 'none',
+                              background: order.__hasScope ? '#ECFDF5' : '#FEF3C7',
+                              color: order.__hasScope ? '#047857' : '#B45309',
+                            }}
+                          >
+                            {order.__hasScope ? 'Scoped' : 'Scope missing'}
+                          </span>
+                        </div>
                         <div style={{ fontWeight: 700 }}>
                           {order.__transaction ? `TX: ${getTransactionText(order.__transaction)}` : order.transaction_id ? `TX #${order.transaction_id}` : 'No transaction link'}
                         </div>
