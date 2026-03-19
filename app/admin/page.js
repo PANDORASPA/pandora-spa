@@ -580,11 +580,12 @@ export default function Admin() {
     }
   }
 
-  const saveStaff = async () => {
+  const saveStaff = async (targetStaffId = null) => {
     setSaving(true)
     try {
       const businessHours = parseBusinessHours(settings?.business_hours)
-      for (const item of staff) {
+      const rowsToSave = targetStaffId == null ? staff : staff.filter((item) => item.id === targetStaffId)
+      for (const item of rowsToSave) {
         const normalizedSchedule = Object.entries(item.schedule || {}).reduce((acc, [dayKey, value]) => {
           const start = String(value?.start || '').substring(0, 5)
           const end = String(value?.end || '').substring(0, 5)
