@@ -297,7 +297,7 @@ export default function CustomersTab({ users = [], bookings = [], orders = [], t
                         <div style={{ display: 'grid', gap: '6px' }}>
                           <input
                             type="text"
-                            value={user.notes || ''}
+                            value={getNotesDraft(user)}
                             placeholder="Internal notes"
                             onChange={(event) => setNotesDraftForCustomer(user.id, event.target.value)}
                             onBlur={(event) => updateCustomer(user.id, { notes: event.target.value })}
