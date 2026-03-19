@@ -15,11 +15,18 @@ const fieldStyle = {
 const tempId = () => Math.floor(Date.now() * 100 + Math.random() * 99)
 const isPersisted = (id) => Number.isInteger(id) && id > 0 && id < 2147483647
 const normalizeDate = (value) => (value ? String(value).slice(0, 10) : '')
-const getNameById = (rows = [], id) => rows.find((row) => String(row?.id) === String(id))?.name || ''
+const getNameById = (rows = [], id) => {
+  const row = rows.find((item) => String(item?.id) === String(id))
+  return row?.name || row?.title || row?.label || row?.code || ''
+}
 
-const getTargetScopeLabel = (row, locations = [], providerGroups = [], staff = []) => {
+const getTargetScopeLabel = (row, locations = [], providerGroups = [], staff = [], providerGroupsReady = true) => {
   const locationLabel = row?.location_id ? getNameById(locations, row.location_id) || `#${row.location_id}` : 'All locations'
-  const providerGroupLabel = row?.provider_group_id ? getNameById(providerGroups, row.provider_group_id) || `#${row.provider_group_id}` : 'All provider groups'
+  const providerGroupLabel = row?.provider_group_id
+    ? getNameById(providerGroups, row.provider_group_id) || `#${row.provider_group_id}`
+    : providerGroupsReady
+      ? 'All provider groups'
+      : 'Provider group unavailable'
   const staffLabel = row?.staff_id ? getNameById(staff, row.staff_id) || `#${row.staff_id}` : 'All staff'
   return `${locationLabel} / ${providerGroupLabel} / ${staffLabel}`
 }
@@ -49,6 +56,7 @@ export default function HolidaysTab({
   const [rows, setRows] = useState([])
   const [deletedIds, setDeletedIds] = useState([])
   const providerGroupsReady = providerGroupsAvailable && providerGroups.length > 0
+  const providerGroupsUnavailable = !providerGroupsReady
 
   useEffect(() => {
     setRows((holidays || []).map(normalizeRow))
@@ -94,18 +102,24 @@ export default function HolidaysTab({
           </p>
         </div>
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-          <button type="button" onClick={addRow} className="btn btn-small btn-interactive">
+          <button type="button" onClick={addRow} className="btn btn-small btn-interactive" disabled={providerGroupsUnavailable}>
             + Add holiday
           </button>
-          <button type="button" onClick={() => saveHolidays?.({ rows, deletedIds })} disabled={saving} className="btn btn-small btn-interactive" style={{ minWidth: '120px' }}>
-            {saving ? 'Saving...' : 'Save'}
+          <button
+            type="button"
+            onClick={() => saveHolidays?.({ rows, deletedIds })}
+            disabled={saving || providerGroupsUnavailable}
+            className="btn btn-small btn-interactive"
+            style={{ minWidth: '120px' }}
+          >
+            {saving ? 'Saving...' : providerGroupsUnavailable ? 'Provider groups unavailable' : 'Save'}
           </button>
         </div>
       </div>
 
       {!providerGroupsReady && (
         <div className="admin-card" style={{ padding: '14px 16px', border: '1px solid #FCD34D', background: '#FFFBEB', color: '#92400E', fontSize: '13px', lineHeight: 1.6 }}>
-          Provider groups are not loaded yet. Holiday rows can still be saved, but provider-group targeting will remain blank until the lookup table is available.
+          Provider groups are not loaded yet. This page stays editable for location and staff targeting, but provider-group scoped saves are disabled until the lookup table is available.
         </div>
       )}
 
@@ -118,14 +132,14 @@ export default function HolidaysTab({
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap', marginBottom: '12px' }}>
                 <div style={{ display: 'grid', gap: '4px' }}>
                   <div style={{ fontSize: '12px', fontWeight: 800, letterSpacing: '0.08em', color: '#A68B6A' }}>TARGETING</div>
-                  <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text)' }}>{getTargetScopeLabel(row, locations, providerGroups, staff)}</div>
+                  <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text)' }}>{getTargetScopeLabel(row, locations, providerGroups, staff, providerGroupsReady)}</div>
                 </div>
                 <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
                   <span className="badge badge-outline" style={{ background: '#fff' }}>
                     Location: {row.location_id ? getNameById(locations, row.location_id) || `#${row.location_id}` : 'All'}
                   </span>
                   <span className="badge badge-outline" style={{ background: '#fff' }}>
-                    Provider group: {row.provider_group_id ? getNameById(providerGroups, row.provider_group_id) || `#${row.provider_group_id}` : 'All'}
+                    Provider group: {row.provider_group_id ? getNameById(providerGroups, row.provider_group_id) || `#${row.provider_group_id}` : providerGroupsReady ? 'All' : 'Unavailable'}
                   </span>
                   <span className="badge badge-outline" style={{ background: '#fff' }}>
                     Staff: {row.staff_id ? getNameById(staff, row.staff_id) || `#${row.staff_id}` : 'All'}
@@ -149,12 +163,12 @@ export default function HolidaysTab({
                   value={row.provider_group_id}
                   onChange={(e) => updateRow(row.id, { provider_group_id: e.target.value === '' ? '' : Number(e.target.value) })}
                   style={fieldStyle}
-                  disabled={!providerGroupsReady}
+                  disabled={providerGroupsUnavailable}
                 >
-                  <option value="">All provider groups</option>
+                  <option value="">{providerGroupsUnavailable ? 'Provider group unavailable' : 'All provider groups'}</option>
                   {providerGroups.map((group) => (
                     <option key={group.id} value={group.id}>
-                      {group.name}
+                      {group.name || group.title || group.label || group.code || `#${group.id}`}
                     </option>
                   ))}
                 </select>
