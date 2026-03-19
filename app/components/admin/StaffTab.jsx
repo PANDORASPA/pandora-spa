@@ -1,313 +1,265 @@
-'use client'
+﻿'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'react-hot-toast'
-import { AdminSection, EmptyState, StatusPill } from './AdminConfigKit'
-import { bookingOpsCopy, fieldStyle, parseDate, parseTime, smallFieldStyle } from './opsUi'
+import { EmptyState, Pill, SectionHeader, bookingOpsCopy, fieldStyle, smallFieldStyle } from './opsUi'
 
-const DAYS = [
-  { key: '0', label: '星期日', short: '日' },
-  { key: '1', label: '星期一', short: '一' },
-  { key: '2', label: '星期二', short: '二' },
-  { key: '3', label: '星期三', short: '三' },
-  { key: '4', label: '星期四', short: '四' },
-  { key: '5', label: '星期五', short: '五' },
-  { key: '6', label: '星期六', short: '六' },
+const WEEK_DAYS = [
+  { key: '1', label: '星期一' },
+  { key: '2', label: '星期二' },
+  { key: '3', label: '星期三' },
+  { key: '4', label: '星期四' },
+  { key: '5', label: '星期五' },
+  { key: '6', label: '星期六' },
+  { key: '0', label: '星期日' },
 ]
 
-const MAX_INT = 2147483647
-const ROW_GRID = 'minmax(120px, 1.2fr) minmax(120px, 1fr) minmax(120px, 1fr) minmax(160px, 1.4fr) auto'
 let tempSeed = -1
+const nextTempId = () => tempSeed--
+const todayISO = () => new Date().toISOString().slice(0, 10)
+const monthKeyFromDate = (value) => String(value || '').slice(0, 7)
 
-const tempId = () => tempSeed--
-const isPersisted = (id) => Number.isInteger(Number(id)) && Number(id) > 0 && Number(id) <= MAX_INT
-const ensureTime = (value, fallback = '') => parseTime(value || fallback)
-const ensureDate = (value) => parseDate(value)
+const addMonths = (monthKey, delta) => {
+  const date = new Date(`${monthKey}-01T12:00:00Z`)
+  date.setUTCMonth(date.getUTCMonth() + delta, 1)
+  return date.toISOString().slice(0, 7)
+}
 
-const panelStyle = {
-  border: '1px solid rgba(166, 139, 106, 0.16)',
-  borderRadius: '16px',
+const buildMonthGrid = (monthKey) => {
+  const first = new Date(`${monthKey}-01T12:00:00Z`)
+  const offset = (first.getUTCDay() + 6) % 7
+  const cursor = new Date(first)
+  cursor.setUTCDate(cursor.getUTCDate() - offset)
+  return Array.from({ length: 42 }, (_, index) => {
+    const current = new Date(cursor)
+    current.setUTCDate(cursor.getUTCDate() + index)
+    const dateISO = current.toISOString().slice(0, 10)
+    return { dateISO, inMonth: dateISO.startsWith(monthKey), dayLabel: dateISO.slice(8, 10) }
+  })
+}
+
+const monthLabel = (monthKey) =>
+  new Intl.DateTimeFormat('zh-HK', { year: 'numeric', month: 'long', timeZone: 'Asia/Hong_Kong' }).format(
+    new Date(`${monthKey}-01T12:00:00Z`),
+  )
+
+const normalizeTime = (value) => (value ? String(value).slice(0, 5) : '')
+const normalizeDate = (value) => (value ? String(value).slice(0, 10) : '')
+
+const cardStyle = {
+  border: '1px solid #E5E7EB',
+  borderRadius: '18px',
   padding: '16px',
   background: '#fff',
 }
 
-const labelFor = (rows = [], id) => {
-  const found = rows.find((item) => String(item?.id) === String(id))
-  return found?.name || found?.title || found?.label || found?.code || (id ? `#${id}` : '')
-}
+const Field = ({ label, children }) => (
+  <label style={{ display: 'grid', gap: '8px' }}>
+    <span style={{ fontSize: '13px', fontWeight: 800 }}>{label}</span>
+    {children}
+  </label>
+)
 
-const normalizeScheduleRow = (row, staffId) => ({
-  id: row?.id ?? tempId(),
-  staff_id: row?.staff_id ?? staffId,
-  date: ensureDate(row?.date),
-  is_off: Boolean(row?.is_off),
-  start_time: ensureTime(row?.start_time),
-  end_time: ensureTime(row?.end_time),
-})
-
-const normalizeBreakRow = (row, staffId) => ({
-  id: row?.id ?? tempId(),
-  staff_id: row?.staff_id ?? staffId,
-  day_of_week: row?.day_of_week == null || row?.day_of_week === '' ? 1 : Number(row.day_of_week),
-  start_time: ensureTime(row?.start_time, '13:00'),
-  end_time: ensureTime(row?.end_time, '14:00'),
-  label: String(row?.label || '休息'),
-  enabled: row?.enabled !== false,
-})
-
-const normalizeTimeOffRow = (row, staffId) => ({
-  id: row?.id ?? tempId(),
-  staff_id: row?.staff_id ?? staffId,
-  date: ensureDate(row?.date),
-  is_all_day: Boolean(row?.is_all_day),
-  start_time: ensureTime(row?.start_time),
-  end_time: ensureTime(row?.end_time),
-  reason: String(row?.reason || ''),
-})
-
-const normalizeBlockedRow = (row, staffId) => ({
-  id: row?.id ?? tempId(),
-  staff_id: row?.staff_id ?? staffId,
-  date: ensureDate(row?.date),
-  start_time: ensureTime(row?.start_time),
-  end_time: ensureTime(row?.end_time),
-  reason: String(row?.reason || ''),
-  source: String(row?.source || 'manual'),
-})
-
-const buildPreviewWindow = (startIso, days = 14) => {
-  const base = new Date(`${startIso}T00:00:00`)
-  return Array.from({ length: days }, (_, index) => {
-    const next = new Date(base)
-    next.setDate(base.getDate() + index)
-    const weekday = DAYS[next.getDay()]
-    return {
-      dateISO: next.toISOString().slice(0, 10),
-      label: `${next.getMonth() + 1}月${next.getDate()}日週${weekday.short}`,
-    }
-  })
-}
-
-function DayCard({ day, schedule, isOff, onToggleOff, onChange }) {
+function RowList({ title, description, rows, onAdd, onChange, onRemove, renderRow, addLabel }) {
   return (
-    <div style={{ ...panelStyle, background: isOff ? '#F3F4F6' : '#fff', borderColor: isOff ? '#D1D5DB' : 'rgba(166, 139, 106, 0.18)', display: 'grid', gap: '12px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'center' }}>
+    <div className="admin-card" style={{ ...cardStyle, display: 'grid', gap: '14px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
         <div>
-          <div style={{ fontSize: '12px', fontWeight: 800, color: '#A68B6A', letterSpacing: '0.08em' }}>{day.label}</div>
-          <div style={{ marginTop: '4px', fontSize: '15px', fontWeight: 800, color: isOff ? '#6B7280' : '#111827' }}>{isOff ? bookingOpsCopy.rest : bookingOpsCopy.working}</div>
+          <div style={{ fontSize: '12px', color: '#A68B6A', fontWeight: 800, letterSpacing: '0.08em' }}>{title}</div>
+          <div style={{ marginTop: '4px', fontSize: '13px', color: '#6B7280', lineHeight: 1.6 }}>{description}</div>
         </div>
-        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', fontWeight: 700, color: '#4B5563' }}>
-          <input type="checkbox" checked={isOff} onChange={onToggleOff} />
-          休息
-        </label>
+        <button type="button" className="btn btn-secondary btn-interactive" onClick={onAdd}>
+          {addLabel}
+        </button>
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '10px' }}>
-        <label style={{ display: 'grid', gap: '6px' }}>
-          <span style={{ fontSize: '12px', fontWeight: 700, color: '#6B7280' }}>上班時間</span>
-          <input type="time" value={schedule?.start || ''} onChange={(event) => onChange('start', event.target.value)} style={{ ...smallFieldStyle, background: isOff ? '#F9FAFB' : '#fff' }} disabled={isOff} />
-        </label>
-        <label style={{ display: 'grid', gap: '6px' }}>
-          <span style={{ fontSize: '12px', fontWeight: 700, color: '#6B7280' }}>下班時間</span>
-          <input type="time" value={schedule?.end || ''} onChange={(event) => onChange('end', event.target.value)} style={{ ...smallFieldStyle, background: isOff ? '#F9FAFB' : '#fff' }} disabled={isOff} />
-        </label>
-      </div>
+
+      {rows.length === 0 ? (
+        <EmptyState title="暫時沒有資料" description={description} />
+      ) : (
+        <div style={{ display: 'grid', gap: '12px' }}>
+          {rows.map((row) => (
+            <div key={row.id} style={{ ...cardStyle, padding: '14px', display: 'grid', gap: '10px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '10px' }}>
+                {renderRow(row, (patch) => onChange(row.id, patch))}
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px' }}>
+                <Pill tone={row.id > 0 ? 'success' : 'warning'}>{row.id > 0 ? '已儲存' : '未儲存'}</Pill>
+                <button type="button" className="btn btn-danger btn-interactive" onClick={() => onRemove(row.id)}>
+                  刪除
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
 
-function DateStatusCard({ label, status, selected, onClick, disabled }) {
-  const palette =
-    status === 'off'
-      ? { border: '#E5E7EB', background: '#F9FAFB', color: '#9CA3AF', hint: '休息日' }
-      : status === 'full'
-        ? { border: '#D1D5DB', background: '#fff', color: '#111827', hint: '已滿' }
-        : { border: '#111827', background: '#fff', color: '#111827', hint: '可預約' }
-
-  return (
-    <button
-      type="button"
-      disabled={disabled}
-      onClick={onClick}
-      style={{
-        padding: '12px 10px',
-        borderRadius: '14px',
-        border: selected ? '1px solid rgba(166, 139, 106, 0.55)' : `1px solid ${palette.border}`,
-        background: selected ? 'rgba(166, 139, 106, 0.14)' : palette.background,
-        color: palette.color,
-        cursor: disabled ? 'not-allowed' : 'pointer',
-        display: 'grid',
-        gap: '6px',
-        textAlign: 'left',
-      }}
-    >
-      <span style={{ fontSize: '13px', fontWeight: 800 }}>{label}</span>
-      <span style={{ fontSize: '11px', color: status === 'off' ? '#9CA3AF' : '#6B7280' }}>{selected ? bookingOpsCopy.selected : palette.hint}</span>
-    </button>
-  )
-}
-
-export default function StaffTab(props) {
-  const {
-    staff = [],
-    services = [],
-    operationalContext = {},
-    staffShifts = [],
-    staffBreaks = [],
-    staffTimeOff = [],
-    blockedSlots = [],
-    onAddStaff,
-    onDeleteStaff,
-    onUpdateField,
-    onToggleService,
-    onToggleDailyOff,
-    onUpdateSchedule,
-    onSave,
-    onSaveShifts,
-    onSaveBreaks,
-    onSaveTimeOff,
-    onSaveBlockedSlots,
-    saving = false,
-  } = props
-
+export default function StaffTab({
+  staff = [],
+  services = [],
+  operationalContext = {},
+  staffShifts = [],
+  staffBreaks = [],
+  staffTimeOff = [],
+  blockedSlots = [],
+  onAddStaff,
+  onDeleteStaff,
+  onUpdateField,
+  onToggleService,
+  onToggleDailyOff,
+  onUpdateSchedule,
+  onSave,
+  onSaveShifts,
+  onSaveBreaks,
+  onSaveTimeOff,
+  onSaveBlockedSlots,
+  saving = false,
+}) {
   const locations = operationalContext?.locations || []
   const providerGroups = operationalContext?.providerGroups || []
-  const [selectedStaffId, setSelectedStaffId] = useState(null)
-  const [shiftRows, setShiftRows] = useState([])
-  const [deletedShiftIds, setDeletedShiftIds] = useState([])
-  const [breakRows, setBreakRows] = useState([])
-  const [deletedBreakIds, setDeletedBreakIds] = useState([])
-  const [timeOffRows, setTimeOffRows] = useState([])
-  const [deletedTimeOffIds, setDeletedTimeOffIds] = useState([])
-  const [blockedRows, setBlockedRows] = useState([])
-  const [deletedBlockedIds, setDeletedBlockedIds] = useState([])
-  const [previewDate, setPreviewDate] = useState(new Date().toISOString().slice(0, 10))
+  const availableTables = operationalContext?.availableTables || {}
+
+  const [selectedStaffId, setSelectedStaffId] = useState(staff[0]?.id ?? null)
+  const [previewMonth, setPreviewMonth] = useState(monthKeyFromDate(todayISO()))
   const [previewServiceId, setPreviewServiceId] = useState('')
-  const [previewSummary, setPreviewSummary] = useState([])
-  const [previewSlots, setPreviewSlots] = useState([])
-  const [loadingPreviewDates, setLoadingPreviewDates] = useState(false)
-  const [loadingPreviewSlots, setLoadingPreviewSlots] = useState(false)
+  const [previewSummaries, setPreviewSummaries] = useState([])
+  const [previewLoading, setPreviewLoading] = useState(false)
   const [previewError, setPreviewError] = useState('')
+  const previewControllerRef = useRef(null)
+
+  const [shiftRows, setShiftRows] = useState([])
+  const [shiftDeletedIds, setShiftDeletedIds] = useState([])
+  const [breakRows, setBreakRows] = useState([])
+  const [breakDeletedIds, setBreakDeletedIds] = useState([])
+  const [timeOffRows, setTimeOffRows] = useState([])
+  const [timeOffDeletedIds, setTimeOffDeletedIds] = useState([])
+  const [blockedRows, setBlockedRows] = useState([])
+  const [blockedDeletedIds, setBlockedDeletedIds] = useState([])
+
+  const selectedStaff = useMemo(
+    () => staff.find((item) => Number(item.id) === Number(selectedStaffId)) || staff[0] || null,
+    [selectedStaffId, staff],
+  )
+
+  const locationMap = useMemo(
+    () => new Map(locations.map((item) => [Number(item.id), item.name || `#${item.id}`])),
+    [locations],
+  )
+  const providerGroupMap = useMemo(
+    () => new Map(providerGroups.map((item) => [Number(item.id), item.name || `#${item.id}`])),
+    [providerGroups],
+  )
 
   useEffect(() => {
-    if (!staff.length) {
-      setSelectedStaffId(null)
-      return
+    if (!selectedStaff && staff[0]) setSelectedStaffId(staff[0].id)
+    if (selectedStaff && !staff.some((item) => Number(item.id) === Number(selectedStaffId))) {
+      setSelectedStaffId(staff[0]?.id ?? null)
     }
-    if (!staff.some((item) => String(item.id) === String(selectedStaffId))) {
-      setSelectedStaffId(staff[0].id)
-    }
-  }, [selectedStaffId, staff])
-
-  const selectedStaff = useMemo(() => staff.find((item) => String(item.id) === String(selectedStaffId)) || null, [selectedStaffId, staff])
+  }, [selectedStaff, selectedStaffId, staff])
 
   useEffect(() => {
-    if (!selectedStaff) {
-      setShiftRows([])
-      setDeletedShiftIds([])
-      setBreakRows([])
-      setDeletedBreakIds([])
-      setTimeOffRows([])
-      setDeletedTimeOffIds([])
-      setBlockedRows([])
-      setDeletedBlockedIds([])
-      return
-    }
-    setShiftRows((staffShifts || []).filter((row) => String(row.staff_id) === String(selectedStaff.id)).map((row) => normalizeScheduleRow(row, selectedStaff.id)))
-    setDeletedShiftIds([])
-    setBreakRows((staffBreaks || []).filter((row) => String(row.staff_id) === String(selectedStaff.id)).map((row) => normalizeBreakRow(row, selectedStaff.id)))
-    setDeletedBreakIds([])
-    setTimeOffRows((staffTimeOff || []).filter((row) => String(row.staff_id) === String(selectedStaff.id)).map((row) => normalizeTimeOffRow(row, selectedStaff.id)))
-    setDeletedTimeOffIds([])
-    setBlockedRows((blockedSlots || []).filter((row) => String(row.staff_id) === String(selectedStaff.id)).map((row) => normalizeBlockedRow(row, selectedStaff.id)))
-    setDeletedBlockedIds([])
+    if (!selectedStaff) return
+    setShiftRows((staffShifts || []).filter((row) => Number(row.staff_id) === Number(selectedStaff.id)).map((row) => ({
+      ...row,
+      date: normalizeDate(row.date),
+      start_time: normalizeTime(row.start_time),
+      end_time: normalizeTime(row.end_time),
+      is_off: Boolean(row.is_off),
+    })))
+    setShiftDeletedIds([])
+    setBreakRows((staffBreaks || []).filter((row) => Number(row.staff_id) === Number(selectedStaff.id)).map((row) => ({
+      ...row,
+      day_of_week: String(row.day_of_week ?? '1'),
+      start_time: normalizeTime(row.start_time),
+      end_time: normalizeTime(row.end_time),
+      label: row.label || '',
+      enabled: row.enabled !== false,
+    })))
+    setBreakDeletedIds([])
+    setTimeOffRows((staffTimeOff || []).filter((row) => Number(row.staff_id) === Number(selectedStaff.id)).map((row) => ({
+      ...row,
+      date: normalizeDate(row.date),
+      start_time: normalizeTime(row.start_time),
+      end_time: normalizeTime(row.end_time),
+      reason: row.reason || '',
+      is_all_day: Boolean(row.is_all_day),
+    })))
+    setTimeOffDeletedIds([])
+    setBlockedRows((blockedSlots || []).filter((row) => Number(row.staff_id) === Number(selectedStaff.id)).map((row) => ({
+      ...row,
+      date: normalizeDate(row.date),
+      start_time: normalizeTime(row.start_time),
+      end_time: normalizeTime(row.end_time),
+      reason: row.reason || '',
+      source: row.source || 'manual',
+    })))
+    setBlockedDeletedIds([])
   }, [blockedSlots, selectedStaff, staffBreaks, staffShifts, staffTimeOff])
 
   useEffect(() => {
-    if (!selectedStaff) {
-      setPreviewServiceId('')
-      return
-    }
-    const preferred = selectedStaff.services?.[0] || services[0]?.id || ''
-    setPreviewServiceId((current) => {
-      if (current && services.some((service) => String(service.id) === String(current))) return current
-      return preferred ? String(preferred) : ''
-    })
+    const nextServiceId =
+      selectedStaff?.services?.[0] != null ? String(selectedStaff.services[0]) : services[0]?.id != null ? String(services[0].id) : ''
+    setPreviewServiceId((current) => (current ? current : nextServiceId))
   }, [selectedStaff, services])
 
-  const previewWindow = useMemo(() => buildPreviewWindow(previewDate || new Date().toISOString().slice(0, 10)), [previewDate])
-  const previewSummaryMap = useMemo(() => new Map(previewSummary.map((entry) => [entry.date, entry])), [previewSummary])
-  const currentPreviewSummary = previewSummaryMap.get(previewDate) || null
-  const servicesForStaff = useMemo(() => services.filter((service) => !selectedStaff?.services?.length || selectedStaff.services.includes(service.id)), [selectedStaff?.services, services])
-  const previewAvailableTimes = useMemo(() => [...new Set(previewSlots.filter((slot) => slot?.available).map((slot) => slot.time).filter(Boolean))], [previewSlots])
-
   useEffect(() => {
-    if (!selectedStaff || !previewServiceId || !previewWindow.length) {
-      setPreviewSummary([])
+    if (!selectedStaff?.id || !previewServiceId || !previewMonth) {
+      setPreviewSummaries([])
       return
     }
-    const params = new URLSearchParams({
-      staffId: String(selectedStaff.id),
-      serviceId: String(previewServiceId),
-      startDate: previewWindow[0].dateISO,
-      days: String(previewWindow.length),
-    })
-    setLoadingPreviewDates(true)
+
+    previewControllerRef.current?.abort?.()
+    const controller = new AbortController()
+    previewControllerRef.current = controller
+    setPreviewLoading(true)
     setPreviewError('')
-    fetch(`/api/availability/date-summary?${params.toString()}`)
-      .then(async (response) => {
-        const payload = await response.json().catch(() => ({}))
-        if (!response.ok) throw new Error(payload?.error || '載入可預約日期失敗')
-        setPreviewSummary(Array.isArray(payload?.dates) ? payload.dates : [])
-      })
-      .catch((error) => {
-        setPreviewSummary([])
-        setPreviewError(error?.message || '載入可預約日期失敗')
-      })
-      .finally(() => setLoadingPreviewDates(false))
-  }, [previewServiceId, previewWindow, selectedStaff])
 
-  useEffect(() => {
-    if (!selectedStaff || !previewServiceId || !previewDate) {
-      setPreviewSlots([])
-      return
-    }
-    if (currentPreviewSummary?.status === 'off' || currentPreviewSummary?.status === 'full') {
-      setPreviewSlots([])
-      return
-    }
     const params = new URLSearchParams({
       staffId: String(selectedStaff.id),
       serviceId: String(previewServiceId),
-      date: previewDate,
+      year: previewMonth.slice(0, 4),
+      month: previewMonth.slice(5, 7),
     })
-    setLoadingPreviewSlots(true)
-    fetch(`/api/availability?${params.toString()}`)
+    if (selectedStaff.location_id != null && selectedStaff.location_id !== '') params.set('locationId', String(selectedStaff.location_id))
+
+    fetch(`/api/availability/month-summary?${params.toString()}`, { signal: controller.signal })
       .then(async (response) => {
         const payload = await response.json().catch(() => ({}))
-        if (!response.ok) throw new Error(payload?.error || '載入可預約時段失敗')
-        setPreviewSlots(Array.isArray(payload?.slotMatrix) ? payload.slotMatrix : [])
+        if (!response.ok) throw new Error(payload?.error || '無法載入前台可預約摘要')
+        return payload
       })
+      .then((payload) => setPreviewSummaries(Array.isArray(payload?.dates) ? payload.dates : []))
       .catch((error) => {
-        setPreviewSlots([])
-        setPreviewError(error?.message || '載入可預約時段失敗')
+        if (error?.name !== 'AbortError') {
+          setPreviewSummaries([])
+          setPreviewError(error?.message || '無法載入前台可預約摘要')
+        }
       })
-      .finally(() => setLoadingPreviewSlots(false))
-  }, [currentPreviewSummary?.status, previewDate, previewServiceId, selectedStaff])
+      .finally(() => {
+        if (!controller.signal.aborted) setPreviewLoading(false)
+      })
 
-  const updateListRow = (setter, id, patch) => setter((current) => current.map((row) => (row.id === id ? { ...row, ...patch } : row)))
-  const removeRow = (setter, deletedSetter, id) => {
-    setter((current) => current.filter((row) => row.id !== id))
-    if (isPersisted(id)) deletedSetter((current) => (current.includes(Number(id)) ? current : [...current, Number(id)]))
+    return () => controller.abort()
+  }, [previewMonth, previewServiceId, selectedStaff])
+
+  const previewMap = useMemo(() => new Map(previewSummaries.map((entry) => [entry.date, entry])), [previewSummaries])
+  const previewGrid = useMemo(() => buildMonthGrid(previewMonth), [previewMonth])
+
+  const handleRemoveRow = (rows, setRows, setDeleted, id) => {
+    setRows(rows.filter((row) => row.id !== id))
+    if (Number(id) > 0) setDeleted((current) => [...current, Number(id)])
   }
 
-  const saveAll = async () => {
-    if (!selectedStaff) return
+  const handleSaveAll = async () => {
+    if (!selectedStaff?.id) return
     try {
-      await onSave?.(selectedStaff.id, { silentSuccess: true })
-      await onSaveShifts?.({ rows: shiftRows, deletedIds: deletedShiftIds }, { silentSuccess: true })
-      await onSaveBreaks?.({ rows: breakRows, deletedIds: deletedBreakIds }, { silentSuccess: true })
-      await onSaveTimeOff?.({ rows: timeOffRows, deletedIds: deletedTimeOffIds }, { silentSuccess: true })
-      await onSaveBlockedSlots?.({ rows: blockedRows, deletedIds: deletedBlockedIds }, { silentSuccess: true })
+      await onSave(selectedStaff.id, { silentSuccess: true })
+      await onSaveShifts({ rows: shiftRows, deletedIds: shiftDeletedIds }, { silentSuccess: true })
+      await onSaveBreaks({ rows: breakRows, deletedIds: breakDeletedIds }, { silentSuccess: true })
+      await onSaveTimeOff({ rows: timeOffRows, deletedIds: timeOffDeletedIds }, { silentSuccess: true })
+      await onSaveBlockedSlots({ rows: blockedRows, deletedIds: blockedDeletedIds }, { silentSuccess: true })
       toast.success('已儲存目前服務供應者')
     } catch (error) {
       toast.error(error?.message || '儲存失敗')
@@ -316,292 +268,206 @@ export default function StaffTab(props) {
 
   if (!staff.length) {
     return (
-      <AdminSection
-        eyebrow="服務供應者"
-        title="服務供應者設定"
-        description="先新增一位服務供應者，再設定每週上班時間、休假與封鎖時段。"
-        actions={
-          <button type="button" onClick={onAddStaff} className="btn btn-small btn-interactive">
-            + 新增服務供應者
-          </button>
-        }
-      >
-        <EmptyState title="尚未建立服務供應者" description="新增後即可設定每週上班時間、休假與封鎖時段。" />
-      </AdminSection>
+      <div style={{ display: 'grid', gap: '18px' }}>
+        <SectionHeader eyebrow="服務供應者" title="排班設定" description="先建立服務供應者，之後即可設定每週時間表、日期覆蓋與前台可預約時段。" />
+        <EmptyState
+          title="尚未建立服務供應者"
+          description="請先新增服務供應者，之後便可設定上班時間、下班時間、休息與封鎖時段。"
+          actions={<button type="button" className="btn btn-interactive" onClick={onAddStaff}>新增服務供應者</button>}
+        />
+      </div>
     )
   }
 
   return (
     <div style={{ display: 'grid', gap: '18px' }}>
-      <AdminSection
+      <SectionHeader
         eyebrow="排班中心"
-        title="服務供應者與前台預約對照"
-        description="先設定每週上班與下班時間，再補日期覆蓋、固定休息、休假與封鎖時段。"
+        title="服務供應者排班與前台對照"
+        description="在這裡設定每週上班時間、日期覆蓋、固定休息、休假與封鎖時段。前台月曆會依照這些設定顯示可預約、已滿或休息。"
         actions={
           <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-            <button type="button" onClick={onAddStaff} className="btn btn-small btn-interactive">
-              + 新增服務供應者
+            <button type="button" className="btn btn-secondary btn-interactive" onClick={onAddStaff} disabled={saving}>
+              新增服務供應者
             </button>
-            <button type="button" onClick={saveAll} className="btn btn-small btn-interactive" disabled={saving || !selectedStaff}>
-              {saving ? '儲存中...' : '儲存目前服務供應者'}
+            <button type="button" className="btn btn-interactive" onClick={handleSaveAll} disabled={saving || !selectedStaff}>
+              {saving ? '儲存中…' : '儲存目前服務供應者'}
             </button>
-            {selectedStaff ? (
-              <button type="button" onClick={() => onDeleteStaff?.(selectedStaff.id)} className="btn btn-small btn-interactive" style={{ background: '#FEF2F2', color: '#DC2626', border: '1px solid #FECACA' }}>
-                刪除目前服務供應者
-              </button>
-            ) : null}
           </div>
         }
-      >
-        <div style={{ display: 'grid', gridTemplateColumns: '300px minmax(0, 1fr)', gap: '18px', alignItems: 'start' }}>
-          <div style={{ display: 'grid', gap: '14px' }}>
-            <div className="admin-card" style={{ padding: '16px', border: '1px solid var(--gray)', display: 'grid', gap: '10px' }}>
-              <div style={{ fontSize: '12px', fontWeight: 800, color: '#A68B6A', letterSpacing: '0.08em' }}>服務供應者名單</div>
-              <div style={{ display: 'grid', gap: '8px' }}>
-                {staff.map((member) => {
-                  const selected = String(member.id) === String(selectedStaffId)
+      />
+
+      <div style={{ display: 'grid', gridTemplateColumns: '280px minmax(0, 1fr)', gap: '18px', alignItems: 'start' }}>
+        <div className="admin-card" style={{ padding: '16px', border: '1px solid #E5E7EB', display: 'grid', gap: '10px' }}>
+          {staff.map((item) => {
+            const selected = Number(item.id) === Number(selectedStaff?.id)
+            const itemServices = (item.services || []).length
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => setSelectedStaffId(item.id)}
+                className="btn-interactive"
+                style={{
+                  ...cardStyle,
+                  padding: '14px',
+                  border: selected ? '1px solid rgba(166, 139, 106, 0.45)' : '1px solid #E5E7EB',
+                  background: selected ? 'rgba(166, 139, 106, 0.08)' : '#fff',
+                  textAlign: 'left',
+                }}
+              >
+                <div style={{ fontWeight: 800, color: '#111827' }}>{item.name || '未命名服務供應者'}</div>
+                <div style={{ fontSize: '13px', color: '#6B7280', marginTop: '4px' }}>{item.role || '服務供應者'}</div>
+                <div style={{ marginTop: '8px', display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                  <Pill tone={item.enabled === false ? 'warning' : 'success'}>{item.enabled === false ? '停用' : '啟用'}</Pill>
+                  <Pill>{itemServices} 項服務</Pill>
+                </div>
+              </button>
+            )
+          })}
+        </div>
+
+        {selectedStaff ? (
+          <div style={{ display: 'grid', gap: '18px' }}>
+            <div className="admin-card" style={{ ...cardStyle, display: 'grid', gap: '16px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+                <div>
+                  <div style={{ fontSize: '12px', color: '#A68B6A', fontWeight: 800, letterSpacing: '0.08em' }}>基本資料</div>
+                  <div style={{ marginTop: '4px', fontSize: '20px', fontWeight: 900 }}>{selectedStaff.name || '新服務供應者'}</div>
+                </div>
+                <button type="button" className="btn btn-danger btn-interactive" onClick={() => onDeleteStaff(selectedStaff.id)} disabled={saving}>
+                  刪除此服務供應者
+                </button>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
+                <Field label="名稱"><input value={selectedStaff.name || ''} onChange={(event) => onUpdateField(selectedStaff.id, 'name', event.target.value)} style={fieldStyle} /></Field>
+                <Field label="角色"><input value={selectedStaff.role || ''} onChange={(event) => onUpdateField(selectedStaff.id, 'role', event.target.value)} style={fieldStyle} /></Field>
+                <Field label="電話"><input value={selectedStaff.phone || ''} onChange={(event) => onUpdateField(selectedStaff.id, 'phone', event.target.value)} style={fieldStyle} /></Field>
+                <Field label="照片連結"><input value={selectedStaff.photo_url || ''} onChange={(event) => onUpdateField(selectedStaff.id, 'photo_url', event.target.value)} style={fieldStyle} /></Field>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
+                <Field label="預約地點">
+                  <select value={selectedStaff.location_id ?? ''} onChange={(event) => onUpdateField(selectedStaff.id, 'location_id', event.target.value === '' ? null : Number(event.target.value))} style={fieldStyle}>
+                    <option value="">未指定</option>
+                    {locations.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}
+                  </select>
+                </Field>
+                <Field label="服務供應者群組">
+                  <select value={selectedStaff.provider_group_id ?? ''} onChange={(event) => onUpdateField(selectedStaff.id, 'provider_group_id', event.target.value === '' ? null : Number(event.target.value))} style={fieldStyle} disabled={!availableTables.providerGroups}>
+                    <option value="">{availableTables.providerGroups ? '未指定' : '資料表未啟用'}</option>
+                    {providerGroups.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}
+                  </select>
+                </Field>
+                <Field label="狀態">
+                  <button type="button" className="btn btn-secondary btn-interactive" onClick={() => onUpdateField(selectedStaff.id, 'enabled', selectedStaff.enabled === false)} disabled={saving}>
+                    {selectedStaff.enabled === false ? '目前停用，按此啟用' : '目前啟用，按此停用'}
+                  </button>
+                </Field>
+              </div>
+
+              <Field label="簡介">
+                <textarea value={selectedStaff.bio || ''} onChange={(event) => onUpdateField(selectedStaff.id, 'bio', event.target.value)} style={{ ...fieldStyle, minHeight: '90px', resize: 'vertical' }} />
+              </Field>
+
+              <div style={{ display: 'grid', gap: '10px' }}>
+                <div style={{ fontSize: '13px', fontWeight: 800 }}>可預約服務</div>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  {services.map((service) => {
+                    const checked = (selectedStaff.services || []).includes(service.id)
+                    return (
+                      <label key={service.id} style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '10px 12px', borderRadius: '999px', border: '1px solid #E5E7EB', background: checked ? 'rgba(166, 139, 106, 0.12)' : '#fff', cursor: 'pointer' }}>
+                        <input type="checkbox" checked={checked} onChange={() => onToggleService(selectedStaff.id, service.id)} />
+                        <span style={{ fontSize: '13px', fontWeight: 700 }}>{service.name}</span>
+                      </label>
+                    )
+                  })}
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                <Pill>{selectedStaff.location_id ? `地點：${locationMap.get(Number(selectedStaff.location_id)) || `#${selectedStaff.location_id}`}` : '未指定地點'}</Pill>
+                <Pill>{selectedStaff.provider_group_id ? `群組：${providerGroupMap.get(Number(selectedStaff.provider_group_id)) || `#${selectedStaff.provider_group_id}`}` : '未指定群組'}</Pill>
+              </div>
+            </div>
+
+            <div className="admin-card" style={{ ...cardStyle, display: 'grid', gap: '16px' }}>
+              <div>
+                <div style={{ fontSize: '12px', color: '#A68B6A', fontWeight: 800, letterSpacing: '0.08em' }}>每週時間表</div>
+                <div style={{ marginTop: '4px', fontSize: '20px', fontWeight: 900 }}>設定上班時間與下班時間</div>
+                <div style={{ marginTop: '6px', color: '#6B7280', fontSize: '13px', lineHeight: 1.6 }}>前台只會顯示符合上班時間且可預約的時段。固定休息、休假與封鎖時段會再進一步扣減可預約時段。</div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
+                {WEEK_DAYS.map((day) => {
+                  const schedule = selectedStaff.schedule?.[day.key] || {}
+                  const isOff = (selectedStaff.daysOff || []).includes(day.key)
                   return (
-                    <button key={member.id} type="button" onClick={() => setSelectedStaffId(member.id)} style={{ textAlign: 'left', padding: '12px 14px', borderRadius: '14px', border: selected ? '1px solid rgba(166, 139, 106, 0.35)' : '1px solid #E5E7EB', background: selected ? '#FBF6EF' : '#fff', display: 'grid', gap: '4px' }}>
-                      <span style={{ fontSize: '14px', fontWeight: 800, color: '#111827' }}>{member.name || '未命名服務供應者'}</span>
-                      <span style={{ fontSize: '12px', color: '#6B7280' }}>{member.role || '服務供應者'}</span>
-                    </button>
+                    <div key={day.key} style={{ ...cardStyle, padding: '14px', background: isOff ? '#F8FAFC' : '#fff' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', alignItems: 'center', marginBottom: '10px' }}>
+                        <div style={{ fontSize: '15px', fontWeight: 800 }}>{day.label}</div>
+                        <label style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#6B7280' }}>
+                          <input type="checkbox" checked={isOff} onChange={() => onToggleDailyOff(selectedStaff.id, day.key)} />
+                          休息
+                        </label>
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                        <input type="time" value={schedule.start || ''} onChange={(event) => onUpdateSchedule(selectedStaff.id, day.key, 'start', event.target.value)} style={smallFieldStyle} disabled={isOff} />
+                        <input type="time" value={schedule.end || ''} onChange={(event) => onUpdateSchedule(selectedStaff.id, day.key, 'end', event.target.value)} style={smallFieldStyle} disabled={isOff} />
+                      </div>
+                    </div>
                   )
                 })}
               </div>
             </div>
 
-            {selectedStaff ? (
-              <div className="admin-card" style={{ padding: '16px', border: '1px solid var(--gray)', display: 'grid', gap: '10px' }}>
-                <div style={{ fontSize: '12px', fontWeight: 800, color: '#A68B6A', letterSpacing: '0.08em' }}>資料摘要</div>
-                <StatusPill tone="accent">服務 {selectedStaff.services?.length || 0} 項</StatusPill>
-                <StatusPill tone="neutral">地點：{selectedStaff.location_id ? labelFor(locations, selectedStaff.location_id) : '未指定'}</StatusPill>
-                <StatusPill tone="neutral">群組：{selectedStaff.provider_group_id ? labelFor(providerGroups, selectedStaff.provider_group_id) : '未指定'}</StatusPill>
-                <StatusPill tone="warning">固定休息 {breakRows.length} 段</StatusPill>
-                <StatusPill tone="warning">休假 {timeOffRows.length} 段</StatusPill>
-                <StatusPill tone="warning">封鎖 {blockedRows.length} 段</StatusPill>
+            <RowList title="日期覆蓋" description="用於設定單日上班、下班或單日休息。" rows={shiftRows} addLabel="新增日期覆蓋" onAdd={() => setShiftRows((current) => [...current, { id: nextTempId(), staff_id: selectedStaff.id, date: todayISO(), start_time: '11:00', end_time: '20:00', is_off: false }])} onChange={(id, patch) => setShiftRows((current) => current.map((row) => (row.id === id ? { ...row, ...patch } : row)))} onRemove={(id) => handleRemoveRow(shiftRows, setShiftRows, setShiftDeletedIds, id)} renderRow={(row, updateRow) => (<><Field label="日期"><input type="date" value={row.date || ''} onChange={(event) => updateRow({ date: event.target.value })} style={smallFieldStyle} /></Field><Field label="上班時間"><input type="time" value={row.start_time || ''} onChange={(event) => updateRow({ start_time: event.target.value })} style={smallFieldStyle} disabled={row.is_off} /></Field><Field label="下班時間"><input type="time" value={row.end_time || ''} onChange={(event) => updateRow({ end_time: event.target.value })} style={smallFieldStyle} disabled={row.is_off} /></Field><Field label="狀態"><button type="button" className="btn btn-secondary btn-interactive" onClick={() => updateRow({ is_off: !Boolean(row.is_off) })} style={{ height: '40px' }}>{row.is_off ? '休息' : '上班'}</button></Field></>)} />
+
+            <RowList title="固定休息時段" description="每週固定扣掉的休息時段。" rows={breakRows} addLabel="新增固定休息" onAdd={() => setBreakRows((current) => [...current, { id: nextTempId(), staff_id: selectedStaff.id, day_of_week: '1', start_time: '13:00', end_time: '14:00', label: '', enabled: true }])} onChange={(id, patch) => setBreakRows((current) => current.map((row) => (row.id === id ? { ...row, ...patch } : row)))} onRemove={(id) => handleRemoveRow(breakRows, setBreakRows, setBreakDeletedIds, id)} renderRow={(row, updateRow) => (<><Field label="星期"><select value={row.day_of_week ?? '1'} onChange={(event) => updateRow({ day_of_week: event.target.value })} style={smallFieldStyle}>{WEEK_DAYS.map((day) => <option key={day.key} value={day.key}>{day.label}</option>)}</select></Field><Field label="開始時間"><input type="time" value={row.start_time || ''} onChange={(event) => updateRow({ start_time: event.target.value })} style={smallFieldStyle} /></Field><Field label="結束時間"><input type="time" value={row.end_time || ''} onChange={(event) => updateRow({ end_time: event.target.value })} style={smallFieldStyle} /></Field><Field label="標籤"><input value={row.label || ''} onChange={(event) => updateRow({ label: event.target.value })} style={smallFieldStyle} placeholder="例如午餐休息" /></Field></>)} />
+
+            <RowList title="休假時段" description="設定單日或全日休假。" rows={timeOffRows} addLabel="新增休假" onAdd={() => setTimeOffRows((current) => [...current, { id: nextTempId(), staff_id: selectedStaff.id, date: todayISO(), start_time: '11:00', end_time: '20:00', reason: '', is_all_day: false }])} onChange={(id, patch) => setTimeOffRows((current) => current.map((row) => (row.id === id ? { ...row, ...patch } : row)))} onRemove={(id) => handleRemoveRow(timeOffRows, setTimeOffRows, setTimeOffDeletedIds, id)} renderRow={(row, updateRow) => (<><Field label="日期"><input type="date" value={row.date || ''} onChange={(event) => updateRow({ date: event.target.value })} style={smallFieldStyle} /></Field><Field label="開始時間"><input type="time" value={row.start_time || ''} onChange={(event) => updateRow({ start_time: event.target.value })} style={smallFieldStyle} disabled={row.is_all_day} /></Field><Field label="結束時間"><input type="time" value={row.end_time || ''} onChange={(event) => updateRow({ end_time: event.target.value })} style={smallFieldStyle} disabled={row.is_all_day} /></Field><Field label="全天"><button type="button" className="btn btn-secondary btn-interactive" onClick={() => updateRow({ is_all_day: !Boolean(row.is_all_day) })} style={{ height: '40px' }}>{row.is_all_day ? '是' : '否'}</button></Field></>)} />
+
+            <RowList title="封鎖時段" description="用於臨時封鎖特定時段，不讓前台顯示。" rows={blockedRows} addLabel="新增封鎖" onAdd={() => setBlockedRows((current) => [...current, { id: nextTempId(), staff_id: selectedStaff.id, date: todayISO(), start_time: '11:00', end_time: '12:00', reason: '', source: 'manual' }])} onChange={(id, patch) => setBlockedRows((current) => current.map((row) => (row.id === id ? { ...row, ...patch } : row)))} onRemove={(id) => handleRemoveRow(blockedRows, setBlockedRows, setBlockedDeletedIds, id)} renderRow={(row, updateRow) => (<><Field label="日期"><input type="date" value={row.date || ''} onChange={(event) => updateRow({ date: event.target.value })} style={smallFieldStyle} /></Field><Field label="開始時間"><input type="time" value={row.start_time || ''} onChange={(event) => updateRow({ start_time: event.target.value })} style={smallFieldStyle} /></Field><Field label="結束時間"><input type="time" value={row.end_time || ''} onChange={(event) => updateRow({ end_time: event.target.value })} style={smallFieldStyle} /></Field><Field label="原因"><input value={row.reason || ''} onChange={(event) => updateRow({ reason: event.target.value })} style={smallFieldStyle} placeholder="例如會議" /></Field></>)} />
+
+            <div className="admin-card" style={{ ...cardStyle, display: 'grid', gap: '14px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+                <div>
+                  <div style={{ fontSize: '12px', color: '#A68B6A', fontWeight: 800, letterSpacing: '0.08em' }}>前台可預約對照</div>
+                  <div style={{ marginTop: '4px', fontSize: '20px', fontWeight: 900 }}>月曆預覽</div>
+                </div>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  <button type="button" className="btn btn-small btn-interactive" onClick={() => setPreviewMonth((current) => addMonths(current, -1))} disabled={previewLoading}>上月</button>
+                  <button type="button" className="btn btn-small btn-interactive" onClick={() => setPreviewMonth((current) => addMonths(current, 1))} disabled={previewLoading}>下月</button>
+                </div>
               </div>
-            ) : null}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px', alignItems: 'end' }}>
+                <Field label="對照服務">
+                  <select value={previewServiceId} onChange={(event) => setPreviewServiceId(event.target.value)} style={fieldStyle}>
+                    {services.map((service) => <option key={service.id} value={service.id}>{service.name}</option>)}
+                  </select>
+                </Field>
+                <Field label="月份"><input value={monthLabel(previewMonth)} readOnly style={fieldStyle} /></Field>
+              </div>
+              {previewLoading ? <div style={{ color: '#6B7280' }}>{bookingOpsCopy.loadingDates || '載入月曆中...'}</div> : null}
+              {previewError ? <div style={{ color: '#991B1B' }}>{previewError}</div> : null}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: '10px' }}>
+                {['一', '二', '三', '四', '五', '六', '日'].map((weekday) => <div key={weekday} style={{ fontSize: '12px', color: '#6B7280', fontWeight: 800 }}>星期{weekday}</div>)}
+                {buildMonthGrid(previewMonth).map((cell) => {
+                  const summary = previewMap.get(cell.dateISO) || {}
+                  const status = summary.status || 'off'
+                  return (
+                    <div key={cell.dateISO} style={{ ...cardStyle, minHeight: '78px', padding: '12px', opacity: cell.inMonth ? 1 : 0.45, borderColor: status === 'available' ? '#A68B6A' : '#E5E7EB', background: status === 'full' ? '#FFF8EE' : '#fff' }}>
+                      <div style={{ fontWeight: 900 }}>{cell.dayLabel}</div>
+                      <div style={{ marginTop: '6px', fontSize: '12px', color: '#6B7280' }}>{status === 'available' ? '可預約' : status === 'full' ? '已滿' : '休息'}</div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
           </div>
-
-          <div style={{ display: 'grid', gap: '18px' }}>
-            <AdminSection eyebrow="基本資料" title="服務供應者資料" description="這裡的地點、群組與服務範圍會直接影響前台可預約結果。">
-              {selectedStaff ? (
-                <div style={{ display: 'grid', gap: '14px' }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
-                    <label style={{ display: 'grid', gap: '6px' }}>
-                      <span style={{ fontSize: '12px', fontWeight: 800, color: '#6B7280' }}>名稱</span>
-                      <input value={selectedStaff.name || ''} onChange={(event) => onUpdateField?.(selectedStaff.id, 'name', event.target.value)} style={fieldStyle} />
-                    </label>
-                    <label style={{ display: 'grid', gap: '6px' }}>
-                      <span style={{ fontSize: '12px', fontWeight: 800, color: '#6B7280' }}>職位</span>
-                      <input value={selectedStaff.role || ''} onChange={(event) => onUpdateField?.(selectedStaff.id, 'role', event.target.value)} style={fieldStyle} />
-                    </label>
-                    <label style={{ display: 'grid', gap: '6px' }}>
-                      <span style={{ fontSize: '12px', fontWeight: 800, color: '#6B7280' }}>電話</span>
-                      <input value={selectedStaff.phone || ''} onChange={(event) => onUpdateField?.(selectedStaff.id, 'phone', event.target.value)} style={fieldStyle} />
-                    </label>
-                    <label style={{ display: 'grid', gap: '6px' }}>
-                      <span style={{ fontSize: '12px', fontWeight: 800, color: '#6B7280' }}>地點</span>
-                      <select value={selectedStaff.location_id ?? ''} onChange={(event) => onUpdateField?.(selectedStaff.id, 'location_id', event.target.value === '' ? null : Number(event.target.value))} style={fieldStyle}>
-                        <option value="">未指定地點</option>
-                        {locations.map((location) => <option key={location.id} value={location.id}>{labelFor(locations, location.id)}</option>)}
-                      </select>
-                    </label>
-                    <label style={{ display: 'grid', gap: '6px' }}>
-                      <span style={{ fontSize: '12px', fontWeight: 800, color: '#6B7280' }}>服務供應者群組</span>
-                      <select value={selectedStaff.provider_group_id ?? ''} onChange={(event) => onUpdateField?.(selectedStaff.id, 'provider_group_id', event.target.value === '' ? null : Number(event.target.value))} style={fieldStyle}>
-                        <option value="">未指定群組</option>
-                        {providerGroups.map((group) => <option key={group.id} value={group.id}>{labelFor(providerGroups, group.id)}</option>)}
-                      </select>
-                    </label>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '10px', paddingTop: '28px' }}>
-                      <input type="checkbox" checked={selectedStaff.enabled !== false} onChange={(event) => onUpdateField?.(selectedStaff.id, 'enabled', event.target.checked)} />
-                      <span style={{ fontSize: '13px', fontWeight: 700 }}>啟用此服務供應者</span>
-                    </label>
-                  </div>
-
-                  <label style={{ display: 'grid', gap: '6px' }}>
-                    <span style={{ fontSize: '12px', fontWeight: 800, color: '#6B7280' }}>簡介</span>
-                    <textarea value={selectedStaff.bio || ''} onChange={(event) => onUpdateField?.(selectedStaff.id, 'bio', event.target.value)} rows={3} style={{ ...fieldStyle, resize: 'vertical' }} />
-                  </label>
-
-                  <div style={{ display: 'grid', gap: '8px' }}>
-                    <div style={{ fontSize: '12px', fontWeight: 800, color: '#6B7280' }}>可提供服務</div>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
-                      {services.map((service) => {
-                        const checked = selectedStaff.services?.includes(service.id)
-                        return (
-                          <label key={service.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 10px', borderRadius: '999px', border: '1px solid #E5E7EB', background: checked ? '#FBF6EF' : '#fff' }}>
-                            <input type="checkbox" checked={checked} onChange={() => onToggleService?.(selectedStaff.id, service.id)} />
-                            <span style={{ fontSize: '13px' }}>{service.name}</span>
-                          </label>
-                        )
-                      })}
-                    </div>
-                  </div>
-                </div>
-              ) : <EmptyState title="尚未選擇服務供應者" description="請先從左側選擇一位服務供應者。" />}
-            </AdminSection>
-
-            <AdminSection eyebrow="每週時間表" title="每週上班時間" description="這裡直接設定每天的上班與下班時間。休息日會在前台顯示為灰色，不可預約。">
-              {selectedStaff ? (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: '12px' }}>
-                  {DAYS.map((day) => {
-                    const schedule = selectedStaff.schedule?.[day.key] || {}
-                    const isOff = (selectedStaff.daysOff || []).includes(day.key)
-                    return <DayCard key={day.key} day={day} schedule={schedule} isOff={isOff} onToggleOff={() => onToggleDailyOff?.(selectedStaff.id, day.key)} onChange={(field, value) => onUpdateSchedule?.(selectedStaff.id, day.key, field, value)} />
-                  })}
-                </div>
-              ) : <EmptyState title="尚未選擇服務供應者" description="請先選擇一位服務供應者後，再設定每週時間表。" />}
-            </AdminSection>
-
-            <AdminSection eyebrow="日期覆蓋" title="指定日期班次" description="臨時上班、臨時休息或特別營業時間，可在這裡設定。">
-              {selectedStaff ? (
-                <div style={{ display: 'grid', gap: '10px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                    <button type="button" onClick={() => setShiftRows((current) => [...current, normalizeScheduleRow({ date: previewDate, start_time: '11:00', end_time: '20:00' }, selectedStaff.id)])} className="btn btn-small btn-interactive">+ 新增日期覆蓋</button>
-                  </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: ROW_GRID, gap: '10px', fontSize: '12px', fontWeight: 800, color: '#6B7280' }}>
-                    <div>日期</div><div>上班時間</div><div>下班時間</div><div>狀態</div><div></div>
-                  </div>
-                  {shiftRows.length ? shiftRows.map((row) => (
-                    <div key={row.id} style={{ display: 'grid', gridTemplateColumns: ROW_GRID, gap: '10px', alignItems: 'center' }}>
-                      <input type="date" value={row.date || ''} onChange={(event) => updateListRow(setShiftRows, row.id, { date: event.target.value })} style={fieldStyle} />
-                      <input type="time" value={row.start_time || ''} onChange={(event) => updateListRow(setShiftRows, row.id, { start_time: event.target.value })} style={{ ...fieldStyle, background: row.is_off ? '#F9FAFB' : '#fff' }} disabled={row.is_off} />
-                      <input type="time" value={row.end_time || ''} onChange={(event) => updateListRow(setShiftRows, row.id, { end_time: event.target.value })} style={{ ...fieldStyle, background: row.is_off ? '#F9FAFB' : '#fff' }} disabled={row.is_off} />
-                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: 700 }}><input type="checkbox" checked={row.is_off} onChange={(event) => updateListRow(setShiftRows, row.id, { is_off: event.target.checked })} />{row.is_off ? '當天休息' : '當天上班'}</label>
-                      <button type="button" onClick={() => removeRow(setShiftRows, setDeletedShiftIds, row.id)} className="btn btn-small btn-interactive">刪除</button>
-                    </div>
-                  )) : <EmptyState title="尚未設定日期覆蓋" description="如某天需要臨時改班、休息或加班，可在這裡新增。" />}
-                </div>
-              ) : <EmptyState title="尚未選擇服務供應者" description="請先選擇一位服務供應者後，再設定日期覆蓋。" />}
-            </AdminSection>
-
-            <AdminSection eyebrow="固定休息" title="固定休息時段" description="固定休息會從可預約時段內扣減，例如午飯、開會或固定短休。">
-              {selectedStaff ? (
-                <div style={{ display: 'grid', gap: '10px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                    <button type="button" onClick={() => setBreakRows((current) => [...current, normalizeBreakRow({}, selectedStaff.id)])} className="btn btn-small btn-interactive">+ 新增固定休息</button>
-                  </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: ROW_GRID, gap: '10px', fontSize: '12px', fontWeight: 800, color: '#6B7280' }}>
-                    <div>星期</div><div>開始</div><div>結束</div><div>標籤</div><div></div>
-                  </div>
-                  {breakRows.length ? breakRows.map((row) => (
-                    <div key={row.id} style={{ display: 'grid', gridTemplateColumns: ROW_GRID, gap: '10px', alignItems: 'center' }}>
-                      <select value={row.day_of_week} onChange={(event) => updateListRow(setBreakRows, row.id, { day_of_week: Number(event.target.value) })} style={fieldStyle}>
-                        {DAYS.map((day) => <option key={day.key} value={day.key}>{day.label}</option>)}
-                      </select>
-                      <input type="time" value={row.start_time || ''} onChange={(event) => updateListRow(setBreakRows, row.id, { start_time: event.target.value })} style={fieldStyle} />
-                      <input type="time" value={row.end_time || ''} onChange={(event) => updateListRow(setBreakRows, row.id, { end_time: event.target.value })} style={fieldStyle} />
-                      <input value={row.label || ''} onChange={(event) => updateListRow(setBreakRows, row.id, { label: event.target.value })} style={fieldStyle} placeholder="例如：午飯" />
-                      <button type="button" onClick={() => removeRow(setBreakRows, setDeletedBreakIds, row.id)} className="btn btn-small btn-interactive">刪除</button>
-                    </div>
-                  )) : <EmptyState title="尚未設定固定休息" description="例如午飯或固定短休，都可以在這裡設定。" />}
-                </div>
-              ) : <EmptyState title="尚未選擇服務供應者" description="請先選擇一位服務供應者後，再設定固定休息。" />}
-            </AdminSection>
-
-            <AdminSection eyebrow="休假" title="休假時段" description="休假會直接封鎖該服務供應者的可預約時段。">
-              {selectedStaff ? (
-                <div style={{ display: 'grid', gap: '10px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                    <button type="button" onClick={() => setTimeOffRows((current) => [...current, normalizeTimeOffRow({ date: previewDate }, selectedStaff.id)])} className="btn btn-small btn-interactive">+ 新增休假</button>
-                  </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: ROW_GRID, gap: '10px', fontSize: '12px', fontWeight: 800, color: '#6B7280' }}>
-                    <div>日期</div><div>開始</div><div>結束</div><div>原因</div><div></div>
-                  </div>
-                  {timeOffRows.length ? timeOffRows.map((row) => (
-                    <div key={row.id} style={{ display: 'grid', gridTemplateColumns: ROW_GRID, gap: '10px', alignItems: 'center' }}>
-                      <input type="date" value={row.date || ''} onChange={(event) => updateListRow(setTimeOffRows, row.id, { date: event.target.value })} style={fieldStyle} />
-                      <input type="time" value={row.start_time || ''} onChange={(event) => updateListRow(setTimeOffRows, row.id, { start_time: event.target.value })} style={{ ...fieldStyle, background: row.is_all_day ? '#F9FAFB' : '#fff' }} disabled={row.is_all_day} />
-                      <input type="time" value={row.end_time || ''} onChange={(event) => updateListRow(setTimeOffRows, row.id, { end_time: event.target.value })} style={{ ...fieldStyle, background: row.is_all_day ? '#F9FAFB' : '#fff' }} disabled={row.is_all_day} />
-                      <div style={{ display: 'grid', gap: '8px' }}>
-                        <input value={row.reason || ''} onChange={(event) => updateListRow(setTimeOffRows, row.id, { reason: event.target.value })} style={fieldStyle} placeholder="例如：病假" />
-                        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: '#6B7280' }}><input type="checkbox" checked={row.is_all_day} onChange={(event) => updateListRow(setTimeOffRows, row.id, { is_all_day: event.target.checked })} />全日休假</label>
-                      </div>
-                      <button type="button" onClick={() => removeRow(setTimeOffRows, setDeletedTimeOffIds, row.id)} className="btn btn-small btn-interactive">刪除</button>
-                    </div>
-                  )) : <EmptyState title="尚未設定休假" description="如有病假、外出或特別休假，可在這裡設定。" />}
-                </div>
-              ) : <EmptyState title="尚未選擇服務供應者" description="請先選擇一位服務供應者後，再設定休假。" />}
-            </AdminSection>
-
-            <AdminSection eyebrow="封鎖時段" title="封鎖時段" description="封鎖時段可處理臨時不可接單時段，會進一步扣減可預約時段。">
-              {selectedStaff ? (
-                <div style={{ display: 'grid', gap: '10px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                    <button type="button" onClick={() => setBlockedRows((current) => [...current, normalizeBlockedRow({ date: previewDate, start_time: '11:00', end_time: '12:00' }, selectedStaff.id)])} className="btn btn-small btn-interactive">+ 新增封鎖時段</button>
-                  </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: ROW_GRID, gap: '10px', fontSize: '12px', fontWeight: 800, color: '#6B7280' }}>
-                    <div>日期</div><div>開始</div><div>結束</div><div>原因</div><div></div>
-                  </div>
-                  {blockedRows.length ? blockedRows.map((row) => (
-                    <div key={row.id} style={{ display: 'grid', gridTemplateColumns: ROW_GRID, gap: '10px', alignItems: 'center' }}>
-                      <input type="date" value={row.date || ''} onChange={(event) => updateListRow(setBlockedRows, row.id, { date: event.target.value })} style={fieldStyle} />
-                      <input type="time" value={row.start_time || ''} onChange={(event) => updateListRow(setBlockedRows, row.id, { start_time: event.target.value })} style={fieldStyle} />
-                      <input type="time" value={row.end_time || ''} onChange={(event) => updateListRow(setBlockedRows, row.id, { end_time: event.target.value })} style={fieldStyle} />
-                      <input value={row.reason || ''} onChange={(event) => updateListRow(setBlockedRows, row.id, { reason: event.target.value })} style={fieldStyle} placeholder="例如：培訓、外出" />
-                      <button type="button" onClick={() => removeRow(setBlockedRows, setDeletedBlockedIds, row.id)} className="btn btn-small btn-interactive">刪除</button>
-                    </div>
-                  )) : <EmptyState title="尚未設定封鎖時段" description="如果有臨時培訓、外出或內部安排，可在這裡封鎖時段。" />}
-                </div>
-              ) : <EmptyState title="尚未選擇服務供應者" description="請先選擇一位服務供應者後，再設定封鎖時段。" />}
-            </AdminSection>
-
-            <AdminSection eyebrow="即時預約預覽" title="前台可預約對照" description="黑字代表有班，灰字代表休息；如有班但被佔滿，會顯示已滿。">
-              {selectedStaff ? (
-                <div style={{ display: 'grid', gap: '14px' }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
-                    <label style={{ display: 'grid', gap: '6px' }}>
-                      <span style={{ fontSize: '12px', fontWeight: 800, color: '#6B7280' }}>預覽服務</span>
-                      <select value={previewServiceId} onChange={(event) => setPreviewServiceId(event.target.value)} style={fieldStyle}>
-                        {servicesForStaff.map((service) => <option key={service.id} value={service.id}>{service.name}</option>)}
-                      </select>
-                    </label>
-                    <label style={{ display: 'grid', gap: '6px' }}>
-                      <span style={{ fontSize: '12px', fontWeight: 800, color: '#6B7280' }}>起始日期</span>
-                      <input type="date" value={previewDate} onChange={(event) => setPreviewDate(event.target.value)} style={fieldStyle} />
-                    </label>
-                  </div>
-
-                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                    <StatusPill tone="success">{bookingOpsCopy.available}</StatusPill>
-                    <StatusPill tone="neutral">{bookingOpsCopy.rest}</StatusPill>
-                    <StatusPill tone="warning">{bookingOpsCopy.full}</StatusPill>
-                    <StatusPill tone="accent">{bookingOpsCopy.selected}</StatusPill>
-                  </div>
-
-                  {loadingPreviewDates ? <div style={{ fontSize: '13px', color: '#6B7280' }}>載入可預約日期中...</div> : null}
-                  {previewError ? <div style={{ fontSize: '13px', color: '#B91C1C' }}>{previewError}</div> : null}
-
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '10px' }}>
-                    {previewWindow.map((entry) => {
-                      const status = previewSummaryMap.get(entry.dateISO)?.status || 'off'
-                      return <DateStatusCard key={entry.dateISO} label={entry.label} status={status} selected={entry.dateISO === previewDate} disabled={status === 'off'} onClick={() => setPreviewDate(entry.dateISO)} />
-                    })}
-                  </div>
-
-                  <div style={{ ...panelStyle, background: '#FAF8F5' }}>
-                    <div style={{ fontSize: '12px', fontWeight: 800, color: '#A68B6A', letterSpacing: '0.08em' }}>預覽結果</div>
-                    <div style={{ marginTop: '8px', display: 'grid', gap: '10px' }}>
-                      <div style={{ fontSize: '13px', color: '#6B7280' }}>
-                        {currentPreviewSummary?.status === 'off' ? '這一天是休息日，前台會顯示灰色。' : currentPreviewSummary?.status === 'full' ? '這一天有班，但可預約時段已滿。' : '這一天有班，前台會顯示黑字並可載入時段。'}
-                      </div>
-                      {loadingPreviewSlots ? <div style={{ fontSize: '13px', color: '#6B7280' }}>載入可預約時段中...</div> : null}
-                      {!loadingPreviewSlots && currentPreviewSummary?.status === 'available' && previewAvailableTimes.length > 0 ? (
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                          {previewAvailableTimes.map((time) => <StatusPill key={time} tone="success">{time}</StatusPill>)}
-                        </div>
-                      ) : null}
-                      {!loadingPreviewSlots && currentPreviewSummary?.status === 'available' && previewAvailableTimes.length === 0 ? <div style={{ fontSize: '13px', color: '#B45309' }}>有班，但今天已滿。</div> : null}
-                    </div>
-                  </div>
-                </div>
-              ) : <EmptyState title="尚未選擇服務供應者" description="請先選擇一位服務供應者後，再查看即時預約預覽。" />}
-            </AdminSection>
-          </div>
-        </div>
-      </AdminSection>
+        ) : null}
+      </div>
     </div>
   )
 }
+
