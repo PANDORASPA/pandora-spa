@@ -80,7 +80,7 @@ export async function GET(request) {
     const eligibleStaffList = (staffList || []).filter((staff) => staffCanDoService(staff, serviceId))
     const staffIds = eligibleStaffList.map((staff) => staff.id).filter(Boolean)
     if (staffIds.length === 0) {
-      return NextResponse.json({ slots: [], staffAvailability: {} }, { status: 200 })
+      return NextResponse.json({ slots: [], slotMatrix: [], staffAvailability: {} }, { status: 200 })
     }
 
     const { data: shifts, error: shiftsError } = await supabase.from('staff_shifts').select('*').eq('date', dateISO).in('staff_id', staffIds)
