@@ -2,160 +2,201 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
 import { toast } from 'react-hot-toast'
 import { supabase } from '../../../lib/supabase'
+import { bookingOpsCopy } from '../../components/admin/opsUi'
 
-const DEFAULT_SETTINGS = { phone: '', business_hours: '11:00 - 20:00', days_off: [], slot_step_min: 15 }
+const DEFAULT_SETTINGS = {
+  phone: '',
+  business_hours: '11:00 - 20:00',
+  days_off: [],
+  slot_step_min: 15,
+}
+
+const HK_TIME_ZONE = 'Asia/Hong_Kong'
+const DATE_CARD_COUNT = 14
+
 const T = {
-  loadingPage: '\u8f09\u5165\u9810\u7d04\u9801\u9762\u4e2d...',
-  loadingMember: '\u8f09\u5165\u6703\u54e1\u8cc7\u6599\u4e2d...',
-  settingsError: '\u7121\u6cd5\u8f09\u5165\u9810\u7d04\u8cc7\u6599',
-  slotsError: '\u7121\u6cd5\u53d6\u5f97\u53ef\u7528\u6642\u6bb5',
-  bookingLoadError: '\u7121\u6cd5\u8f09\u5165\u539f\u9810\u7d04\u8cc7\u6599',
-  requiredFields: '\u8acb\u586b\u5beb\u6240\u6709\u5fc5\u586b\u6b04\u4f4d',
-  loginFirst: '\u8acb\u5148\u767b\u5165\u5f8c\u518d\u9810\u7d04',
-  bookingFailed: '\u9810\u7d04\u5931\u6557',
-  bookingTimeout: '\u63d0\u4ea4\u8d85\u6642\uff0c\u8acb\u518d\u8a66\u4e00\u6b21',
-  loadingSlots: '\u8f09\u5165\u53ef\u7528\u6642\u6bb5\u4e2d...',
-  chooseServiceAndDate: '\u8acb\u5148\u9078\u64c7\u670d\u52d9\u8207\u65e5\u671f',
-  noSlots: '\u9019\u500b\u65e5\u671f\u76ee\u524d\u6c92\u6709\u53ef\u7528\u6642\u6bb5\uff0c\u8acb\u6539\u9078\u5176\u4ed6\u65e5\u671f\u3002',
-  title: '\u7dda\u4e0a\u9810\u7d04',
-  editTitle: '\u4fee\u6539\u9810\u7d04',
-  intro: '\u9078\u64c7\u670d\u52d9\u3001\u65e5\u671f\u8207\u6642\u9593\uff0c\u5b8c\u6210\u6b64\u8a2d\u8a08\u5e2b\u7684\u9810\u7d04\u3002',
-  editLocked: '\u6539\u671f\u53ea\u6703\u8abf\u6574\u65e5\u671f\u3001\u6642\u6bb5\uff0c\u512a\u60e0\u8207\u5957\u7968\u6703\u4fdd\u7559\u539f\u9810\u7d04\u8a2d\u5b9a\u3002',
-  back: '\u8fd4\u56de\u9078\u64c7\u8a2d\u8a08\u5e2b',
-  memberTitle: '\u8acb\u5148\u767b\u5165\u6703\u54e1',
-  memberIntro: '\u767b\u5165\u5f8c\u53ef\u81ea\u52d5\u5e36\u5165\u6703\u54e1\u8cc7\u6599\uff0c\u4e26\u4f7f\u7528 coupon \u8207\u5957\u7968\u3002',
-  login: '\u767b\u5165',
-  register: '\u8a3b\u518a',
-  service: '\u670d\u52d9',
-  chooseService: '\u8acb\u9078\u64c7\u670d\u52d9',
-  businessHours: '\u71df\u696d\u6642\u9593',
-  date: '\u65e5\u671f',
-  time: '\u6642\u9593',
-  name: '\u59d3\u540d',
-  phone: '\u96fb\u8a71',
-  coupon: '\u512a\u60e0\u5238',
-  noCoupon: '\u4e0d\u4f7f\u7528\u512a\u60e0\u5238',
-  ticket: '\u6703\u54e1\u5957\u7968',
-  noTicket: '\u4e0d\u4f7f\u7528\u5957\u7968',
-  loginForTicket: '\u767b\u5165\u5f8c\u53ef\u4f7f\u7528\u5957\u7968',
-  remaining: '\u5269\u9918',
-  times: '\u6b21',
-  amount: '\u61c9\u4ed8\u91d1\u984d',
-  ticketUse: '\u672c\u6b21\u5c07\u6263\u9664 1 \u6b21\u5957\u7968\u4f7f\u7528\u6b21\u6578',
-  couponApply: '\u512a\u60e0\u91d1\u984d\u5c07\u65bc\u78ba\u8a8d\u5f8c\u5957\u7528',
-  submitting: '\u63d0\u4ea4\u4e2d...',
-  submit: '\u63d0\u4ea4\u9810\u7d04',
-  update: '\u66f4\u65b0\u9810\u7d04',
-  minutes: '\u5206\u9418',
-  whatsappIntro: '\u4f60\u597d\uff0c\u6211\u60f3\u78ba\u8a8d\u4ee5\u4e0b\u9810\u7d04\u8cc7\u6599\uff1a',
-  ref: '\u7de8\u865f',
-  refLabel: '\u9810\u7d04\u7de8\u865f\uff1a',
-  success: '\u9810\u7d04\u6210\u529f',
-  updated: '\u9810\u7d04\u5df2\u66f4\u65b0',
-  whatsappConfirm: 'WhatsApp \u78ba\u8a8d',
-  whatsappUnavailable: '\u672a\u8a2d\u5b9a WhatsApp \u806f\u7d61\u865f\u78bc',
-  whatsappUnavailableHelp: '\u8acb\u5148\u806f\u7d61\u5e97\u8216\u66f4\u65b0\u96fb\u8a71\u8a2d\u5b9a\u3002',
-  viewBookings: '\u67e5\u770b\u6211\u7684\u9810\u7d04',
-  close: '\u95dc\u9589',
-  legendAvailable: '\u53ef\u9810\u7d04',
-  legendUnavailable: '\u5df2\u88ab\u4f54\u7528 / \u4e0d\u53ef\u7528',
-  legendSelected: '\u5df2\u9078\u64c7',
-  completeRequired: '\u8acb\u5148\u5b8c\u6210\u670d\u52d9\u3001\u65e5\u671f\u3001\u6642\u9593\u3001\u59d3\u540d\u8207\u96fb\u8a71',
-  ctaHelp: '\u63d0\u4ea4\u5f8c\u6703\u986f\u793a\u9810\u7d04\u7de8\u865f\u8207 WhatsApp \u78ba\u8a8d\u906e\u7f69',
+  loadingPage: '載入預約頁面中...',
+  loadingMember: '載入會員資料中...',
+  loadingDates: '載入可預約日期中...',
+  loadingSlots: '載入可預約時段中...',
+  settingsError: '無法載入預約資料。',
+  slotsError: '無法載入可預約時段。',
+  bookingLoadError: '無法載入原預約資料。',
+  requiredFields: '請填寫所有必填欄位。',
+  loginFirst: '請先登入後再預約。',
+  bookingFailed: '預約失敗。',
+  chooseServiceAndDate: '請先選擇服務及日期。',
+  chooseDateFirst: '請先選擇日期。',
+  chooseTime: '請選擇時間',
+  noSlots: '這一天目前沒有可預約時段，請改選其他日期。',
+  fullyBooked: '今天有上班，但可預約時段已滿。',
+  title: '線上預約',
+  editTitle: '更改預約',
+  intro: '先選擇日期，再從下拉選單選擇可預約時段。',
+  editLocked: '改期只會調整日期與時段，優惠券及套票會保留原本設定。',
+  back: '返回設計師列表',
+  memberTitle: '請先登入會員',
+  memberIntro: '登入後可帶入會員資料，並使用優惠券及套票。',
+  login: '登入',
+  register: '註冊',
+  service: '服務',
+  chooseService: '請選擇服務',
+  businessHours: '營業時間',
+  slotStep: '時段間距',
+  date: '日期',
+  time: '時間',
+  name: '姓名',
+  phone: '電話',
+  coupon: '優惠券',
+  noCoupon: '不使用優惠券',
+  ticket: '會員套票',
+  noTicket: '不使用套票',
+  loginForTicket: '登入後可使用套票',
+  remaining: '剩餘',
+  times: '次',
+  amount: '應付金額',
+  ticketUse: '本次會扣除 1 次套票使用次數。',
+  couponApply: '優惠金額會在提交後套用。',
+  submitting: '提交中...',
+  submit: '提交預約',
+  update: '更新預約',
+  minutes: '分鐘',
+  whatsappIntro: '你好，我想確認以下預約資料：',
+  refLabel: '預約編號：',
+  success: '預約成功',
+  updated: '預約已更新',
+  whatsappConfirm: 'WhatsApp 確認',
+  whatsappUnavailable: '未設定 WhatsApp 聯絡號碼',
+  whatsappUnavailableHelp: '請先聯絡店舖更新 WhatsApp 聯絡號碼。',
+  viewBookings: '查看我的預約',
+  close: '關閉',
+  completeRequired: '請完成服務、日期、時間、姓名及電話。',
+  ctaHelp: '提交後會顯示預約編號及 WhatsApp 確認方式。',
+  restDay: '該日休息',
+  fullyBookedShort: '當日已滿',
+  availableHint: '有上班，可載入可預約時段',
+  restHint: '休息 / 假期 / 沒有上班',
+  fullHint: '有上班，但今天已滿',
+  chooseStaffFirst: '無法辨識服務供應者。',
+  loginRequiredToSubmit: '登入後才可提交預約。',
 }
 
 const box = { width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #ddd' }
+
+const hkDateFormatter = new Intl.DateTimeFormat('en-CA', {
+  timeZone: HK_TIME_ZONE,
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+})
+
+const hkCardFormatter = new Intl.DateTimeFormat('zh-HK', {
+  timeZone: HK_TIME_ZONE,
+  month: 'short',
+  day: 'numeric',
+  weekday: 'short',
+})
+
 const formatCurrency = (value) => `$${Math.round(Number(value || 0))}`
 const formatServiceDuration = (service) => `${Number(service?.time || 60)} ${T.minutes}`
-const getStep = (settings) => {
-  const n = Number(settings?.slot_step_min)
-  return Number.isFinite(n) && n > 0 ? n : 15
+
+const getHKISODate = (date = new Date()) => {
+  const parts = hkDateFormatter.formatToParts(date).reduce((acc, part) => {
+    if (part.type !== 'literal') acc[part.type] = part.value
+    return acc
+  }, {})
+  return `${parts.year}-${parts.month}-${parts.day}`
 }
+
+const normalizeDateISO = (value) => {
+  const text = String(value || '').trim()
+  return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : ''
+}
+
+const addDaysISO = (dateISO, days) => {
+  const next = new Date(`${dateISO}T12:00:00Z`)
+  next.setUTCDate(next.getUTCDate() + days)
+  return getHKISODate(next)
+}
+
+const formatDateCard = (dateISO) => {
+  const date = new Date(`${dateISO}T12:00:00Z`)
+  return hkCardFormatter.format(date)
+}
+
 const getTicketServiceId = (ticket) => {
   const raw = ticket?.tickets?.service_id ?? ticket?.service_id ?? null
   const parsed = Number(raw)
   return Number.isFinite(parsed) ? parsed : null
 }
 
+const buildDateWindow = (startDate) =>
+  Array.from({ length: DATE_CARD_COUNT }, (_, index) => {
+    const dateISO = addDaysISO(startDate, index)
+    return { dateISO, label: formatDateCard(dateISO) }
+  })
+
+const buildWhatsappUrl = (phone, lines) => {
+  const digits = String(phone || '').replace(/[^\d+]/g, '')
+  if (!digits) return ''
+  return `https://wa.me/${digits.replace(/^\+/, '')}?text=${encodeURIComponent(lines.join('\n'))}`
+}
+
+const getDateSummaryLabel = (status, selected) => {
+  if (selected) return bookingOpsCopy.selected
+  if (status === 'available') return bookingOpsCopy.available
+  if (status === 'full') return bookingOpsCopy.full
+  return bookingOpsCopy.rest
+}
+
 export default function BookingStaffDetailPage({ params }) {
-  const router = useRouter()
+  const searchParams = useSearchParams()
   const availabilityControllerRef = useRef(null)
+  const dateSummaryControllerRef = useRef(null)
+
   const staffId = params?.staffId ? String(params.staffId) : ''
-  const [pageLoading, setPageLoading] = useState(true)
-  const [memberLoading, setMemberLoading] = useState(false)
-  const [loadingSlots, setLoadingSlots] = useState(false)
-  const [submitting, setSubmitting] = useState(false)
-  const [publicError, setPublicError] = useState('')
+  const editId = searchParams.get('editId') || ''
+
+  const [settings, setSettings] = useState(DEFAULT_SETTINGS)
   const [staff, setStaff] = useState(null)
-  const [shopSettings, setShopSettings] = useState(DEFAULT_SETTINGS)
   const [services, setServices] = useState([])
-  const [coupons, setCoupons] = useState([])
+  const [loadingPage, setLoadingPage] = useState(true)
+  const [loadingMember, setLoadingMember] = useState(true)
+  const [loadingDates, setLoadingDates] = useState(false)
+  const [loadingSlots, setLoadingSlots] = useState(false)
+  const [pageError, setPageError] = useState('')
+  const [slotsError, setSlotsError] = useState('')
+  const [dateSummaryError, setDateSummaryError] = useState('')
+
+  const [user, setUser] = useState(null)
+  const [memberProfile, setMemberProfile] = useState(null)
   const [userTickets, setUserTickets] = useState([])
-  const [authUser, setAuthUser] = useState(null)
+
   const [selectedServiceId, setSelectedServiceId] = useState('')
-  const [selectedDate, setSelectedDate] = useState('')
+  const [selectedDate, setSelectedDate] = useState(getHKISODate())
   const [selectedTime, setSelectedTime] = useState('')
-  const [selectedTicketId, setSelectedTicketId] = useState('')
   const [slotMatrix, setSlotMatrix] = useState([])
-  const [formData, setFormData] = useState({ name: '', phone: '', coupon: '' })
-  const [editId, setEditId] = useState('')
-  const [queryReady, setQueryReady] = useState(false)
-  const [showModal, setShowModal] = useState(false)
-  const [bookingRef, setBookingRef] = useState('')
-  const [waUrl, setWaUrl] = useState('')
-  const [submitError, setSubmitError] = useState('')
-  const isEditing = Boolean(editId)
+  const [resolvedLocationId, setResolvedLocationId] = useState(null)
+  const [locationSelectionRequired, setLocationSelectionRequired] = useState(false)
+  const [dateSummaries, setDateSummaries] = useState([])
 
-  const selectedService = useMemo(() => services.find((service) => String(service.id) === String(selectedServiceId)) || null, [services, selectedServiceId])
-  const filteredTickets = useMemo(() => {
-    if (!selectedService) return []
-    return userTickets.filter((ticket) => {
-      const linkedServiceId = getTicketServiceId(ticket)
-      return linkedServiceId == null || linkedServiceId === Number(selectedService.id)
-    })
-  }, [selectedService, userTickets])
-  const selectedTicket = useMemo(() => filteredTickets.find((ticket) => String(ticket.id) === String(selectedTicketId)) || null, [filteredTickets, selectedTicketId])
-  const availableSlots = useMemo(() => slotMatrix.filter((slot) => slot.available).map((slot) => slot.time), [slotMatrix])
-  const canLoadSlots = Boolean(selectedServiceId && selectedDate)
-  const slotStepMin = getStep(shopSettings)
-  const canSubmit = Boolean(selectedService && selectedDate && selectedTime && formData.name.trim() && formData.phone.trim() && !loadingSlots && !submitting)
-  const finalPrice = useMemo(() => {
-    if (!selectedService) return 0
-    if (selectedTicket) return 0
-    const base = Number(selectedService.price || 0)
-    const coupon = coupons.find((item) => item.code === formData.coupon)
-    if (!coupon) return base
-    if (coupon.type === 'fixed') return Math.max(0, base - Number(coupon.discount || 0))
-    return Math.max(0, base * (1 - Number(coupon.discount || 0) / 100))
-  }, [coupons, formData.coupon, selectedService, selectedTicket])
-
-  const loadMemberContext = async (user) => {
-    setMemberLoading(true)
-    try {
-      const [profileRes, ticketsRes, couponsRes] = await Promise.all([
-        supabase.from('member_profiles').select('full_name, phone').eq('id', user.id).maybeSingle(),
-        supabase.from('user_tickets').select('id,remaining_count,ticket_name,member_user_id,customer_id,ticket_id,tickets(*)').or(`member_user_id.eq.${user.id},customer_id.eq.${user.id}`).gt('remaining_count', 0),
-        supabase.from('coupons').select('*').eq('enabled', true),
-      ])
-      setFormData((current) => ({ ...current, name: profileRes.data?.full_name || current.name, phone: profileRes.data?.phone || current.phone }))
-      setUserTickets(ticketsRes.data || [])
-      setCoupons(couponsRes.data || [])
-    } finally {
-      setMemberLoading(false)
-    }
-  }
+  const [customerName, setCustomerName] = useState('')
+  const [customerPhone, setCustomerPhone] = useState('')
+  const [couponCode, setCouponCode] = useState('')
+  const [selectedTicketId, setSelectedTicketId] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [submittedBooking, setSubmittedBooking] = useState(null)
+  const [showSuccess, setShowSuccess] = useState(false)
+  const [editBooking, setEditBooking] = useState(null)
 
   useEffect(() => {
-    if (!staffId || staffId === 'random') {
-      router.replace('/booking')
-      return
-    }
     let cancelled = false
-    setPageLoading(true)
-    setPublicError('')
+    setLoadingPage(true)
+    setPageError('')
+
     fetch(`/api/public/booking-bootstrap?staffId=${encodeURIComponent(staffId)}`)
       .then(async (response) => {
         const payload = await response.json().catch(() => ({}))
@@ -164,62 +205,73 @@ export default function BookingStaffDetailPage({ params }) {
       })
       .then((payload) => {
         if (cancelled) return
-        setStaff(payload.staff || null)
-        setServices(Array.isArray(payload.services) ? payload.services : [])
-        setShopSettings({ ...DEFAULT_SETTINGS, ...(payload.settings || {}) })
+        setSettings({ ...DEFAULT_SETTINGS, ...(payload?.settings || {}) })
+        setStaff(payload?.staff || null)
+        const nextServices = Array.isArray(payload?.services) ? payload.services : []
+        setServices(nextServices)
+        if (nextServices.length) setSelectedServiceId(String(nextServices[0].id))
       })
-      .catch((error) => !cancelled && setPublicError(error?.message || T.settingsError))
-      .finally(() => !cancelled && setPageLoading(false))
+      .catch((error) => {
+        if (!cancelled) setPageError(error?.message || T.settingsError)
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingPage(false)
+      })
+
     return () => {
       cancelled = true
     }
-  }, [router, staffId])
+  }, [staffId])
 
   useEffect(() => {
-    if (typeof window === 'undefined') return
-    const search = new URLSearchParams(window.location.search)
-    setEditId(search.get('editId') || '')
-    setQueryReady(true)
-  }, [])
+    let cancelled = false
 
-  useEffect(() => {
-    let active = true
-    const bootstrapMember = async () => {
-      const sessionRes = await supabase.auth.getSession()
-      const user = sessionRes?.data?.session?.user || null
-      if (!active) return
-      setAuthUser(user)
-      if (user) {
-        await loadMemberContext(user)
-      } else {
-        const couponsRes = await supabase.from('coupons').select('*').eq('enabled', true)
-        if (!active) return
-        setCoupons(couponsRes.data || [])
+    const loadMember = async () => {
+      setLoadingMember(true)
+      const authRes = await supabase.auth.getUser()
+      const nextUser = authRes?.data?.user || null
+      if (cancelled) return
+      setUser(nextUser)
+      if (!nextUser) {
+        setMemberProfile(null)
         setUserTickets([])
-      }
-    }
-    bootstrapMember().catch(() => {})
-    const { data: subscription } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      const user = session?.user || null
-      setAuthUser(user)
-      if (!user) {
-        setUserTickets([])
-        const couponsRes = await supabase.from('coupons').select('*').eq('enabled', true)
-        if (active) setCoupons(couponsRes.data || [])
+        setLoadingMember(false)
         return
       }
-      await loadMemberContext(user)
+
+      const [profileRes, ticketsRes] = await Promise.all([
+        supabase.from('member_profiles').select('full_name,phone').eq('id', nextUser.id).maybeSingle(),
+        supabase.from('user_tickets').select('id,remaining_count,ticket_name,service_id,tickets(*)').eq('member_user_id', nextUser.id),
+      ])
+
+      if (cancelled) return
+      setMemberProfile(profileRes?.data || null)
+      setUserTickets(Array.isArray(ticketsRes?.data) ? ticketsRes.data : [])
+      setLoadingMember(false)
+    }
+
+    loadMember().catch(() => {
+      if (!cancelled) setLoadingMember(false)
     })
+
     return () => {
-      active = false
-      subscription?.subscription?.unsubscribe()
+      cancelled = true
     }
   }, [])
 
   useEffect(() => {
-    if (!queryReady || !editId) return
+    if (!user) return
+    const fallbackName = memberProfile?.full_name || user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email || ''
+    const fallbackPhone = memberProfile?.phone || user?.user_metadata?.phone || ''
+    setCustomerName((current) => current || fallbackName)
+    setCustomerPhone((current) => current || fallbackPhone)
+  }, [memberProfile, user])
+
+  useEffect(() => {
+    if (!editId) return
     let cancelled = false
-    fetch(`/api/account/bookings/${editId}`)
+
+    fetch(`/api/account/bookings/${encodeURIComponent(editId)}`)
       .then(async (response) => {
         const payload = await response.json().catch(() => ({}))
         if (!response.ok) throw new Error(payload?.error || T.bookingLoadError)
@@ -227,41 +279,100 @@ export default function BookingStaffDetailPage({ params }) {
       })
       .then((booking) => {
         if (cancelled || !booking) return
+        setEditBooking(booking)
         setSelectedServiceId(String(booking.service_id || ''))
-        setSelectedDate(booking.appointment_date || '')
+        setSelectedDate(booking.appointment_date || booking.date || getHKISODate())
         setSelectedTime(booking.start_time || booking.time || '')
-        setFormData((current) => ({ ...current, name: booking.customer_name || booking.name || current.name, phone: booking.customer_phone || booking.phone || current.phone, coupon: booking.coupon || '' }))
+        setCustomerName(booking.customer_name || booking.name || '')
+        setCustomerPhone(booking.customer_phone || booking.phone || '')
+        setCouponCode(booking.coupon || '')
+        setSelectedTicketId(booking.user_ticket_id ? String(booking.user_ticket_id) : '')
+        setResolvedLocationId(booking.location_id ?? null)
       })
-      .catch((error) => !cancelled && toast.error(error?.message || T.bookingLoadError))
+      .catch((error) => {
+        if (!cancelled) {
+          setPageError(error?.message || T.bookingLoadError)
+          toast.error(error?.message || T.bookingLoadError)
+        }
+      })
+
     return () => {
       cancelled = true
     }
-  }, [editId, queryReady])
+  }, [editId])
+
+  const dateWindow = useMemo(() => buildDateWindow(normalizeDateISO(selectedDate) || getHKISODate()), [selectedDate])
+  const dateSummaryMap = useMemo(() => new Map(dateSummaries.map((entry) => [entry.date, entry])), [dateSummaries])
 
   useEffect(() => {
-    if (selectedTicketId && !filteredTickets.some((ticket) => String(ticket.id) === String(selectedTicketId))) setSelectedTicketId('')
-  }, [filteredTickets, selectedTicketId])
+    if (!selectedServiceId || !staffId) return
+    const startDate = normalizeDateISO(selectedDate) || getHKISODate()
+
+    dateSummaryControllerRef.current?.abort?.()
+    const controller = new AbortController()
+    dateSummaryControllerRef.current = controller
+    setLoadingDates(true)
+    setDateSummaryError('')
+
+    const params = new URLSearchParams({
+      serviceId: String(selectedServiceId),
+      staffId: String(staffId),
+      startDate,
+      days: String(DATE_CARD_COUNT),
+    })
+    if (resolvedLocationId != null) params.set('locationId', String(resolvedLocationId))
+
+    fetch(`/api/availability/date-summary?${params.toString()}`, { signal: controller.signal })
+      .then(async (response) => {
+        const payload = await response.json().catch(() => ({}))
+        if (!response.ok) throw new Error(payload?.error || T.settingsError)
+        return payload
+      })
+      .then((payload) => {
+        setDateSummaries(Array.isArray(payload?.dates) ? payload.dates : [])
+      })
+      .catch((error) => {
+        if (error?.name !== 'AbortError') {
+          setDateSummaries([])
+          setDateSummaryError(error?.message || T.settingsError)
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoadingDates(false)
+      })
+
+    return () => controller.abort()
+  }, [resolvedLocationId, selectedDate, selectedServiceId, staffId])
 
   useEffect(() => {
-    setSubmitError('')
-  }, [selectedServiceId, selectedDate, selectedTime, formData.name, formData.phone, formData.coupon, selectedTicketId])
+    if (!dateSummaries.length) return
+    const selectedSummary = dateSummaryMap.get(selectedDate)
+    if (selectedSummary && selectedSummary.status !== 'off') return
+    const nextActiveDate = dateSummaries.find((entry) => entry.status !== 'off')?.date
+    if (nextActiveDate && nextActiveDate !== selectedDate) setSelectedDate(nextActiveDate)
+  }, [dateSummaries, dateSummaryMap, selectedDate])
 
   useEffect(() => {
-    if (availabilityControllerRef.current) {
-      availabilityControllerRef.current.abort()
-      availabilityControllerRef.current = null
-    }
-    if (!canLoadSlots || !staffId || staffId === 'random') {
+    if (!selectedDate || !selectedServiceId || !staffId) {
       setSlotMatrix([])
       setSelectedTime('')
-      setLoadingSlots(false)
       return
     }
+
+    availabilityControllerRef.current?.abort?.()
     const controller = new AbortController()
     availabilityControllerRef.current = controller
     setLoadingSlots(true)
-    const query = new URLSearchParams({ date: selectedDate, serviceId: String(selectedServiceId), staffId: String(staffId) })
-    fetch(`/api/availability?${query.toString()}`, { signal: controller.signal })
+    setSlotsError('')
+
+    const params = new URLSearchParams({
+      date: selectedDate,
+      serviceId: String(selectedServiceId),
+      staffId: String(staffId),
+    })
+    if (resolvedLocationId != null) params.set('locationId', String(resolvedLocationId))
+
+    fetch(`/api/availability?${params.toString()}`, { signal: controller.signal })
       .then(async (response) => {
         const payload = await response.json().catch(() => ({}))
         if (!response.ok) throw new Error(payload?.error || T.slotsError)
@@ -270,191 +381,384 @@ export default function BookingStaffDetailPage({ params }) {
       .then((payload) => {
         const nextMatrix = Array.isArray(payload?.slotMatrix) ? payload.slotMatrix : []
         setSlotMatrix(nextMatrix)
-        setSelectedTime((current) => (current && nextMatrix.some((slot) => slot.time === current && slot.available) ? current : ''))
+        setResolvedLocationId(payload?.locationId ?? null)
+        setLocationSelectionRequired(Boolean(payload?.locationSelectionRequired))
+        const nextAvailableTimes = [...new Set(nextMatrix.filter((slot) => slot?.available).map((slot) => slot.time).filter(Boolean))]
+        setSelectedTime((current) => (current && nextAvailableTimes.includes(current) ? current : nextAvailableTimes[0] || ''))
       })
       .catch((error) => {
-        if (error?.name === 'AbortError') return
-        setSlotMatrix([])
-        setSelectedTime('')
-        setSubmitError('')
-        toast.error(error?.message || T.slotsError)
-      })
-      .finally(() => {
-        if (availabilityControllerRef.current === controller) {
-          availabilityControllerRef.current = null
-          setLoadingSlots(false)
+        if (error?.name !== 'AbortError') {
+          setSlotMatrix([])
+          setSelectedTime('')
+          setSlotsError(error?.message || T.slotsError)
         }
       })
-    return () => {
-      controller.abort()
-      if (availabilityControllerRef.current === controller) availabilityControllerRef.current = null
-    }
-  }, [canLoadSlots, selectedDate, selectedServiceId, staffId])
+      .finally(() => {
+        if (!controller.signal.aborted) setLoadingSlots(false)
+      })
 
-  const handleSubmit = async () => {
-    setSubmitError('')
+    return () => controller.abort()
+  }, [resolvedLocationId, selectedDate, selectedServiceId, staffId])
 
-    if (!selectedService || !selectedDate || !selectedTime || !formData.name.trim() || !formData.phone.trim()) {
-      toast.error(T.requiredFields)
+  const selectedService = useMemo(
+    () => services.find((service) => String(service.id) === String(selectedServiceId)) || null,
+    [selectedServiceId, services],
+  )
+
+  const availableTimes = useMemo(
+    () => [...new Set(slotMatrix.filter((slot) => slot?.available).map((slot) => slot.time).filter(Boolean))],
+    [slotMatrix],
+  )
+
+  const eligibleTickets = useMemo(() => {
+    return (userTickets || []).filter((ticket) => {
+      if (Number(ticket?.remaining_count || 0) <= 0) return false
+      const ticketServiceId = getTicketServiceId(ticket)
+      if (ticketServiceId == null) return true
+      return ticketServiceId === Number(selectedServiceId)
+    })
+  }, [selectedServiceId, userTickets])
+
+  const currentDateSummary = dateSummaryMap.get(selectedDate) || null
+  const currentDateHint =
+    currentDateSummary?.status === 'off'
+      ? T.restHint
+      : currentDateSummary?.status === 'full'
+        ? T.fullHint
+        : currentDateSummary?.status === 'available'
+          ? T.availableHint
+          : ''
+
+  const currentPath = useMemo(() => {
+    const query = searchParams.toString()
+    return `/booking/${encodeURIComponent(staffId)}${query ? `?${query}` : ''}`
+  }, [searchParams, staffId])
+
+  const whatsappUrl = useMemo(() => {
+    if (!submittedBooking) return ''
+    const lines = [
+      T.whatsappIntro,
+      `${T.refLabel}${submittedBooking.ref || `#${submittedBooking.id}`}`,
+      `${T.service}：${selectedService?.name || submittedBooking.service || '-'}`,
+      `${T.date}：${submittedBooking.appointment_date || submittedBooking.date || selectedDate}`,
+      `${T.time}：${submittedBooking.start_time || submittedBooking.time || selectedTime}`,
+      `${T.name}：${submittedBooking.customer_name || submittedBooking.name || customerName}`,
+      `${T.phone}：${submittedBooking.customer_phone || submittedBooking.phone || customerPhone}`,
+    ]
+    return buildWhatsappUrl(settings.phone, lines)
+  }, [customerName, customerPhone, selectedDate, selectedService?.name, selectedTime, settings.phone, submittedBooking])
+
+  const handleSubmit = async (event) => {
+    event.preventDefault()
+
+    if (!staffId) {
+      toast.error(T.chooseStaffFirst)
       return
     }
-    const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
-      setSubmitError(T.loginFirst)
-      toast.error(T.loginFirst)
-      const returnTo = typeof window !== 'undefined' ? window.location.pathname + window.location.search : `/booking/${staffId}`
-      router.push(`/login?redirectTo=${encodeURIComponent(returnTo)}`)
+      toast.error(T.loginRequiredToSubmit)
       return
     }
+    if (!selectedServiceId || !selectedDate || !selectedTime || !customerName || !customerPhone) {
+      toast.error(T.completeRequired)
+      return
+    }
+
     setSubmitting(true)
+    const payload = {
+      date: selectedDate,
+      serviceId: Number(selectedServiceId),
+      staffId: Number(staffId),
+      startTime: selectedTime,
+      locationId: resolvedLocationId,
+      customerName,
+      customerPhone,
+      couponCode: editId ? editBooking?.coupon || '' : couponCode,
+      userTicketId: editId ? editBooking?.user_ticket_id || null : selectedTicketId ? Number(selectedTicketId) : null,
+    }
+    const endpoint = editId ? `/api/account/bookings/${encodeURIComponent(editId)}` : '/api/bookings/create'
+    const method = editId ? 'PATCH' : 'POST'
+    const body = editId ? { ...payload, action: 'reschedule' } : payload
+
     try {
-      await supabase.from('member_profiles').upsert({ id: user.id, email: user.email, full_name: formData.name, phone: formData.phone })
-      const payload = { date: selectedDate, serviceId: selectedService.id, staffId: Number(staffId), startTime: selectedTime, customerName: formData.name, customerPhone: formData.phone, couponCode: formData.coupon || null, userTicketId: selectedTicket?.id || null }
-      const submitController = new AbortController()
-      const timeoutId = setTimeout(() => submitController.abort('timeout'), 15000)
-      const response = await fetch(editId ? `/api/account/bookings/${editId}` : '/api/bookings/create', { method: editId ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), signal: submitController.signal }).finally(() => clearTimeout(timeoutId))
+      const response = await fetch(endpoint, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
       const result = await response.json().catch(() => ({}))
-      if (!response.ok) {
-        const message =
-          response.status === 409
-            ? '\u6b64\u6642\u6bb5\u5df2\u88ab\u9810\u7d04\uff0c\u8acb\u6539\u9078\u5176\u4ed6\u6642\u9593'
-            : response.status === 401
-              ? T.loginFirst
-              : result?.error || T.bookingFailed
-        throw new Error(message)
-      }
-      const ref = result?.booking?.ref || ''
-      const shopPhone = String(shopSettings.phone || '').replace(/\D/g, '')
-      const message = [T.whatsappIntro, `${T.ref}: ${ref}`, `${T.service}: ${selectedService.name}`, `${T.date}: ${selectedDate}`, `${T.time}: ${selectedTime}`, `${T.name}: ${formData.name}`].join('\n')
-      setBookingRef(ref)
-      setWaUrl(shopPhone ? `https://wa.me/${shopPhone}?text=${encodeURIComponent(message)}` : '')
-      setShowModal(true)
-      setSubmitError('')
+      if (!response.ok) throw new Error(result?.error || T.bookingFailed)
+      setSubmittedBooking(result?.booking || null)
+      setShowSuccess(true)
       toast.success(editId ? T.updated : T.success)
-      if (selectedTicket) {
-        setSelectedTicketId('')
-        await loadMemberContext(user)
-      }
     } catch (error) {
-      const message = error?.name === 'AbortError' ? T.bookingTimeout : error?.message || T.bookingFailed
-      setSubmitError(message)
-      toast.error(message)
+      toast.error(error?.message || T.bookingFailed)
     } finally {
       setSubmitting(false)
     }
   }
 
-  if (pageLoading) return <section style={{ padding: '48px 16px', textAlign: 'center' }}><p>{T.loadingPage}</p></section>
-  if (publicError || !staff) return <section style={{ padding: '40px 16px' }}><div style={{ maxWidth: '900px', margin: '0 auto', background: '#FEF2F2', color: '#991B1B', border: '1px solid #FECACA', borderRadius: '16px', padding: '18px' }}>{publicError || T.settingsError}</div></section>
+  if (loadingPage) {
+    return <section style={{ padding: '48px 16px', textAlign: 'center' }}>{T.loadingPage}</section>
+  }
+
+  if (pageError || !staff) {
+    return (
+      <section style={{ padding: '48px 16px' }}>
+        <div style={{ maxWidth: '840px', margin: '0 auto', background: '#FEF2F2', color: '#991B1B', border: '1px solid #FECACA', borderRadius: '18px', padding: '20px' }}>
+          {pageError || T.settingsError}
+        </div>
+      </section>
+    )
+  }
+
+  if (loadingMember) {
+    return <section style={{ padding: '48px 16px', textAlign: 'center' }}>{T.loadingMember}</section>
+  }
+
+  if (!user) {
+    return (
+      <section style={{ padding: '48px 16px' }}>
+        <div style={{ maxWidth: '720px', margin: '0 auto', background: '#fff', borderRadius: '24px', border: '1px solid #E8E0D5', padding: '28px', textAlign: 'center' }}>
+          <h1 style={{ margin: 0, fontSize: '28px' }}>{T.memberTitle}</h1>
+          <p style={{ marginTop: '10px', color: '#666', lineHeight: 1.7 }}>{T.memberIntro}</p>
+          <div style={{ display: 'flex', justifyContent: 'center', gap: '12px', marginTop: '20px', flexWrap: 'wrap' }}>
+            <Link href={`/login?redirectTo=${encodeURIComponent(currentPath)}`} className="btn btn-interactive" style={{ textDecoration: 'none' }}>
+              {T.login}
+            </Link>
+            <Link href={`/signup?redirectTo=${encodeURIComponent(currentPath)}`} className="btn btn-secondary btn-interactive" style={{ textDecoration: 'none' }}>
+              {T.register}
+            </Link>
+          </div>
+        </div>
+      </section>
+    )
+  }
 
   return (
     <>
       <section style={{ padding: '28px 16px', background: '#FAF8F5' }}>
-        <div style={{ maxWidth: '1080px', margin: '0 auto' }}>
-          <Link href="/booking" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', color: '#8B7355', textDecoration: 'none', fontWeight: 700, marginBottom: '16px' }}><span aria-hidden="true">&lt;</span><span>{T.back}</span></Link>
-          <h1 style={{ fontSize: '30px', marginBottom: '8px' }}>{isEditing ? T.editTitle : T.title}</h1>
-          <p style={{ color: '#666', marginBottom: isEditing ? '10px' : 0 }}>{T.intro}</p>
-          {isEditing && <p style={{ color: '#8B7355', fontSize: '14px' }}>{T.editLocked}</p>}
-        </div>
-      </section>
-
-      <section style={{ padding: '24px 16px 40px' }}>
-        <div style={{ maxWidth: '1080px', margin: '0 auto', display: 'grid', gap: '24px', gridTemplateColumns: 'minmax(280px, 380px) minmax(0, 1fr)' }}>
-          <div style={{ background: '#fff', borderRadius: '20px', overflow: 'hidden', border: '1px solid #E8E0D5', boxShadow: '0 8px 24px rgba(0,0,0,0.06)', alignSelf: 'start' }}>
-            <div style={{ aspectRatio: '4 / 4.8', background: 'linear-gradient(135deg, #f6efe4, #faf8f5)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-              {staff.photo_url ? <img src={staff.photo_url} alt={staff.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <div style={{ fontSize: '56px', fontWeight: 800, color: '#A68B6A' }}>{staff.name?.slice(0, 1) || 'S'}</div>}
+        <div style={{ maxWidth: '1100px', margin: '0 auto' }}>
+          <Link href="/booking" style={{ color: '#666', textDecoration: 'none', fontSize: '14px', fontWeight: 700 }}>
+            ← {T.back}
+          </Link>
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 320px', gap: '24px', alignItems: 'center', marginTop: '18px' }}>
+            <div>
+              <h1 style={{ margin: 0, fontSize: '32px' }}>{editId ? T.editTitle : T.title}</h1>
+              <p style={{ marginTop: '10px', color: '#666', lineHeight: 1.7 }}>{editId ? T.editLocked : T.intro}</p>
             </div>
-            <div style={{ padding: '20px' }}>
-              <div style={{ fontSize: '28px', fontWeight: 800, marginBottom: '6px' }}>{staff.name}</div>
-              <div style={{ fontSize: '12px', color: '#A68B6A', fontWeight: 700, marginBottom: '12px', textTransform: 'uppercase' }}>{staff.role || 'Stylist'}</div>
-              <div style={{ color: '#666', lineHeight: 1.7 }}>{staff.bio || T.intro}</div>
-            </div>
-          </div>
-
-          <div style={{ display: 'grid', gap: '24px' }}>
-            {memberLoading && <div style={{ background: '#FFFBEB', border: '1px solid #FDE68A', color: '#92400E', borderRadius: '14px', padding: '14px 16px' }}>{T.loadingMember}</div>}
-            {!authUser && (
-              <div style={{ background: '#fff', borderRadius: '18px', padding: '20px', border: '1px dashed #d1d5db' }}>
-                <div style={{ fontWeight: 800, marginBottom: '8px', color: '#A68B6A' }}>{T.memberTitle}</div>
-                <p style={{ color: '#666', fontSize: '14px', marginBottom: '14px' }}>{T.memberIntro}</p>
-                <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                  <Link href={`/login?redirectTo=${encodeURIComponent(`/booking/${staffId}${editId ? `?editId=${encodeURIComponent(editId)}` : ''}`)}`} style={{ padding: '10px 16px', background: '#A68B6A', color: '#fff', borderRadius: '10px', textDecoration: 'none', fontWeight: 700 }}>{T.login}</Link>
-                  <Link href={`/register?redirectTo=${encodeURIComponent(`/booking/${staffId}`)}`} style={{ padding: '10px 16px', background: '#fff', color: '#A68B6A', borderRadius: '10px', textDecoration: 'none', border: '1px solid #A68B6A', fontWeight: 700 }}>{T.register}</Link>
-                </div>
+            <div style={{ background: '#fff', borderRadius: '22px', border: '1px solid #E8E0D5', padding: '18px', display: 'flex', gap: '14px', alignItems: 'center' }}>
+              <div style={{ width: '78px', height: '78px', borderRadius: '20px', background: 'linear-gradient(135deg, #f6efe4, #faf8f5)', overflow: 'hidden', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {staff.photo_url ? <img src={staff.photo_url} alt={staff.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ fontSize: '30px' }}>✂</span>}
               </div>
-            )}
-
-            <div style={{ background: '#fff', borderRadius: '18px', padding: '24px', paddingBottom: 'calc(24px + 72px)', boxShadow: '0 4px 18px rgba(0,0,0,0.05)' }}>
-              <div style={{ display: 'grid', gap: '16px', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
-                <div>
-                  <label style={{ display: 'block', fontWeight: 600, marginBottom: '8px' }}>{T.service}</label>
-                  <select value={selectedServiceId} onChange={(event) => setSelectedServiceId(event.target.value)} disabled={isEditing} style={{ ...box, background: isEditing ? '#f9fafb' : '#fff' }}>
-                    <option value="">{T.chooseService}</option>
-                    {services.map((service) => <option key={service.id} value={service.id}>{service.name} - {formatCurrency(service.price)}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label style={{ display: 'block', fontWeight: 600, marginBottom: '8px' }}>{T.businessHours}</label>
-                  <input value={shopSettings.business_hours || DEFAULT_SETTINGS.business_hours} readOnly style={{ ...box, border: '1px solid #eee', background: '#f9fafb' }} />
-                </div>
-              </div>
-
-              {selectedService && <div style={{ marginTop: '16px', padding: '16px', background: '#FAF8F5', borderRadius: '14px' }}><div style={{ fontWeight: 800, marginBottom: '4px' }}>{selectedService.name}</div><div style={{ color: '#666', fontSize: '14px' }}>{formatServiceDuration(selectedService)} / {formatCurrency(selectedService.price)}</div>{selectedService.description && <div style={{ color: '#777', fontSize: '14px', marginTop: '8px' }}>{selectedService.description}</div>}</div>}
-
-              <div style={{ display: 'grid', gap: '16px', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', marginTop: '18px' }}>
-                <div><label style={{ display: 'block', fontWeight: 600, marginBottom: '8px' }}>{T.date}</label><input type="date" value={selectedDate} onChange={(event) => setSelectedDate(event.target.value)} style={box} /></div>
-                <div><label style={{ display: 'block', fontWeight: 600, marginBottom: '8px' }}>Slot Step</label><input readOnly value={`${slotStepMin} min`} style={{ ...box, border: '1px solid #eee', background: '#f9fafb' }} /></div>
-              </div>
-
-              <div style={{ marginTop: '18px' }}>
-                <label style={{ display: 'block', fontWeight: 600, marginBottom: '10px' }}>{T.time}</label>
-                <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '12px' }}>
-                  <span style={{ display: 'inline-flex', padding: '8px 10px', borderRadius: '999px', background: '#ECFDF5', color: '#047857', border: '1px solid #A7F3D0', fontSize: '12px', fontWeight: 700 }}>{T.legendAvailable}</span>
-                  <span style={{ display: 'inline-flex', padding: '8px 10px', borderRadius: '999px', background: '#F3F4F6', color: '#6B7280', border: '1px solid #E5E7EB', fontSize: '12px', fontWeight: 700 }}>{T.legendUnavailable}</span>
-                  <span style={{ display: 'inline-flex', padding: '8px 10px', borderRadius: '999px', background: '#A68B6A', color: '#fff', border: '1px solid #8B7355', fontSize: '12px', fontWeight: 700 }}>{T.legendSelected}</span>
-                </div>
-                {loadingSlots ? <p style={{ color: '#666' }}>{T.loadingSlots}</p> : !canLoadSlots ? <p style={{ color: '#777' }}>{T.chooseServiceAndDate}</p> : <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(92px, 1fr))', gap: '10px' }}>{slotMatrix.map((slot) => { const isSelected = selectedTime === slot.time; const isAvailable = Boolean(slot.available); return <button key={slot.time} type="button" onClick={() => isAvailable && setSelectedTime(slot.time)} disabled={!isAvailable} className="btn-interactive" style={{ padding: '12px 10px', borderRadius: '12px', border: isSelected ? '1px solid #8B7355' : `1px solid ${isAvailable ? '#D6B98B' : '#E5E7EB'}`, background: isSelected ? '#A68B6A' : isAvailable ? '#F7EFE1' : '#F3F4F6', color: isSelected ? '#fff' : isAvailable ? '#6F563A' : '#9CA3AF', fontWeight: 700, cursor: isAvailable ? 'pointer' : 'not-allowed', opacity: isAvailable ? 1 : 0.8 }}>{slot.time}</button> })}</div>}
-                {!loadingSlots && canLoadSlots && slotMatrix.length > 0 && availableSlots.length === 0 && <p style={{ color: '#777', marginTop: '12px' }}>{T.noSlots}</p>}
-              </div>
-            </div>
-
-            <div style={{ background: '#fff', borderRadius: '18px', padding: '24px', boxShadow: '0 4px 18px rgba(0,0,0,0.05)' }}>
-              <div style={{ display: 'grid', gap: '16px', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
-                <div><label style={{ display: 'block', fontWeight: 600, marginBottom: '8px' }}>{T.name}</label><input value={formData.name} onChange={(event) => setFormData((current) => ({ ...current, name: event.target.value }))} style={box} /></div>
-                <div><label style={{ display: 'block', fontWeight: 600, marginBottom: '8px' }}>{T.phone}</label><input value={formData.phone} onChange={(event) => setFormData((current) => ({ ...current, phone: event.target.value }))} style={box} /></div>
-              </div>
-              <div style={{ display: 'grid', gap: '16px', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', marginTop: '16px' }}>
-                <div>
-                  <label style={{ display: 'block', fontWeight: 600, marginBottom: '8px' }}>{T.coupon}</label>
-                  <select value={formData.coupon} onChange={(event) => setFormData((current) => ({ ...current, coupon: event.target.value }))} disabled={Boolean(selectedTicket) || isEditing} style={{ ...box, background: isEditing ? '#f9fafb' : '#fff' }}>
-                    <option value="">{T.noCoupon}</option>
-                    {coupons.map((coupon) => <option key={coupon.id} value={coupon.code}>{coupon.name}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label style={{ display: 'block', fontWeight: 600, marginBottom: '8px' }}>{T.ticket}</label>
-                  <select value={selectedTicketId} onChange={(event) => { setSelectedTicketId(event.target.value); if (event.target.value) setFormData((current) => ({ ...current, coupon: '' })) }} disabled={!authUser || filteredTickets.length === 0 || isEditing} style={{ ...box, background: isEditing ? '#f9fafb' : '#fff' }}>
-                    <option value="">{authUser ? T.noTicket : T.loginForTicket}</option>
-                    {filteredTickets.map((ticket) => <option key={ticket.id} value={ticket.id}>{ticket.ticket_name} / {T.remaining} {ticket.remaining_count} {T.times}</option>)}
-                  </select>
-                </div>
-              </div>
-              <div style={{ marginTop: '20px', padding: '18px', borderRadius: '14px', background: '#FAF8F5' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
-                  <div><div style={{ fontWeight: 800 }}>{T.amount}</div><div style={{ color: '#666', fontSize: '14px' }}>{selectedTicket ? T.ticketUse : T.couponApply}</div></div>
-                  <div style={{ fontSize: '28px', fontWeight: 800, color: '#A68B6A' }}>{formatCurrency(finalPrice)}</div>
-                </div>
-              </div>
-              <button type="button" onClick={handleSubmit} disabled={!canSubmit} className="btn-interactive" style={{ width: '100%', marginTop: '18px', padding: '16px', borderRadius: '14px', border: 'none', background: canSubmit ? 'linear-gradient(135deg, #A68B6A, #8B7355)' : '#D1D5DB', color: '#fff', fontWeight: 800, cursor: canSubmit ? 'pointer' : 'not-allowed', opacity: canSubmit ? 1 : 0.9 }}>{submitting ? T.submitting : isEditing ? T.update : T.submit}</button>
-              <div style={{ marginTop: '12px', minHeight: '22px', color: submitError ? '#B91C1C' : '#6B7280', fontSize: '13px', lineHeight: 1.6 }}>
-                {submitError || (!canSubmit ? T.completeRequired : T.ctaHelp)}
+              <div>
+                <div style={{ fontSize: '18px', fontWeight: 800 }}>{staff.name}</div>
+                <div style={{ marginTop: '4px', fontSize: '13px', color: '#A68B6A', fontWeight: 700 }}>{staff.role || '服務供應者'}</div>
+                {staff.bio ? <div style={{ marginTop: '8px', fontSize: '13px', lineHeight: 1.6, color: '#666' }}>{staff.bio}</div> : null}
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      {showModal && <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '16px' }}><div style={{ background: '#fff', borderRadius: '18px', padding: '24px', width: '100%', maxWidth: '420px', textAlign: 'center' }}><div style={{ fontSize: '48px', marginBottom: '12px', fontWeight: 800, color: '#A68B6A' }}>OK</div><h2 style={{ marginBottom: '8px' }}>{isEditing ? T.updated : T.success}</h2><p style={{ color: '#666', marginBottom: '16px' }}>{T.refLabel}{bookingRef || '-'}</p><div style={{ display: 'grid', gap: '10px' }}>{waUrl ? <a href={waUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'block', padding: '12px 16px', borderRadius: '12px', background: '#25D366', color: '#fff', textDecoration: 'none', fontWeight: 700 }}>{T.whatsappConfirm}</a> : <div style={{ padding: '12px 16px', borderRadius: '12px', background: '#f3f4f6', color: '#666', fontWeight: 700 }}><div>{T.whatsappUnavailable}</div><div style={{ fontSize: '12px', fontWeight: 500, marginTop: '4px' }}>{T.whatsappUnavailableHelp}</div></div>}<Link href="/account/bookings" style={{ display: 'block', padding: '12px 16px', borderRadius: '12px', background: '#f3f4f6', color: '#333', textDecoration: 'none', fontWeight: 700 }}>{T.viewBookings}</Link><button type="button" onClick={() => setShowModal(false)} style={{ padding: '12px 16px', borderRadius: '12px', background: '#fff', border: '1px solid #ddd', fontWeight: 700, cursor: 'pointer' }}>{T.close}</button></div></div></div>}
+      <section style={{ padding: '24px 16px 48px' }}>
+        <form onSubmit={handleSubmit} style={{ maxWidth: '1100px', margin: '0 auto', display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 320px', gap: '24px' }}>
+          <div style={{ display: 'grid', gap: '20px' }}>
+            <div className="admin-card" style={{ padding: '22px', border: '1px solid #E8E0D5' }}>
+              <div style={{ display: 'grid', gap: '16px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
+                  <label style={{ display: 'grid', gap: '8px' }}>
+                    <span style={{ fontSize: '13px', fontWeight: 800 }}>{T.service}</span>
+                    <select value={selectedServiceId} onChange={(event) => setSelectedServiceId(event.target.value)} style={box} disabled={Boolean(editId)}>
+                      <option value="">{T.chooseService}</option>
+                      {services.map((service) => (
+                        <option key={service.id} value={service.id}>
+                          {service.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label style={{ display: 'grid', gap: '8px' }}>
+                    <span style={{ fontSize: '13px', fontWeight: 800 }}>{T.businessHours}</span>
+                    <input value={settings.business_hours || DEFAULT_SETTINGS.business_hours} readOnly style={{ ...box, background: '#F9FAFB' }} />
+                  </label>
+                </div>
+
+                {selectedService ? (
+                  <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                    <span className="badge badge-outline" style={{ background: '#fff' }}>{formatServiceDuration(selectedService)}</span>
+                    <span className="badge badge-outline" style={{ background: '#fff' }}>{T.slotStep} {settings.slot_step_min || DEFAULT_SETTINGS.slot_step_min} {T.minutes}</span>
+                    <span className="badge badge-outline" style={{ background: '#fff' }}>{T.amount} {formatCurrency(selectedService.price)}</span>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="admin-card" style={{ padding: '22px', border: '1px solid #E8E0D5' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'center', flexWrap: 'wrap', marginBottom: '14px' }}>
+                <div>
+                  <div style={{ fontSize: '12px', fontWeight: 800, color: '#A68B6A', letterSpacing: '0.08em' }}>{T.date}</div>
+                  <div style={{ marginTop: '4px', fontSize: '18px', fontWeight: 800 }}>先選日期，再選時間</div>
+                </div>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  <span className="badge badge-outline" style={{ background: '#fff', color: '#111827', borderColor: '#111827' }}>{bookingOpsCopy.available}</span>
+                  <span className="badge badge-outline" style={{ background: '#F3F4F6', color: '#6B7280', borderColor: '#D1D5DB' }}>{bookingOpsCopy.unavailable}</span>
+                  <span className="badge badge-outline" style={{ background: 'rgba(166, 139, 106, 0.14)', color: '#7C5F40', borderColor: 'rgba(166, 139, 106, 0.26)' }}>{bookingOpsCopy.selected}</span>
+                </div>
+              </div>
+
+              {loadingDates ? <div style={{ color: '#666', marginBottom: '12px' }}>{T.loadingDates}</div> : null}
+              {dateSummaryError ? <div style={{ color: '#991B1B', marginBottom: '12px' }}>{dateSummaryError}</div> : null}
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(104px, 1fr))', gap: '10px' }}>
+                {dateWindow.map(({ dateISO, label }) => {
+                  const summary = dateSummaryMap.get(dateISO)
+                  const status = summary?.status || 'off'
+                  const disabled = status === 'off'
+                  const selected = selectedDate === dateISO
+                  return (
+                    <button
+                      key={dateISO}
+                      type="button"
+                      disabled={disabled}
+                      onClick={() => setSelectedDate(dateISO)}
+                      className="btn-interactive"
+                      style={{
+                        padding: '14px 12px',
+                        borderRadius: '16px',
+                        border: selected ? '1px solid rgba(166, 139, 106, 0.55)' : disabled ? '1px solid #E5E7EB' : '1px solid #D1D5DB',
+                        background: selected ? 'rgba(166, 139, 106, 0.14)' : '#fff',
+                        color: disabled ? '#9CA3AF' : '#111827',
+                        cursor: disabled ? 'not-allowed' : 'pointer',
+                        display: 'grid',
+                        gap: '6px',
+                        textAlign: 'left',
+                      }}
+                    >
+                      <span style={{ fontSize: '13px', fontWeight: 800 }}>{label}</span>
+                      <span style={{ fontSize: '11px', color: disabled ? '#9CA3AF' : '#6B7280' }}>{getDateSummaryLabel(status, selected)}</span>
+                    </button>
+                  )
+                })}
+              </div>
+
+              <div style={{ marginTop: '12px', fontSize: '13px', color: '#666' }}>{currentDateHint}</div>
+            </div>
+
+            <div className="admin-card" style={{ padding: '22px', border: '1px solid #E8E0D5' }}>
+              <div style={{ display: 'grid', gap: '16px' }}>
+                <label style={{ display: 'grid', gap: '8px' }}>
+                  <span style={{ fontSize: '13px', fontWeight: 800 }}>{T.time}</span>
+                  <select value={selectedTime} onChange={(event) => setSelectedTime(event.target.value)} style={box} disabled={loadingSlots || !selectedDate || !selectedServiceId || currentDateSummary?.status === 'off' || availableTimes.length === 0}>
+                    <option value="">
+                      {!selectedDate ? T.chooseDateFirst : loadingSlots ? T.loadingSlots : availableTimes.length ? T.chooseTime : currentDateSummary?.status === 'full' ? T.fullyBookedShort : T.noSlots}
+                    </option>
+                    {availableTimes.map((time) => (
+                      <option key={time} value={time}>
+                        {time}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                {slotsError ? <div style={{ color: '#991B1B' }}>{slotsError}</div> : null}
+                {!slotsError && !loadingSlots && currentDateSummary?.status === 'off' ? <div style={{ color: '#6B7280' }}>{T.restDay}</div> : null}
+                {!slotsError && !loadingSlots && currentDateSummary?.status === 'full' ? <div style={{ color: '#B45309' }}>{T.fullyBooked}</div> : null}
+              </div>
+            </div>
+
+            <div className="admin-card" style={{ padding: '22px', border: '1px solid #E8E0D5' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
+                <label style={{ display: 'grid', gap: '8px' }}>
+                  <span style={{ fontSize: '13px', fontWeight: 800 }}>{T.name}</span>
+                  <input value={customerName} onChange={(event) => setCustomerName(event.target.value)} style={box} placeholder="請輸入姓名" />
+                </label>
+                <label style={{ display: 'grid', gap: '8px' }}>
+                  <span style={{ fontSize: '13px', fontWeight: 800 }}>{T.phone}</span>
+                  <input value={customerPhone} onChange={(event) => setCustomerPhone(event.target.value)} style={box} placeholder="+852..." />
+                </label>
+              </div>
+
+              <div style={{ marginTop: '14px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
+                <label style={{ display: 'grid', gap: '8px' }}>
+                  <span style={{ fontSize: '13px', fontWeight: 800 }}>{T.coupon}</span>
+                  <input value={couponCode} onChange={(event) => setCouponCode(event.target.value)} disabled={Boolean(editId)} style={{ ...box, background: editId ? '#F9FAFB' : '#fff' }} placeholder={T.noCoupon} />
+                  <span style={{ fontSize: '12px', color: '#6B7280' }}>{T.couponApply}</span>
+                </label>
+                <label style={{ display: 'grid', gap: '8px' }}>
+                  <span style={{ fontSize: '13px', fontWeight: 800 }}>{T.ticket}</span>
+                  <select value={selectedTicketId} onChange={(event) => setSelectedTicketId(event.target.value)} disabled={Boolean(editId)} style={{ ...box, background: editId ? '#F9FAFB' : '#fff' }}>
+                    <option value="">{T.noTicket}</option>
+                    {eligibleTickets.map((ticket) => (
+                      <option key={ticket.id} value={ticket.id}>
+                        {(ticket.ticket_name || ticket?.tickets?.name || `#${ticket.id}`) + ` (${T.remaining} ${ticket.remaining_count} ${T.times})`}
+                      </option>
+                    ))}
+                  </select>
+                  <span style={{ fontSize: '12px', color: '#6B7280' }}>{eligibleTickets.length ? T.ticketUse : T.loginForTicket}</span>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <aside style={{ display: 'grid', gap: '18px', alignSelf: 'start', position: 'sticky', top: '88px' }}>
+            <div className="admin-card" style={{ padding: '22px', border: '1px solid #E8E0D5' }}>
+              <div style={{ fontSize: '12px', fontWeight: 800, color: '#A68B6A', letterSpacing: '0.08em' }}>預約摘要</div>
+              <div style={{ marginTop: '10px', display: 'grid', gap: '12px' }}>
+                <div><div style={{ fontSize: '13px', color: '#6B7280' }}>{T.service}</div><div style={{ marginTop: '4px', fontWeight: 800 }}>{selectedService?.name || '-'}</div></div>
+                <div><div style={{ fontSize: '13px', color: '#6B7280' }}>{T.date}</div><div style={{ marginTop: '4px', fontWeight: 800 }}>{selectedDate || '-'}</div></div>
+                <div><div style={{ fontSize: '13px', color: '#6B7280' }}>{T.time}</div><div style={{ marginTop: '4px', fontWeight: 800 }}>{selectedTime || '-'}</div></div>
+                <div><div style={{ fontSize: '13px', color: '#6B7280' }}>{T.amount}</div><div style={{ marginTop: '4px', fontWeight: 800 }}>{formatCurrency(selectedService?.price || 0)}</div></div>
+              </div>
+
+              {locationSelectionRequired ? (
+                <div style={{ marginTop: '14px', padding: '12px 14px', borderRadius: '12px', background: '#FEF3C7', color: '#92400E', fontSize: '13px', lineHeight: 1.6 }}>
+                  這項服務需要地點判斷，系統已採用保守規則處理，未能確認的時段不會顯示。
+                </div>
+              ) : null}
+
+              <button type="submit" disabled={submitting || !selectedTime || !selectedDate || !selectedServiceId} className="btn btn-interactive" style={{ width: '100%', marginTop: '18px' }}>
+                {submitting ? T.submitting : editId ? T.update : T.submit}
+              </button>
+              <div style={{ marginTop: '10px', fontSize: '12px', lineHeight: 1.6, color: '#6B7280' }}>{T.ctaHelp}</div>
+            </div>
+          </aside>
+        </form>
+      </section>
+
+      {showSuccess && submittedBooking ? (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(17, 24, 39, 0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', zIndex: 1200 }}>
+          <div className="admin-card" style={{ width: 'min(520px, 100%)', padding: '28px', border: '1px solid #E8E0D5' }}>
+            <h2 style={{ margin: 0, fontSize: '26px' }}>{editId ? T.updated : T.success}</h2>
+            <div style={{ marginTop: '14px', display: 'grid', gap: '8px', color: '#3D3D3D' }}>
+              <div>{T.refLabel}{submittedBooking.ref || `#${submittedBooking.id}`}</div>
+              <div>{T.service}：{selectedService?.name || submittedBooking.service || '-'}</div>
+              <div>{T.date}：{submittedBooking.appointment_date || submittedBooking.date || selectedDate}</div>
+              <div>{T.time}：{submittedBooking.start_time || submittedBooking.time || selectedTime}</div>
+            </div>
+
+            <div style={{ marginTop: '20px', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+              {whatsappUrl ? (
+                <a href={whatsappUrl} target="_blank" rel="noreferrer" className="btn btn-interactive" style={{ textDecoration: 'none' }}>
+                  {T.whatsappConfirm}
+                </a>
+              ) : (
+                <div style={{ padding: '12px 14px', borderRadius: '12px', background: '#FEF3C7', color: '#92400E', fontSize: '13px', lineHeight: 1.6 }}>
+                  <strong>{T.whatsappUnavailable}</strong>
+                  <div style={{ marginTop: '4px' }}>{T.whatsappUnavailableHelp}</div>
+                </div>
+              )}
+              <Link href="/account/bookings" className="btn btn-secondary btn-interactive" style={{ textDecoration: 'none' }}>
+                {T.viewBookings}
+              </Link>
+              <button type="button" className="btn btn-small btn-interactive" onClick={() => setShowSuccess(false)}>
+                {T.close}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </>
   )
 }
