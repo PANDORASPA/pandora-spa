@@ -15,15 +15,103 @@ import ArticlesTab from '../components/admin/ArticlesTab'
 import FaqsTab from '../components/admin/FaqsTab'
 import StaffTab from '../components/admin/StaffTab'
 import BookingsTab from '../components/admin/BookingsTab'
+import LocationsTab from '../components/admin/LocationsTab'
+import HolidaysTab from '../components/admin/HolidaysTab'
+import ResourcesTab from '../components/admin/ResourcesTab'
+import TransactionsTab from '../components/admin/TransactionsTab'
 import { analyzeScheduleRows } from '../../lib/booking/admin-schedule'
 
 const tabGroups = [
   { name: 'Overview', tabs: [{ id: 'dashboard', name: 'Dashboard' }, { id: 'analytics', name: 'Analytics' }, { id: 'bookings', name: 'Bookings' }, { id: 'orders', name: 'Orders' }] },
   { name: 'Services', tabs: [{ id: 'staff', name: 'Staff' }, { id: 'services', name: 'Services' }, { id: 'inventory', name: 'Inventory' }] },
+  { name: 'Operations', tabs: [{ id: 'locations', name: 'Locations' }, { id: 'holidays', name: 'Holidays' }, { id: 'resources', name: 'Resources' }, { id: 'transactions', name: 'Transactions' }] },
   { name: 'Content', tabs: [{ id: 'coupons', name: 'Coupons' }, { id: 'articles', name: 'Articles' }, { id: 'faqs', name: 'FAQs' }] },
   { name: 'Members', tabs: [{ id: 'customers', name: 'Customers' }] },
   { name: 'System', tabs: [{ id: 'settings', name: 'Settings' }] },
 ]
+
+const tabMeta = {
+  dashboard: {
+    title: 'Overview',
+    eyebrow: 'Operations Dashboard',
+    description: 'Watch today\'s bookings, revenue, membership activity, and quick operational actions from one place.',
+  },
+  analytics: {
+    title: 'Analytics',
+    eyebrow: 'Performance Insight',
+    description: 'Review revenue trends, booking mix, stylist performance, and rating signals.',
+  },
+  bookings: {
+    title: 'Bookings',
+    eyebrow: 'Appointment Records',
+    description: 'Track service bookings with staff assignment, slot validation, payment context, and status management.',
+  },
+  orders: {
+    title: 'Orders',
+    eyebrow: 'Commerce',
+    description: 'Manage product and ticket orders with consistent delivery, payment, and fulfillment signals.',
+  },
+  staff: {
+    title: 'Service Providers',
+    eyebrow: 'Scheduling Center',
+    description: 'Control provider profiles, weekly schedules, date overrides, breaks, time off, and blocked slots.',
+  },
+  services: {
+    title: 'Services',
+    eyebrow: 'Service Configuration',
+    description: 'Configure service catalog, duration, pricing, and the rule inputs that will drive availability.',
+  },
+  inventory: {
+    title: 'Inventory',
+    eyebrow: 'Products, Packages, Tickets',
+    description: 'Maintain sellable inventory with staged edits for products, packages, and ticket SKUs.',
+  },
+  locations: {
+    title: 'Locations',
+    eyebrow: 'Operational Scope',
+    description: 'Manage branches and branch-level availability scope for future multi-location booking rules.',
+  },
+  holidays: {
+    title: 'Holidays',
+    eyebrow: 'Closures & Leave',
+    description: 'Define branch closures, staff leave periods, and blackout dates that affect booking availability.',
+  },
+  resources: {
+    title: 'Resources',
+    eyebrow: 'Capacity Control',
+    description: 'Track rooms, seats, devices, and other bookable resources that will participate in collision checks.',
+  },
+  transactions: {
+    title: 'Transactions',
+    eyebrow: 'Payment Ledger',
+    description: 'Review payment references, linked records, and ledger-style transaction visibility for operations.',
+  },
+  coupons: {
+    title: 'Coupons',
+    eyebrow: 'Promotions',
+    description: 'Maintain discount codes and promotional levers without losing visibility into booking impact.',
+  },
+  articles: {
+    title: 'Articles',
+    eyebrow: 'Content',
+    description: 'Edit educational and promotional content used across the storefront and membership experience.',
+  },
+  faqs: {
+    title: 'FAQs',
+    eyebrow: 'Content',
+    description: 'Keep frequently asked questions current so booking, service, and membership journeys stay clear.',
+  },
+  customers: {
+    title: 'Customers',
+    eyebrow: 'Member Operations',
+    description: 'View member records, booking history, contact details, and operational notes in one place.',
+  },
+  settings: {
+    title: 'Settings',
+    eyebrow: 'System Controls',
+    description: 'Configure store-wide business hours, days off, and operational defaults that feed booking rules.',
+  },
+}
 
 const pad2 = (value) => String(value).padStart(2, '0')
 
@@ -87,6 +175,23 @@ const formatScheduleIssues = (issues = []) => {
     .join('；')
 }
 
+const safeTableResult = async (promise) => {
+  const result = await promise
+  if (!result?.error) return { available: true, data: result.data || [] }
+
+  const message = String(result.error.message || '')
+  if (
+    message.includes('does not exist') ||
+    message.includes('Could not find the table') ||
+    message.includes('schema cache') ||
+    message.includes('relation')
+  ) {
+    return { available: false, data: [] }
+  }
+
+  throw result.error
+}
+
 export default function Admin() {
   const router = useRouter()
 
@@ -112,8 +217,26 @@ export default function Admin() {
   const [staffTimeOff, setStaffTimeOff] = useState([])
   const [blockedSlots, setBlockedSlots] = useState([])
   const [reviews, setReviews] = useState([])
+  const [locations, setLocations] = useState([])
+  const [providerGroups, setProviderGroups] = useState([])
+  const [holidays, setHolidays] = useState([])
+  const [resources, setResources] = useState([])
+  const [transactions, setTransactions] = useState([])
+  const [serviceLocations, setServiceLocations] = useState([])
+  const [serviceProviderGroups, setServiceProviderGroups] = useState([])
+  const [serviceResources, setServiceResources] = useState([])
   const [settings, setSettings] = useState({})
   const [selectedBooking, setSelectedBooking] = useState(null)
+  const [availableTables, setAvailableTables] = useState({
+      locations: false,
+      providerGroups: false,
+      holidays: false,
+      resources: false,
+      transactions: false,
+      serviceLocations: false,
+      serviceProviderGroups: false,
+      serviceResources: false,
+    })
 
   const normalizeStaffRow = (row) => ({
     ...row,
@@ -167,7 +290,7 @@ export default function Admin() {
 
   const fetchData = async () => {
     setLoading(true)
-    const [b, o, s, sp, p, t, c, cust, st, setRows, art, f, sh, br, to, bs, r] = await Promise.all([
+    const [b, o, s, sp, p, t, c, cust, st, setRows, art, f, sh, br, to, bs, r, loc, providerGroupRows, hol, res, tx, serviceLocationRows, serviceProviderGroupRows, serviceResourceRows] = await Promise.all([
       supabase.from('bookings').select('*').order('created_at', { ascending: false }),
       supabase.from('orders').select('*').order('created_at', { ascending: false }),
       supabase.from('services').select('*').order('sort_order'),
@@ -185,6 +308,14 @@ export default function Admin() {
       supabase.from('staff_time_off').select('*').order('date'),
       supabase.from('blocked_slots').select('*').order('date'),
       supabase.from('reviews').select('*').order('created_at', { ascending: false }),
+      safeTableResult(supabase.from('locations').select('*').order('sort_order').order('name')),
+      safeTableResult(supabase.from('provider_groups').select('*').order('sort_order').order('name')),
+      safeTableResult(supabase.from('holidays').select('*').order('holiday_date')),
+      safeTableResult(supabase.from('resources').select('*').order('sort_order').order('name')),
+      safeTableResult(supabase.from('transactions').select('*').order('created_at', { ascending: false })),
+      safeTableResult(supabase.from('service_locations').select('*').order('service_id').order('location_id')),
+      safeTableResult(supabase.from('service_provider_groups').select('*').order('service_id').order('provider_group_id')),
+      safeTableResult(supabase.from('service_resources').select('*').order('service_id').order('resource_id')),
     ])
 
     if (b.data) setBookings(b.data)
@@ -203,6 +334,24 @@ export default function Admin() {
     if (to.data) setStaffTimeOff(to.data.map(normalizeScheduleRow))
     if (bs.data) setBlockedSlots(bs.data.map(normalizeScheduleRow))
     if (r.data) setReviews(r.data)
+    setLocations(loc.data || [])
+    setProviderGroups(providerGroupRows.data || [])
+    setHolidays(hol.data || [])
+    setResources(res.data || [])
+    setTransactions(tx.data || [])
+    setServiceLocations(serviceLocationRows.data || [])
+    setServiceProviderGroups(serviceProviderGroupRows.data || [])
+    setServiceResources(serviceResourceRows.data || [])
+    setAvailableTables({
+      locations: Boolean(loc.available),
+      providerGroups: Boolean(providerGroupRows.available),
+      holidays: Boolean(hol.available),
+      resources: Boolean(res.available),
+      transactions: Boolean(tx.available),
+      serviceLocations: Boolean(serviceLocationRows.available),
+      serviceProviderGroups: Boolean(serviceProviderGroupRows.available),
+      serviceResources: Boolean(serviceResourceRows.available),
+    })
     if (setRows.data) {
       const nextSettings = setRows.data.reduce((acc, item) => {
         acc[item.key] = item.value
@@ -346,6 +495,73 @@ export default function Admin() {
     const rows = Array.isArray(payloadOrRows) ? payloadOrRows : payloadOrRows?.rows || []
     const deletedIds = Array.isArray(payloadOrRows?.deletedIds) ? payloadOrRows.deletedIds : []
     await saveScheduleTable({ table: 'blocked_slots', rows, deletedIds })
+  }
+
+  const saveLocations = async (payloadOrRows) => {
+    setSaving(true)
+    try {
+      const rows = Array.isArray(payloadOrRows) ? payloadOrRows : payloadOrRows?.rows || []
+      const deletedIds = Array.isArray(payloadOrRows?.deletedIds) ? payloadOrRows.deletedIds : []
+      const normalizedRows = rows.map((row) => ({
+        ...row,
+        sort_order: Number(row.sort_order || 0),
+        enabled: row.enabled !== false,
+      }))
+      await saveCollection('locations', normalizedRows, deletedIds)
+      await fetchData()
+      toast.success('Saved')
+    } catch (error) {
+      toast.error('Location save failed: ' + (error?.message || 'Unknown error'))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const saveHolidays = async (payloadOrRows) => {
+    setSaving(true)
+    try {
+      const rows = Array.isArray(payloadOrRows) ? payloadOrRows : payloadOrRows?.rows || []
+      const deletedIds = Array.isArray(payloadOrRows?.deletedIds) ? payloadOrRows.deletedIds : []
+      const normalizedRows = rows
+        .filter((row) => row.holiday_date)
+        .map((row) => ({
+          ...row,
+          holiday_date: String(row.holiday_date).substring(0, 10),
+          end_date: row.end_date ? String(row.end_date).substring(0, 10) : null,
+          location_id: row.location_id === '' ? null : row.location_id,
+          staff_id: row.staff_id === '' ? null : row.staff_id,
+          is_closed: row.is_closed !== false,
+        }))
+      await saveCollection('holidays', normalizedRows, deletedIds)
+      await fetchData()
+      toast.success('Saved')
+    } catch (error) {
+      toast.error('Holiday save failed: ' + (error?.message || 'Unknown error'))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const saveResources = async (payloadOrRows) => {
+    setSaving(true)
+    try {
+      const rows = Array.isArray(payloadOrRows) ? payloadOrRows : payloadOrRows?.rows || []
+      const deletedIds = Array.isArray(payloadOrRows?.deletedIds) ? payloadOrRows.deletedIds : []
+      const normalizedRows = rows.map((row) => ({
+        ...row,
+        location_id: row.location_id === '' ? null : row.location_id,
+        capacity: Number(row.capacity || 1),
+        sort_order: Number(row.sort_order || 0),
+        enabled: row.enabled !== false,
+      }))
+      await saveCollection('resources', normalizedRows, deletedIds)
+      await fetchData()
+      toast.success('Saved')
+    } catch (error) {
+      toast.error('Resource save failed: ' + (error?.message || 'Unknown error'))
+    } finally {
+      setSaving(false)
+    }
   }
 
   const saveStaff = async () => {
@@ -626,6 +842,150 @@ export default function Admin() {
     .sort(([, a], [, b]) => b - a)
     .slice(0, 5)
 
+  const activeTabMeta = tabMeta[activeTab] || {
+    title: 'Admin',
+    eyebrow: 'Operations',
+    description: 'Manage operational data and storefront configuration.',
+  }
+
+  const renderDashboard = () => (
+    <div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', marginBottom: '30px' }}>
+        <div className="admin-card" style={{ padding: '24px' }}>
+          <div style={{ fontSize: '12px', color: 'var(--text-light)', fontWeight: 600, marginBottom: '8px' }}>Today Bookings</div>
+          <div style={{ fontSize: '32px', fontWeight: 800 }}>{stats.todayBookings}</div>
+        </div>
+        <div className="admin-card" style={{ padding: '24px' }}>
+          <div style={{ fontSize: '12px', color: 'var(--text-light)', fontWeight: 600, marginBottom: '8px' }}>Today Revenue</div>
+          <div style={{ fontSize: '32px', fontWeight: 800 }}>${stats.todayRevenue.toLocaleString()}</div>
+        </div>
+        <div className="admin-card" style={{ padding: '24px' }}>
+          <div style={{ fontSize: '12px', color: 'var(--text-light)', fontWeight: 600, marginBottom: '8px' }}>Pending</div>
+          <div style={{ fontSize: '32px', fontWeight: 800 }}>{stats.pending}</div>
+        </div>
+        <div className="admin-card" style={{ padding: '24px' }}>
+          <div style={{ fontSize: '12px', color: 'var(--text-light)', fontWeight: 600, marginBottom: '8px' }}>Members</div>
+          <div style={{ fontSize: '32px', fontWeight: 800 }}>{stats.totalUsers}</div>
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr', gap: '24px' }}>
+        <div className="admin-card" style={{ padding: '24px' }}>
+          <h3 style={{ marginBottom: '20px', fontSize: '18px', fontWeight: 700 }}>Today's Bookings</h3>
+          <div style={{ display: 'grid', gap: '12px' }}>
+            {todaysBookings.length === 0 ? (
+              <div style={{ padding: '40px 20px', textAlign: 'center', background: '#fafafa', borderRadius: '12px' }}>No bookings today</div>
+            ) : (
+              todaysBookings.map((booking) => (
+                <div key={booking.id} style={{ padding: '16px', background: '#fff', borderRadius: '12px', border: '1px solid var(--gray)', display: 'flex', alignItems: 'center', gap: '16px' }}>
+                  <div style={{ width: '60px', textAlign: 'center', paddingRight: '16px', borderRight: '1px solid var(--gray)' }}>
+                    <div style={{ fontSize: '16px', fontWeight: 800, color: 'var(--primary)' }}>{getBookingTimeKey(booking) || '-'}</div>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 700, fontSize: '15px' }}>{getBookingCustomerName(booking) || '-'}</div>
+                    <div style={{ fontSize: '12px', color: 'var(--text-light)' }}>
+                      {getBookingServiceName(booking) || '-'} - {booking.staff_name || 'Unassigned'}
+                    </div>
+                  </div>
+                  <button type="button" onClick={() => setSelectedBooking(booking)} style={{ border: 'none', background: 'transparent', color: '#A68B6A', cursor: 'pointer', fontWeight: 700 }}>
+                    View
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gap: '24px' }}>
+          <div className="admin-card" style={{ padding: '24px' }}>
+            <h3 style={{ marginBottom: '20px', fontSize: '16px', fontWeight: 700 }}>Popular Services</h3>
+            {popularServices.map(([name, count], idx) => (
+              <div key={name} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 0', borderBottom: idx === popularServices.length - 1 ? 'none' : '1px solid #f9f9f9' }}>
+                <div style={{ width: '24px', height: '24px', borderRadius: '6px', background: 'var(--gray)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 800 }}>{idx + 1}</div>
+                <div style={{ flex: 1, fontSize: '14px', fontWeight: 600 }}>{name}</div>
+                <div style={{ fontSize: '13px', color: 'var(--primary)', fontWeight: 700 }}>{count}</div>
+              </div>
+            ))}
+          </div>
+
+          <div className="admin-card" style={{ padding: '24px', background: 'linear-gradient(135deg, #A68B6A, #8B7355)', color: '#fff' }}>
+            <h3 style={{ marginBottom: '16px', fontSize: '16px', fontWeight: 700, color: '#fff' }}>Quick Actions</h3>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+              <button onClick={() => setActiveTab('bookings')} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', padding: '12px', borderRadius: '8px', cursor: 'pointer', fontWeight: 600, fontSize: '13px' }}>
+                Bookings
+              </button>
+              <button onClick={() => setActiveTab('inventory')} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', padding: '12px', borderRadius: '8px', cursor: 'pointer', fontWeight: 600, fontSize: '13px' }}>
+                Inventory
+              </button>
+              <button onClick={() => setActiveTab('staff')} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', padding: '12px', borderRadius: '8px', cursor: 'pointer', fontWeight: 600, fontSize: '13px' }}>
+                Staff
+              </button>
+              <button onClick={() => setActiveTab('settings')} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', padding: '12px', borderRadius: '8px', cursor: 'pointer', fontWeight: 600, fontSize: '13px' }}>
+                Settings
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+
+  const renderActiveContent = () => {
+    if (activeTab === 'dashboard') return renderDashboard()
+    if (activeTab === 'analytics') return <AnalyticsTab bookings={bookings} orders={orders} reviews={reviews} />
+    if (activeTab === 'orders') return <OrdersTab orders={orders} />
+    if (activeTab === 'bookings') return <BookingsTab bookings={bookings} staff={staff} onUpdateStatus={updateStatus} onUpdateBookingStaff={updateBookingStaff} onViewDetail={(booking) => setSelectedBooking(booking)} />
+    if (activeTab === 'staff') {
+      return (
+        <StaffTab
+          staff={staff}
+          services={services}
+          staffShifts={staffShifts}
+          staffBreaks={staffBreaks}
+          staffTimeOff={staffTimeOff}
+          blockedSlots={blockedSlots}
+          onAddStaff={addStaff}
+          onDeleteStaff={deleteStaff}
+          onUpdateField={updateStaffField}
+          onToggleService={toggleStaffService}
+          onToggleDailyOff={toggleDailyOff}
+          onUpdateSchedule={updateStaffSchedule}
+          onSave={saveStaff}
+          onSaveShifts={saveShifts}
+          onSaveBreaks={saveStaffBreaks}
+          onSaveTimeOff={saveStaffTimeOff}
+          onSaveBlockedSlots={saveBlockedSlots}
+          saving={saving}
+        />
+      )
+    }
+    if (activeTab === 'services') {
+      return (
+        <ServicesTab
+          services={services}
+          saveServices={saveServices}
+          locations={locations}
+          providerGroups={providerGroups}
+          resources={resources}
+          serviceLocations={serviceLocations}
+          serviceProviderGroups={serviceProviderGroups}
+          serviceResources={serviceResources}
+        />
+      )
+    }
+    if (activeTab === 'inventory') return <InventoryTab products={products} packages={servicePackages} tickets={tickets} services={services} fetchData={fetchData} saveInventory={saveInventory} />
+    if (activeTab === 'locations') return <LocationsTab locations={locations} saveLocations={saveLocations} saving={saving} available={availableTables.locations} />
+    if (activeTab === 'holidays') return <HolidaysTab holidays={holidays} locations={locations} staff={staff} saveHolidays={saveHolidays} saving={saving} available={availableTables.holidays} />
+    if (activeTab === 'resources') return <ResourcesTab resources={resources} locations={locations} saveResources={saveResources} saving={saving} available={availableTables.resources} />
+    if (activeTab === 'transactions') return <TransactionsTab transactions={transactions} available={availableTables.transactions} />
+    if (activeTab === 'coupons') return <CouponsTab coupons={coupons} saveCoupons={saveCoupons} />
+    if (activeTab === 'articles') return <ArticlesTab articles={articles} />
+    if (activeTab === 'faqs') return <FaqsTab faqs={faqs} />
+    if (activeTab === 'customers') return <CustomersTab users={users} bookings={bookings} orders={orders} onUpdateCustomer={updateCustomer} />
+    if (activeTab === 'settings') return <SettingsTab settings={settings} saveSettings={saveSettings} saving={saving} />
+    return null
+  }
+
   if (!authChecked || loading) return <div style={{ padding: '100px', textAlign: 'center' }}>Loading...</div>
   if (!isAuthenticated) return <div style={{ padding: '100px', textAlign: 'center' }}>Checking admin access...</div>
 
@@ -643,150 +1003,59 @@ export default function Admin() {
         </div>
       </header>
 
-      <div style={{ background: '#fff', borderBottom: '1px solid #eee', overflowX: 'auto', padding: '8px' }}>
-        <div style={{ display: 'flex', gap: '8px', maxWidth: '1200px', margin: '0 auto' }}>
-          {tabGroups.map((group) => (
-            <div key={group.name} style={{ display: 'flex', gap: '4px', paddingRight: '12px', borderRight: '1px solid #eee' }}>
-              {group.tabs.map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`admin-tab-btn ${activeTab === tab.id ? 'active' : ''}`}
-                  style={{
-                    padding: '10px 16px',
-                    background: activeTab === tab.id ? '#A68B6A' : 'transparent',
-                    color: activeTab === tab.id ? '#fff' : '#666',
-                    borderRadius: '8px',
-                    fontSize: '13px',
-                    fontWeight: 600,
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  {tab.name}
-                </button>
-              ))}
-            </div>
-          ))}
-        </div>
-      </div>
+      <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '20px', display: 'flex', gap: '20px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
+        <aside className="admin-card" style={{ width: '280px', padding: '18px', position: 'sticky', top: '20px', alignSelf: 'flex-start', flexShrink: 0 }}>
+          <div style={{ fontSize: '12px', fontWeight: 800, letterSpacing: '0.08em', color: '#A68B6A' }}>ADMIN NAVIGATION</div>
+          <h3 style={{ margin: '8px 0 0', fontSize: '20px', fontWeight: 800 }}>Operations Console</h3>
+          <p style={{ margin: '10px 0 18px', fontSize: '13px', lineHeight: 1.6, color: 'var(--text-light)' }}>
+            Use grouped navigation for bookings, commerce, scheduling, operations, and content instead of one long tab strip.
+          </p>
 
-      <main style={{ maxWidth: '1200px', margin: '0 auto', padding: '20px' }}>
-        {activeTab === 'dashboard' && (
-          <div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', marginBottom: '30px' }}>
-              <div className="admin-card" style={{ padding: '24px' }}>
-                <div style={{ fontSize: '12px', color: 'var(--text-light)', fontWeight: 600, marginBottom: '8px' }}>Today Bookings</div>
-                <div style={{ fontSize: '32px', fontWeight: 800 }}>{stats.todayBookings}</div>
-              </div>
-              <div className="admin-card" style={{ padding: '24px' }}>
-                <div style={{ fontSize: '12px', color: 'var(--text-light)', fontWeight: 600, marginBottom: '8px' }}>Today Revenue</div>
-                <div style={{ fontSize: '32px', fontWeight: 800 }}>${stats.todayRevenue.toLocaleString()}</div>
-              </div>
-              <div className="admin-card" style={{ padding: '24px' }}>
-                <div style={{ fontSize: '12px', color: 'var(--text-light)', fontWeight: 600, marginBottom: '8px' }}>Pending</div>
-                <div style={{ fontSize: '32px', fontWeight: 800 }}>{stats.pending}</div>
-              </div>
-              <div className="admin-card" style={{ padding: '24px' }}>
-                <div style={{ fontSize: '12px', color: 'var(--text-light)', fontWeight: 600, marginBottom: '8px' }}>Members</div>
-                <div style={{ fontSize: '32px', fontWeight: 800 }}>{stats.totalUsers}</div>
-              </div>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr', gap: '24px' }}>
-              <div className="admin-card" style={{ padding: '24px' }}>
-                <h3 style={{ marginBottom: '20px', fontSize: '18px', fontWeight: 700 }}>Today's Bookings</h3>
-                <div style={{ display: 'grid', gap: '12px' }}>
-                  {todaysBookings.length === 0 ? (
-                    <div style={{ padding: '40px 20px', textAlign: 'center', background: '#fafafa', borderRadius: '12px' }}>No bookings today</div>
-                  ) : (
-                    todaysBookings
-                      .map((booking) => (
-                        <div key={booking.id} style={{ padding: '16px', background: '#fff', borderRadius: '12px', border: '1px solid var(--gray)', display: 'flex', alignItems: 'center', gap: '16px' }}>
-                          <div style={{ width: '60px', textAlign: 'center', paddingRight: '16px', borderRight: '1px solid var(--gray)' }}>
-                            <div style={{ fontSize: '16px', fontWeight: 800, color: 'var(--primary)' }}>{getBookingTimeKey(booking) || '-'}</div>
-                          </div>
-                          <div style={{ flex: 1 }}>
-                            <div style={{ fontWeight: 700, fontSize: '15px' }}>{getBookingCustomerName(booking) || '-'}</div>
-                            <div style={{ fontSize: '12px', color: 'var(--text-light)' }}>
-                              {getBookingServiceName(booking) || '-'} - {booking.staff_name || 'Unassigned'}
-                            </div>
-                          </div>
-                          <button type="button" onClick={() => setSelectedBooking(booking)} style={{ border: 'none', background: 'transparent', color: '#A68B6A', cursor: 'pointer', fontWeight: 700 }}>
-                            View
-                          </button>
-                        </div>
-                      ))
-                  )}
+          <div style={{ display: 'grid', gap: '16px' }}>
+            {tabGroups.map((group) => (
+              <div key={group.name}>
+                <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.1em', color: '#9A8A78', marginBottom: '8px', textTransform: 'uppercase' }}>{group.name}</div>
+                <div style={{ display: 'grid', gap: '6px' }}>
+                  {group.tabs.map((tab) => {
+                    const isActive = activeTab === tab.id
+                    return (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        onClick={() => setActiveTab(tab.id)}
+                        className={`admin-tab-btn ${isActive ? 'active' : ''}`}
+                        style={{
+                          textAlign: 'left',
+                          padding: '11px 12px',
+                          borderRadius: '12px',
+                          border: isActive ? '1px solid rgba(166, 139, 106, 0.35)' : '1px solid transparent',
+                          background: isActive ? '#FBF6EF' : 'transparent',
+                          color: isActive ? '#7C6245' : '#5B5B5B',
+                          fontSize: '14px',
+                          fontWeight: isActive ? 800 : 600,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {tab.name}
+                      </button>
+                    )
+                  })}
                 </div>
               </div>
-
-              <div style={{ display: 'grid', gap: '24px' }}>
-                <div className="admin-card" style={{ padding: '24px' }}>
-                  <h3 style={{ marginBottom: '20px', fontSize: '16px', fontWeight: 700 }}>Popular Services</h3>
-                  {popularServices.map(([name, count], idx) => (
-                    <div key={name} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 0', borderBottom: idx === popularServices.length - 1 ? 'none' : '1px solid #f9f9f9' }}>
-                      <div style={{ width: '24px', height: '24px', borderRadius: '6px', background: 'var(--gray)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 800 }}>{idx + 1}</div>
-                      <div style={{ flex: 1, fontSize: '14px', fontWeight: 600 }}>{name}</div>
-                      <div style={{ fontSize: '13px', color: 'var(--primary)', fontWeight: 700 }}>{count}</div>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="admin-card" style={{ padding: '24px', background: 'linear-gradient(135deg, #A68B6A, #8B7355)', color: '#fff' }}>
-                  <h3 style={{ marginBottom: '16px', fontSize: '16px', fontWeight: 700, color: '#fff' }}>Quick Actions</h3>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                    <button onClick={() => setActiveTab('bookings')} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', padding: '12px', borderRadius: '8px', cursor: 'pointer', fontWeight: 600, fontSize: '13px' }}>
-                      Bookings
-                    </button>
-                    <button onClick={() => setActiveTab('inventory')} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', padding: '12px', borderRadius: '8px', cursor: 'pointer', fontWeight: 600, fontSize: '13px' }}>
-                      Inventory
-                    </button>
-                    <button onClick={() => setActiveTab('staff')} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', padding: '12px', borderRadius: '8px', cursor: 'pointer', fontWeight: 600, fontSize: '13px' }}>
-                      Staff
-                    </button>
-                    <button onClick={() => setActiveTab('settings')} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', padding: '12px', borderRadius: '8px', cursor: 'pointer', fontWeight: 600, fontSize: '13px' }}>
-                      Settings
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
+            ))}
           </div>
-        )}
+        </aside>
 
-        {activeTab === 'analytics' && <AnalyticsTab bookings={bookings} orders={orders} reviews={reviews} />}
-        {activeTab === 'orders' && <OrdersTab orders={orders} />}
-        {activeTab === 'bookings' && <BookingsTab bookings={bookings} staff={staff} onUpdateStatus={updateStatus} onUpdateBookingStaff={updateBookingStaff} onViewDetail={(booking) => setSelectedBooking(booking)} />}
-        {activeTab === 'staff' && (
-          <StaffTab
-            staff={staff}
-            services={services}
-            staffShifts={staffShifts}
-            staffBreaks={staffBreaks}
-            staffTimeOff={staffTimeOff}
-            blockedSlots={blockedSlots}
-            onAddStaff={addStaff}
-            onDeleteStaff={deleteStaff}
-            onUpdateField={updateStaffField}
-            onToggleService={toggleStaffService}
-            onToggleDailyOff={toggleDailyOff}
-            onUpdateSchedule={updateStaffSchedule}
-            onSave={saveStaff}
-            onSaveShifts={saveShifts}
-            onSaveBreaks={saveStaffBreaks}
-            onSaveTimeOff={saveStaffTimeOff}
-            onSaveBlockedSlots={saveBlockedSlots}
-            saving={saving}
-          />
-        )}
-        {activeTab === 'services' && <ServicesTab services={services} saveServices={saveServices} />}
-        {activeTab === 'inventory' && <InventoryTab products={products} packages={servicePackages} tickets={tickets} services={services} fetchData={fetchData} saveInventory={saveInventory} />}
-        {activeTab === 'coupons' && <CouponsTab coupons={coupons} saveCoupons={saveCoupons} />}
-        {activeTab === 'articles' && <ArticlesTab articles={articles} />}
-        {activeTab === 'faqs' && <FaqsTab faqs={faqs} />}
-        {activeTab === 'customers' && <CustomersTab users={users} bookings={bookings} onUpdateCustomer={updateCustomer} />}
-        {activeTab === 'settings' && <SettingsTab settings={settings} saveSettings={saveSettings} saving={saving} />}
-      </main>
+        <main style={{ flex: '1 1 900px', minWidth: 0 }}>
+          <div className="admin-card" style={{ padding: '22px', marginBottom: '20px', border: '1px solid rgba(166, 139, 106, 0.18)', background: 'linear-gradient(135deg, #fff, #FBF8F4)' }}>
+            <div style={{ fontSize: '12px', fontWeight: 800, letterSpacing: '0.08em', color: '#A68B6A' }}>{activeTabMeta.eyebrow}</div>
+            <div style={{ marginTop: '6px', fontSize: '24px', fontWeight: 800, color: 'var(--text)' }}>{activeTabMeta.title}</div>
+            <div style={{ marginTop: '8px', maxWidth: '760px', fontSize: '14px', lineHeight: 1.7, color: 'var(--text-light)' }}>{activeTabMeta.description}</div>
+          </div>
+
+          {renderActiveContent()}
+        </main>
+      </div>
 
       {selectedBooking && (
         <div
