@@ -23,95 +23,95 @@ import TransactionsTab from '../components/admin/TransactionsTab'
 import { analyzeScheduleRows } from '../../lib/booking/admin-schedule'
 
 const tabGroups = [
-  { name: 'Overview', tabs: [{ id: 'dashboard', name: 'Dashboard' }, { id: 'analytics', name: 'Analytics' }] },
-  { name: 'Bookings', tabs: [{ id: 'bookings', name: 'Bookings' }, { id: 'staff', name: 'Scheduling' }, { id: 'holidays', name: 'Holidays' }, { id: 'locations', name: 'Locations' }, { id: 'resources', name: 'Resources' }] },
-  { name: 'Commerce', tabs: [{ id: 'orders', name: 'Orders' }, { id: 'transactions', name: 'Transactions' }, { id: 'inventory', name: 'Inventory' }, { id: 'coupons', name: 'Coupons' }] },
-  { name: 'Catalog', tabs: [{ id: 'services', name: 'Services' }] },
-  { name: 'Customers', tabs: [{ id: 'customers', name: 'Customers' }] },
-  { name: 'Content', tabs: [{ id: 'articles', name: 'Articles' }, { id: 'faqs', name: 'FAQs' }] },
-  { name: 'System', tabs: [{ id: 'settings', name: 'Settings' }] },
+  { name: '概覽', tabs: [{ id: 'dashboard', name: '總覽' }, { id: 'analytics', name: '分析' }] },
+  { name: '預約', tabs: [{ id: 'bookings', name: '預約' }, { id: 'staff', name: '排程' }, { id: 'holidays', name: '假期' }, { id: 'locations', name: '地點' }, { id: 'resources', name: '資源設備' }] },
+  { name: '營運', tabs: [{ id: 'orders', name: '訂單' }, { id: 'transactions', name: '交易紀錄' }, { id: 'inventory', name: '庫存' }, { id: 'coupons', name: '優惠碼' }] },
+  { name: '服務', tabs: [{ id: 'services', name: '服務' }] },
+  { name: '顧客', tabs: [{ id: 'customers', name: '顧客' }] },
+  { name: '內容', tabs: [{ id: 'articles', name: '文章' }, { id: 'faqs', name: '常見問題' }] },
+  { name: '系統', tabs: [{ id: 'settings', name: '設定' }] },
 ]
 
 const tabMeta = {
   dashboard: {
-    title: 'Overview',
-    eyebrow: 'Operations Dashboard',
-    description: 'Watch today\'s bookings, revenue, membership activity, and quick operational actions from one place.',
+    title: '營運總覽',
+    eyebrow: '營運儀表板',
+    description: '在同一個畫面掌握今日預約、營業額、會員活動，以及營運所需的快速入口。',
   },
   analytics: {
-    title: 'Analytics',
-    eyebrow: 'Performance Insight',
-    description: 'Review revenue trends, booking mix, stylist performance, and rating signals.',
+    title: '營運分析',
+    eyebrow: '表現洞察',
+    description: '查看營業額走勢、預約結構、服務供應者表現，以及評價訊號。',
   },
   bookings: {
-    title: 'Bookings',
-    eyebrow: 'Appointment Records',
-    description: 'Track service bookings with staff assignment, slot validation, payment context, and status management.',
+    title: '預約',
+    eyebrow: '預約紀錄',
+    description: '追蹤服務預約、服務供應者安排、時段驗證、付款狀態，以及整體預約狀態。',
   },
   orders: {
-    title: 'Orders',
-    eyebrow: 'Commerce',
-    description: 'Manage product and ticket orders with consistent delivery, payment, and fulfillment signals.',
+    title: '訂單',
+    eyebrow: '營運銷售',
+    description: '管理商品與套票訂單，並一致查看配送、付款與履行狀態。',
   },
   staff: {
-    title: 'Service Providers',
-    eyebrow: 'Scheduling Center',
-    description: 'Control provider profiles, weekly schedules, date overrides, breaks, time off, and blocked slots.',
+    title: '服務供應者',
+    eyebrow: '排程中心',
+    description: '管理服務供應者資料、每週時間表、指定日期安排、休息時段、休假與封鎖時段。',
   },
   services: {
-    title: 'Services',
-    eyebrow: 'Service Configuration',
-    description: 'Configure service catalog, duration, pricing, and the rule inputs that will drive availability.',
+    title: '服務',
+    eyebrow: '服務設定',
+    description: '設定服務目錄、時長、價格，以及會影響可預約時段的規則輸入。',
   },
   inventory: {
-    title: 'Inventory',
-    eyebrow: 'Products, Packages, Tickets',
-    description: 'Maintain sellable inventory with staged edits for products, packages, and ticket SKUs.',
+    title: '庫存',
+    eyebrow: '商品、套票與票券',
+    description: '以分階段編輯方式維護可銷售的商品、套票與票券項目。',
   },
   locations: {
-    title: 'Locations',
-    eyebrow: 'Operational Scope',
-    description: 'Manage branches and branch-level availability scope for future multi-location booking rules.',
+    title: '地點',
+    eyebrow: '營運範圍',
+    description: '管理分店與分店層級的可預約範圍，支援之後的多地點預約規則。',
   },
   holidays: {
-    title: 'Holidays',
-    eyebrow: 'Closures & Leave',
-    description: 'Define branch closures, staff leave periods, and blackout dates that affect booking availability.',
+    title: '假期',
+    eyebrow: '休息日與休假',
+    description: '設定分店休息、服務供應者休假，以及會影響可預約時段的封鎖日期。',
   },
   resources: {
-    title: 'Resources',
-    eyebrow: 'Capacity Control',
-    description: 'Track rooms, seats, devices, and other bookable resources that will participate in collision checks.',
+    title: '資源設備',
+    eyebrow: '容量控制',
+    description: '管理房間、座位、儀器與其他可預約資源，並納入防撞驗證。',
   },
   transactions: {
-    title: 'Transactions',
-    eyebrow: 'Payment Ledger',
-    description: 'Review payment references, linked records, and ledger-style transaction visibility for operations.',
+    title: '交易紀錄',
+    eyebrow: '付款帳目',
+    description: '查看付款參考編號、關聯紀錄，以及供營運追查的帳目視圖。',
   },
   coupons: {
-    title: 'Coupons',
-    eyebrow: 'Promotions',
-    description: 'Maintain discount codes and promotional levers without losing visibility into booking impact.',
+    title: '優惠碼',
+    eyebrow: '推廣活動',
+    description: '維護折扣碼與推廣設定，同時保留對預約影響的可見性。',
   },
   articles: {
-    title: 'Articles',
-    eyebrow: 'Content',
-    description: 'Edit educational and promotional content used across the storefront and membership experience.',
+    title: '文章',
+    eyebrow: '內容管理',
+    description: '編輯用於前台與會員體驗的教學及推廣內容。',
   },
   faqs: {
-    title: 'FAQs',
-    eyebrow: 'Content',
-    description: 'Keep frequently asked questions current so booking, service, and membership journeys stay clear.',
+    title: '常見問題',
+    eyebrow: '內容管理',
+    description: '維持常見問題內容更新，讓預約、服務與會員流程更清晰。',
   },
   customers: {
-    title: 'Customers',
-    eyebrow: 'Member Operations',
-    description: 'View member records, booking history, contact details, and operational notes in one place.',
+    title: '顧客',
+    eyebrow: '會員營運',
+    description: '在同一頁查看會員資料、預約紀錄、聯絡方式與營運備註。',
   },
   settings: {
-    title: 'Settings',
-    eyebrow: 'System Controls',
-    description: 'Configure store-wide business hours, days off, and operational defaults that feed booking rules.',
+    title: '設定',
+    eyebrow: '系統控制',
+    description: '設定全店營業時間、公休日與會影響預約規則的預設值。',
   },
 }
 
@@ -434,9 +434,9 @@ export default function Admin() {
 
       const { data } = await supabase.from('staff_shifts').select('*')
       if (data) setStaffShifts(data)
-      toast.success('Saved')
+      toast.success('儲存成功')
     } catch (error) {
-      toast.error('Shift save failed: ' + (error?.message || 'Unknown error'))
+      toast.error('班次儲存失敗：' + (error?.message || '未知錯誤'))
     } finally {
       setSaving(false)
     }
@@ -486,9 +486,9 @@ export default function Admin() {
       }
 
       await fetchData()
-      toast.success('Saved')
+      toast.success('儲存成功')
     } catch (error) {
-      toast.error(`${table} save failed: ${error?.message || 'Unknown error'}`)
+      toast.error(`${table} 儲存失敗：${error?.message || '未知錯誤'}`)
     } finally {
       setSaving(false)
     }
@@ -524,9 +524,9 @@ export default function Admin() {
       }))
       await saveCollection('locations', normalizedRows, deletedIds)
       await fetchData()
-      toast.success('Saved')
+      toast.success('儲存成功')
     } catch (error) {
-      toast.error('Location save failed: ' + (error?.message || 'Unknown error'))
+      toast.error('地點儲存失敗：' + (error?.message || '未知錯誤'))
     } finally {
       setSaving(false)
     }
@@ -550,9 +550,9 @@ export default function Admin() {
         }))
       await saveCollection('holidays', normalizedRows, deletedIds)
       await fetchData()
-      toast.success('Saved')
+      toast.success('儲存成功')
     } catch (error) {
-      toast.error('Holiday save failed: ' + (error?.message || 'Unknown error'))
+      toast.error('假期儲存失敗：' + (error?.message || '未知錯誤'))
     } finally {
       setSaving(false)
     }
@@ -572,9 +572,9 @@ export default function Admin() {
       }))
       await saveCollection('resources', normalizedRows, deletedIds)
       await fetchData()
-      toast.success('Saved')
+      toast.success('儲存成功')
     } catch (error) {
-      toast.error('Resource save failed: ' + (error?.message || 'Unknown error'))
+      toast.error('資源設備儲存失敗：' + (error?.message || '未知錯誤'))
     } finally {
       setSaving(false)
     }
@@ -598,8 +598,8 @@ export default function Admin() {
         }, {})
         const payload = {
           id: item.id,
-          name: item.name || 'New Staff',
-          role: item.role || 'Stylist',
+          name: item.name || '新服務供應者',
+          role: item.role || '髮型師',
           phone: item.phone || '',
           photo_url: item.photo_url || '',
           bio: item.bio || '',
@@ -616,9 +616,9 @@ export default function Admin() {
         if (error) throw error
       }
       await fetchData()
-      toast.success('Saved')
+      toast.success('儲存成功')
     } catch (error) {
-      toast.error('Staff save failed: ' + (error?.message || 'Unknown error'))
+      toast.error('服務供應者儲存失敗：' + (error?.message || '未知錯誤'))
     } finally {
       setSaving(false)
     }
@@ -723,9 +723,9 @@ export default function Admin() {
       }
 
       await fetchData()
-      toast.success('Saved')
+      toast.success('儲存成功')
     } catch (error) {
-      toast.error('Service save failed: ' + (error?.message || 'Unknown error'))
+      toast.error('服務儲存失敗：' + (error?.message || '未知錯誤'))
     } finally {
       setSaving(false)
     }
@@ -733,15 +733,15 @@ export default function Admin() {
 
   const saveInventory = async ({ kind, items = [], deletedIds = [] }) => {
     const table = { products: 'products', packages: 'service_packages', tickets: 'tickets' }[kind]
-    if (!table) throw new Error('Unknown inventory kind')
+    if (!table) throw new Error('未知庫存類型')
 
     setSaving(true)
     try {
       await saveCollection(table, items, deletedIds)
       await fetchData()
-      toast.success('Saved')
+      toast.success('儲存成功')
     } catch (error) {
-      toast.error('Inventory save failed: ' + (error?.message || 'Unknown error'))
+      toast.error('庫存儲存失敗：' + (error?.message || '未知錯誤'))
     } finally {
       setSaving(false)
     }
@@ -766,9 +766,9 @@ export default function Admin() {
       }))
       await saveCollection('transactions', normalizedRows, deletedIds)
       await fetchData()
-      toast.success('Saved')
+      toast.success('儲存成功')
     } catch (error) {
-      toast.error('Transaction save failed: ' + (error?.message || 'Unknown error'))
+      toast.error('交易紀錄儲存失敗：' + (error?.message || '未知錯誤'))
     } finally {
       setSaving(false)
     }
@@ -780,9 +780,9 @@ export default function Admin() {
       const rows = Array.isArray(payloadOrRows) ? payloadOrRows : payloadOrRows?.coupons || []
       await saveCollection('coupons', rows)
       await fetchData()
-      toast.success('Saved')
+      toast.success('儲存成功')
     } catch (error) {
-      toast.error('Coupon save failed: ' + (error?.message || 'Unknown error'))
+      toast.error('優惠碼儲存失敗：' + (error?.message || '未知錯誤'))
     } finally {
       setSaving(false)
     }
@@ -794,9 +794,9 @@ export default function Admin() {
       const updates = Object.keys(newSettings).map((key) => supabase.from('settings').upsert({ key, value: newSettings[key] }))
       await Promise.all(updates)
       setSettings(newSettings)
-      toast.success('Saved')
+      toast.success('儲存成功')
     } catch (error) {
-      toast.error('Settings save failed: ' + (error?.message || 'Unknown error'))
+      toast.error('設定儲存失敗：' + (error?.message || '未知錯誤'))
     } finally {
       setSaving(false)
     }
@@ -805,7 +805,7 @@ export default function Admin() {
   const updateStatus = async (id, status) => {
     await supabase.from('bookings').update({ status }).eq('id', id)
     setBookings((current) => current.map((booking) => (booking.id === id ? { ...booking, status } : booking)))
-    toast.success('Saved')
+    toast.success('儲存成功')
   }
 
   const updateBookingStaff = async (id, staffId) => {
@@ -824,7 +824,7 @@ export default function Admin() {
       setBookings((current) =>
         current.map((booking) => (booking.id === id ? { ...booking, staff_id: null, staff_name: null } : booking))
       )
-      toast.success('Saved')
+      toast.success('儲存成功')
       return true
     }
 
@@ -838,7 +838,7 @@ export default function Admin() {
     }
 
     if (!bookingDate || !bookingTime || !serviceId) {
-      toast.error('Unable to verify availability for this booking')
+      toast.error('未能驗證這筆預約的可用時段')
       return false
     }
 
@@ -853,12 +853,12 @@ export default function Admin() {
       const payload = await response.json().catch(() => ({}))
 
       if (!response.ok) {
-        throw new Error(payload?.error || 'Availability check failed')
+        throw new Error(payload?.error || '可用時段檢查失敗')
       }
 
       const availableSlots = Array.isArray(payload?.slots) ? payload.slots : []
       if (!availableSlots.includes(bookingTime)) {
-        toast.error('Selected staff is unavailable for this slot')
+        toast.error('所選服務供應者未能提供這個時段')
         return false
       }
 
@@ -878,10 +878,10 @@ export default function Admin() {
             : booking
         )
       )
-      toast.success('Saved')
+      toast.success('儲存成功')
       return true
     } catch (error) {
-      toast.error('Availability check failed: ' + (error?.message || 'Unknown error'))
+      toast.error('可用時段檢查失敗：' + (error?.message || '未知錯誤'))
       return false
     }
   }
@@ -892,8 +892,8 @@ export default function Admin() {
       ...staff,
       {
         id: newId,
-        name: 'New Staff',
-        role: 'Stylist',
+        name: '新服務供應者',
+        role: '髮型師',
         phone: '',
         enabled: true,
         schedule: {},
@@ -907,7 +907,7 @@ export default function Admin() {
   }
 
   const deleteStaff = async (id) => {
-    if (!confirm('Delete this staff member?')) return
+    if (!confirm('確定要刪除此服務供應者？')) return
     await supabase.from('staff').delete().eq('id', id)
     setStaff((current) => current.filter((item) => item.id !== id))
   }
@@ -957,7 +957,7 @@ export default function Admin() {
   const updateCustomer = async (id, updates) => {
     await supabase.from('customers').update(updates).eq('id', id)
     setUsers((current) => current.map((item) => (item.id === id ? { ...item, ...updates } : item)))
-    toast.success('Saved')
+    toast.success('儲存成功')
   }
 
   const handleLogout = async () => {
@@ -1043,7 +1043,7 @@ export default function Admin() {
     return null
   }
 
-  if (!authChecked || loading) return <div style={{ padding: '100px', textAlign: 'center' }}>Loading...</div>
+  if (!authChecked || loading) return <div style={{ padding: '100px', textAlign: 'center' }}>載入中...</div>
   if (!isAuthenticated) return <div style={{ padding: '100px', textAlign: 'center' }}>Checking admin access...</div>
 
   return (
