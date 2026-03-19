@@ -27,7 +27,7 @@ const smokeConfig = {
   staffId: 3,
   customerId: 3,
   ticketId: 1,
-  resourceDate: '2026-03-24',
+  resourceDate: '2026-03-26',
   holidayDate: '2026-03-25',
   locationCode: `SMOKE-LOC-${smokeDate}`,
   locationName: `SMOKE Location ${smokeDate}`,
@@ -58,6 +58,8 @@ const toLegacyDate = (dateISO) => {
   const [year, month, day] = String(dateISO).split('-')
   return `${Number(day)}/${Number(month)}/${year}`
 }
+
+const uniqueSlots = (slots) => [...new Set((slots || []).map((slot) => String(slot).slice(0, 5)).filter(Boolean))]
 
 const addMinutes = (time, amount) => {
   const base = parseTimeToMinutes(time)
@@ -164,8 +166,6 @@ async function ensureShift(dateISO) {
 }
 
 async function ensureBooking(locationId, providerGroupId, service, startTime) {
-  const existing = await maybeSingle(supabase.from('bookings').select('*').eq('ref', smokeConfig.bookingRef))
-  if (existing) return existing
   const payload = {
     ref: smokeConfig.bookingRef,
     service: service.name,
@@ -197,6 +197,12 @@ async function ensureBooking(locationId, providerGroupId, service, startTime) {
     provider_group_id: providerGroupId,
     timetable_template_id: null,
   }
+  const existing = await maybeSingle(supabase.from('bookings').select('*').eq('ref', smokeConfig.bookingRef))
+  if (existing) {
+    const { data, error } = await supabase.from('bookings').update(payload).eq('id', existing.id).select('*').single()
+    if (error) throw error
+    return data
+  }
   const { data, error } = await supabase.from('bookings').insert(payload).select('*').single()
   if (error) throw error
   return data
@@ -217,73 +223,73 @@ async function ensureAllocation(bookingId, resourceId) {
 }
 
 async function ensureOrder(locationId) {
+  const payload = {
+    ref: smokeConfig.orderRef,
+    member_user_id: null,
+    user_name: '12133 (12345678)',
+    items: 'Smoke Product x1',
+    total: 600,
+    delivery: 'pickup',
+    payment: 'cash',
+    address: '',
+    status: 'paid',
+    location_id: locationId,
+  }
   const existing = await maybeSingle(supabase.from('orders').select('*').eq('ref', smokeConfig.orderRef))
-  if (existing) return existing
-  const { data, error } = await supabase
-    .from('orders')
-    .insert({
-      ref: smokeConfig.orderRef,
-      user_id: smokeConfig.customerId,
-      user_name: '12133',
-      name: '12133',
-      phone: '12345678',
-      product_name: 'Smoke Product',
-      items: 'Smoke Product x1',
-      total: 600,
-      delivery: 'pickup',
-      payment: 'cash',
-      address: '',
-      status: 'paid',
-      location_id: locationId,
-    })
-    .select('*')
-    .single()
+  if (existing) {
+    const { data, error } = await supabase.from('orders').update(payload).eq('id', existing.id).select('*').single()
+    if (error) throw error
+    return data
+  }
+  const { data, error } = await supabase.from('orders').insert(payload).select('*').single()
   if (error) throw error
   return data
 }
 
 async function ensureTransaction(orderId, bookingId, customerId, locationId, providerGroupId, resourceId) {
+  const payload = {
+    ref: smokeConfig.transactionRef,
+    order_id: orderId,
+    booking_id: bookingId,
+    customer_id: customerId,
+    kind: 'sale',
+    amount: 600,
+    currency: 'HKD',
+    status: 'completed',
+    payment_method: 'cash',
+    payment_ref: smokeConfig.paymentRef,
+    provider: 'manual-smoke',
+    notes: 'Smoke seed created',
+    location_id: locationId,
+    provider_group_id: providerGroupId,
+    resource_id: resourceId,
+  }
   const existing = await maybeSingle(supabase.from('transactions').select('*').eq('ref', smokeConfig.transactionRef))
-  if (existing) return existing
-  const { data, error } = await supabase
-    .from('transactions')
-    .insert({
-      ref: smokeConfig.transactionRef,
-      order_id: orderId,
-      booking_id: bookingId,
-      customer_id: customerId,
-      kind: 'sale',
-      amount: 600,
-      currency: 'HKD',
-      status: 'completed',
-      payment_method: 'cash',
-      payment_ref: smokeConfig.paymentRef,
-      provider: 'manual-smoke',
-      notes: 'Smoke seed created',
-      location_id: locationId,
-      provider_group_id: providerGroupId,
-      resource_id: resourceId,
-    })
-    .select('*')
-    .single()
+  if (existing) {
+    const { data, error } = await supabase.from('transactions').update(payload).eq('id', existing.id).select('*').single()
+    if (error) throw error
+    return data
+  }
+  const { data, error } = await supabase.from('transactions').insert(payload).select('*').single()
   if (error) throw error
   return data
 }
 
 async function ensureUserTicket(customerId) {
+  const payload = {
+    customer_id: customerId,
+    ticket_id: smokeConfig.ticketId,
+    ticket_name: 'Basic Ticket',
+    remaining_count: 2,
+    expiry_date: '2026-12-31T00:00:00+00:00',
+  }
   const existing = await maybeSingle(supabase.from('user_tickets').select('*').eq('customer_id', customerId).eq('ticket_id', smokeConfig.ticketId))
-  if (existing) return existing
-  const { data, error } = await supabase
-    .from('user_tickets')
-    .insert({
-      customer_id: customerId,
-      ticket_id: smokeConfig.ticketId,
-      ticket_name: 'Basic套票',
-      remaining_count: 2,
-      expiry_date: '2026-12-31T00:00:00+00:00',
-    })
-    .select('*')
-    .single()
+  if (existing) {
+    const { data, error } = await supabase.from('user_tickets').update(payload).eq('id', existing.id).select('*').single()
+    if (error) throw error
+    return data
+  }
+  const { data, error } = await supabase.from('user_tickets').insert(payload).select('*').single()
   if (error) throw error
   return data
 }
@@ -312,6 +318,13 @@ async function runAvailability(dateISO, locationId) {
   return fetchJson(url)
 }
 
+async function resetSmokeBooking() {
+  const existing = await maybeSingle(supabase.from('bookings').select('id').eq('ref', smokeConfig.bookingRef))
+  if (!existing) return
+  await supabase.from('booking_resource_allocations').delete().eq('booking_id', existing.id)
+  await supabase.from('bookings').delete().eq('id', existing.id)
+}
+
 async function main() {
   const service = await maybeSingle(supabase.from('services').select('*').eq('id', smokeConfig.serviceId))
   if (!service) throw new Error(`Service ${smokeConfig.serviceId} not found`)
@@ -322,15 +335,12 @@ async function main() {
   await ensureServiceRelations(location.id, providerGroup.id, resource.id)
   await ensureShift(smokeConfig.resourceDate)
   await ensureShift(smokeConfig.holidayDate)
-
-  await supabase.from('booking_resource_allocations').delete().eq('booking_id', -1)
+  await resetSmokeBooking()
 
   const baselineResourceAvailability = await runAvailability(smokeConfig.resourceDate, location.id)
-  const baselineResourceSlots = baselineResourceAvailability.body?.slots || []
+  const baselineResourceSlots = uniqueSlots(baselineResourceAvailability.body?.slots)
   const chosenSlot = baselineResourceSlots[0] || '09:00'
 
-  await supabase.from('booking_resource_allocations').delete().eq('booking_id', -999)
-  await supabase.from('bookings').delete().eq('ref', smokeConfig.bookingRef)
   const booking = await ensureBooking(location.id, providerGroup.id, service, chosenSlot)
   const allocation = await ensureAllocation(booking.id, resource.id)
   const order = await ensureOrder(location.id)
@@ -338,7 +348,7 @@ async function main() {
   const userTicket = await ensureUserTicket(smokeConfig.customerId)
 
   const postResourceAvailability = await runAvailability(smokeConfig.resourceDate, location.id)
-  const postResourceSlots = postResourceAvailability.body?.slots || []
+  const postResourceSlots = uniqueSlots(postResourceAvailability.body?.slots)
 
   await supabase.from('holidays').delete().eq('title', smokeConfig.holidayTitle)
   const baselineHolidayAvailability = await runAvailability(smokeConfig.holidayDate, location.id)
@@ -347,7 +357,18 @@ async function main() {
 
   const preEditTx = await maybeSingle(supabase.from('transactions').select('*').eq('id', transaction.id))
   const updatedNote = `Smoke roundtrip ${new Date().toISOString()}`
-  const { error: updateTxError } = await supabase.from('transactions').update({ notes: updatedNote }).eq('id', transaction.id)
+  const { error: updateTxError } = await supabase
+    .from('transactions')
+    .update({
+      notes: updatedNote,
+      order_id: order.id,
+      booking_id: booking.id,
+      customer_id: smokeConfig.customerId,
+      location_id: location.id,
+      provider_group_id: providerGroup.id,
+      resource_id: resource.id,
+    })
+    .eq('id', transaction.id)
   if (updateTxError) throw updateTxError
   const postEditTx = await maybeSingle(supabase.from('transactions').select('*').eq('id', transaction.id))
 
@@ -370,7 +391,13 @@ async function main() {
     },
     checks: {
       bookings_detail_seed_ready: ok(
-        booking.location_id && booking.provider_group_id && allocation.booking_id === booking.id && transaction.booking_id === booking.id && transaction.order_id === order.id ? 'pass' : 'fail',
+        booking.location_id &&
+          booking.provider_group_id &&
+          allocation.booking_id === booking.id &&
+          String(transaction.booking_id) === String(booking.id) &&
+          String(transaction.order_id) === String(order.id)
+          ? 'pass'
+          : 'fail',
         {
           booking_location_id: booking.location_id,
           booking_provider_group_id: booking.provider_group_id,
@@ -391,7 +418,7 @@ async function main() {
         },
       ),
       customer_operational_seed_ready: ok(
-        customer && userTicket && transaction.customer_id === customer.id ? 'pass' : 'fail',
+        customer && userTicket && String(transaction.customer_id) === String(customer.id) ? 'pass' : 'fail',
         {
           customer_name: customer?.name || null,
           user_ticket_id: userTicket?.id || null,
@@ -418,13 +445,13 @@ async function main() {
         ? ok(
             baselineHolidayAvailability.ok &&
               postHolidayAvailability.ok &&
-              (baselineHolidayAvailability.body?.slots || []).length > 0 &&
-              (postHolidayAvailability.body?.slots || []).length === 0
+              uniqueSlots(baselineHolidayAvailability.body?.slots).length > 0 &&
+              uniqueSlots(postHolidayAvailability.body?.slots).length === 0
               ? 'pass'
               : 'fail',
             {
-              baseline_slots: baselineHolidayAvailability.body?.slots || [],
-              after_slots: postHolidayAvailability.body?.slots || [],
+              baseline_slots: uniqueSlots(baselineHolidayAvailability.body?.slots),
+              after_slots: uniqueSlots(postHolidayAvailability.body?.slots),
               baseline_status: baselineHolidayAvailability.status,
               after_status: postHolidayAvailability.status,
             },
