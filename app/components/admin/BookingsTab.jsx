@@ -137,6 +137,15 @@ export default function BookingsTab({
     }, {})
   }, [transactions])
 
+  const orderById = useMemo(() => {
+    return (orders || []).reduce((acc, row) => {
+      const orderId = Number(row?.id)
+      if (!Number.isFinite(orderId)) return acc
+      acc[orderId] = row
+      return acc
+    }, {})
+  }, [orders])
+
   const orderByBookingId = useMemo(() => {
     return (orders || []).reduce((acc, row) => {
       const bookingId = Number(getOrderBookingId(row))
@@ -206,7 +215,12 @@ export default function BookingsTab({
     const bookingId = Number(booking?.id)
     const allocations = Number.isFinite(bookingId) ? bookingAllocationMap[bookingId] || [] : []
     const directTransactions = Number.isFinite(bookingId) ? transactionByBookingId[bookingId] || [] : []
-    const linkedOrders = Number.isFinite(bookingId) ? orderByBookingId[bookingId] || [] : []
+    const reverseOrders = directTransactions.flatMap((transaction) => {
+      const orderId = Number(getTransactionOrderId(transaction))
+      return Number.isFinite(orderId) && orderById[orderId] ? [orderById[orderId]] : []
+    })
+    const linkedOrders = [...(Number.isFinite(bookingId) ? orderByBookingId[bookingId] || [] : []), ...reverseOrders]
+      .filter((row, index, arr) => arr.findIndex((item) => item?.id === row?.id) === index)
     const transactionFromOrders = linkedOrders.flatMap((order) => {
       const orderId = Number(order?.id)
       return Number.isFinite(orderId) ? transactionByOrderId[orderId] || [] : []
