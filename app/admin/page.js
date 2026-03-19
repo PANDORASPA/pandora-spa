@@ -228,7 +228,6 @@ export default function Admin() {
   const [serviceProviderGroups, setServiceProviderGroups] = useState([])
   const [serviceResources, setServiceResources] = useState([])
   const [settings, setSettings] = useState({})
-  const [selectedBooking, setSelectedBooking] = useState(null)
   const [availableTables, setAvailableTables] = useState({
       locations: false,
       providerGroups: false,
@@ -1003,7 +1002,21 @@ export default function Admin() {
 
       <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr', gap: '24px' }}>
         <div className="admin-card" style={{ padding: '24px' }}>
-          <h3 style={{ marginBottom: '20px', fontSize: '18px', fontWeight: 700 }}>Today's Bookings</h3>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '16px', alignItems: 'flex-start', marginBottom: '20px' }}>
+            <div>
+              <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 700 }}>Today's Bookings</h3>
+              <div style={{ marginTop: '6px', fontSize: '12px', color: 'var(--text-light)' }}>
+                Open the Bookings record view for the unified operational detail panel.
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setActiveTab('bookings')}
+              style={{ border: '1px solid rgba(166, 139, 106, 0.24)', background: '#FBF6EF', color: '#7C6245', cursor: 'pointer', fontWeight: 700, padding: '10px 12px', borderRadius: '10px' }}
+            >
+              Open bookings
+            </button>
+          </div>
           <div style={{ display: 'grid', gap: '12px' }}>
             {todaysBookings.length === 0 ? (
               <div style={{ padding: '40px 20px', textAlign: 'center', background: '#fafafa', borderRadius: '12px' }}>No bookings today</div>
@@ -1019,8 +1032,12 @@ export default function Admin() {
                       {getBookingServiceName(booking) || '-'} - {booking.staff_name || 'Unassigned'}
                     </div>
                   </div>
-                  <button type="button" onClick={() => setSelectedBooking(booking)} style={{ border: 'none', background: 'transparent', color: '#A68B6A', cursor: 'pointer', fontWeight: 700 }}>
-                    View
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('bookings')}
+                    style={{ border: 'none', background: 'transparent', color: '#A68B6A', cursor: 'pointer', fontWeight: 700 }}
+                  >
+                    Open
                   </button>
                 </div>
               ))
@@ -1190,79 +1207,6 @@ export default function Admin() {
           {renderActiveContent()}
         </main>
       </div>
-
-      {selectedBooking && (
-        <div
-          style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000, padding: '20px' }}
-          onClick={() => setSelectedBooking(null)}
-        >
-          <div
-            style={{ background: '#fff', width: '100%', maxWidth: '450px', borderRadius: '20px', overflow: 'hidden', boxShadow: '0 10px 25px rgba(0,0,0,0.2)' }}
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div style={{ padding: '20px 25px', borderBottom: '1px solid #eee', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#FAF8F5' }}>
-              <h3 style={{ fontSize: '18px', fontWeight: 800, margin: 0, color: '#A68B6A' }}>Booking Detail</h3>
-              <button onClick={() => setSelectedBooking(null)} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#999' }}>
-                x
-              </button>
-            </div>
-            <div style={{ padding: '25px' }}>
-              <div style={{ background: '#f9fafb', padding: '20px', borderRadius: '15px', marginBottom: '20px' }}>
-                <div style={{ marginBottom: '12px', fontSize: '15px' }}><strong style={{ color: '#666' }}>Date:</strong> {getBookingDateKey(selectedBooking) || '-' } {getBookingTimeKey(selectedBooking) || ''}</div>
-                <div style={{ marginBottom: '12px', fontSize: '15px' }}><strong style={{ color: '#666' }}>Service:</strong> {getBookingServiceName(selectedBooking) || '-'}</div>
-                <div style={{ marginBottom: '12px', fontSize: '15px' }}><strong style={{ color: '#666' }}>Customer:</strong> {getBookingCustomerName(selectedBooking) || '-'}</div>
-                <div style={{ marginBottom: '12px', fontSize: '15px' }}><strong style={{ color: '#666' }}>Phone:</strong> {getBookingCustomerPhone(selectedBooking) || '-'}</div>
-                <div style={{ marginBottom: '15px', fontSize: '15px' }}>
-                  <strong style={{ color: '#666' }}>Staff:</strong>
-                  <select
-                    value={selectedBooking.staff_id == null ? '' : String(selectedBooking.staff_id)}
-                    onChange={async (event) => {
-                      const nextStaffId = event.target.value === '' ? null : Number(event.target.value)
-                      const ok = await updateBookingStaff(selectedBooking.id, event.target.value)
-                      if (!ok) return
-                      const matchedStaff = nextStaffId == null ? null : staff.find((item) => item.id.toString() === String(nextStaffId))
-                      setSelectedBooking({
-                        ...selectedBooking,
-                        staff_id: nextStaffId,
-                        staff_name: matchedStaff ? matchedStaff.name : null,
-                      })
-                    }}
-                    style={{ marginLeft: '10px', padding: '6px 10px', borderRadius: '8px', border: '1px solid #ddd', fontSize: '14px', outline: 'none' }}
-                  >
-                    <option value="">Unassigned</option>
-                    {staff.map((item) => (
-                      <option key={item.id} value={item.id.toString()}>
-                        {item.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div style={{ borderTop: '1px solid #eee', paddingTop: '15px' }}>
-                  <div style={{ fontSize: '15px', display: 'flex', alignItems: 'center' }}>
-                    <strong style={{ color: '#666' }}>Status:</strong>
-                    <select
-                      value={selectedBooking.status}
-                      onChange={async (event) => {
-                        await updateStatus(selectedBooking.id, event.target.value)
-                        setSelectedBooking({ ...selectedBooking, status: event.target.value })
-                      }}
-                      style={{ marginLeft: '10px', padding: '6px 10px', borderRadius: '8px', border: '1px solid #ddd', fontSize: '14px', outline: 'none' }}
-                    >
-                      <option value="pending">Pending</option>
-                      <option value="confirmed">Confirmed</option>
-                      <option value="completed">Completed</option>
-                      <option value="cancelled">Cancelled</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-              <button onClick={() => setSelectedBooking(null)} style={{ width: '100%', padding: '14px', background: '#A68B6A', color: '#fff', border: 'none', borderRadius: '12px', cursor: 'pointer', fontWeight: 700, fontSize: '15px' }}>
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
