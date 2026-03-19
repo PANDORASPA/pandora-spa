@@ -3,6 +3,9 @@ import { getServerClient } from '../../../../lib/supabase/server'
 import { getServiceClient } from '../../../../lib/supabase/service'
 
 const normalizeText = (value) => String(value || '').trim()
+const isPaidRequest = (body) =>
+  normalizeText(body?.paymentState).toLowerCase() === 'paid' &&
+  normalizeText(body?.paymentProvider).toLowerCase() === 'manual-admin'
 
 export async function POST(request) {
   try {
@@ -17,6 +20,7 @@ export async function POST(request) {
 
     const body = await request.json()
     const ticketId = Number(body?.ticketId)
+    const paidRequest = isPaidRequest(body)
     if (!Number.isFinite(ticketId)) {
       return NextResponse.json({ error: 'Invalid ticket.' }, { status: 400 })
     }
@@ -37,6 +41,37 @@ export async function POST(request) {
     const orderRef = `ORD${Date.now().toString().slice(-6)}`
     const ticketLabel = `Ticket: ${normalizeText(ticket.name) || `#${ticket.id}`}`
 
+    const orderPayload = {
+      user_name: normalizeText(user.email) || 'Member',
+      address: '',
+      delivery: 'digital-ticket',
+      payment: paidRequest ? 'manual-admin' : 'awaiting-payment',
+      items: ticketLabel,
+      total: Number(ticket.price || 0),
+      status: paidRequest ? 'completed' : 'awaiting_payment',
+      created_at: new Date().toISOString(),
+      member_user_id: user.id,
+      ref: orderRef,
+    }
+
+    const { data: order, error: orderError } = await supabase.from('orders').insert(orderPayload).select('*').single()
+    if (orderError) {
+      return NextResponse.json({ error: orderError.message }, { status: 500 })
+    }
+
+    if (!paidRequest) {
+      return NextResponse.json(
+        {
+          ref: orderRef,
+          order,
+          entitlementIssued: false,
+          requiresPayment: true,
+          message: 'Order created and waiting for payment confirmation before the ticket is issued.',
+        },
+        { status: 202 }
+      )
+    }
+
     const insertPayload = {
       member_user_id: user.id,
       ticket_id: ticket.id,
@@ -45,29 +80,13 @@ export async function POST(request) {
       expiry_date: expiryDate.toISOString(),
     }
 
-    const { data, error } = await supabase.from('user_tickets').insert(insertPayload).select('*').single()
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-
-    const orderPayload = {
-      user_name: normalizeText(user.email) || 'Member',
-      address: '',
-      delivery: 'digital',
-      payment: 'manual',
-      items: ticketLabel,
-      total: Number(ticket.price || 0),
-      status: 'pending',
-      created_at: new Date().toISOString(),
-      member_user_id: user.id,
-      ref: orderRef,
+    const { data: issuedTicket, error: issueError } = await supabase.from('user_tickets').insert(insertPayload).select('*').single()
+    if (issueError) {
+      await supabase.from('orders').update({ status: 'fulfillment_failed', payment: 'manual-admin' }).eq('id', order.id)
+      return NextResponse.json({ error: issueError.message, order, entitlementIssued: false }, { status: 500 })
     }
 
-    const { error: orderError } = await supabase.from('orders').insert(orderPayload)
-    if (orderError) {
-      await supabase.from('user_tickets').delete().eq('id', data.id)
-      return NextResponse.json({ error: orderError.message }, { status: 500 })
-    }
-
-    return NextResponse.json({ ticket: data, ref: orderRef }, { status: 200 })
+    return NextResponse.json({ ticket: issuedTicket, order, ref: orderRef, entitlementIssued: true }, { status: 200 })
   } catch (error) {
     return NextResponse.json({ error: error?.message || 'Unknown error' }, { status: 500 })
   }
