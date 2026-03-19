@@ -2,6 +2,8 @@
 
 ## Acceptance Board
 
+For daily controlled live use after release gate, pair this checklist with [CONTROLLED_LIVE_USE_3_DAY_ACCEPTANCE_BOARD.md](/C:/Users/Administrator/Desktop/viva/Hair-salon/CONTROLLED_LIVE_USE_3_DAY_ACCEPTANCE_BOARD.md).
+
 | Area | Scenario | Pass criteria | Fail signal |
 | --- | --- | --- | --- |
 | Service relation save | Add/edit/delete location, provider group, and resource links; refresh admin | Saved relations persist; deleted rows do not reappear | Ghost rows, missing links after refresh, or save rollback |
@@ -25,6 +27,7 @@
 
 ## Daily Merge Gate
 - Treat this checklist as the required closeout gate before every daily merge.
+- During controlled live use, also fill one row in the 3-day acceptance board with seed ids, evidence location, severity, and go/no-go note.
 - Minimum required run:
   - Bookings filters
   - Booking detail context
@@ -48,13 +51,26 @@ Use this compact log for each merge window.
 | --- | --- | --- | --- | --- | --- |
 | 2026-03-19 | Agent 6 | Live smoke gate | bookings detail, transaction roundtrip, customer operational view, resource full, holiday enforcement | pass | Report captured in `LIVE_SMOKE_REPORT_2026-03-19.json` with seeds booking `27`, order `4`, transaction `1`, customer `3`, holiday `4`, staff `3`. |
 | 2026-03-19 | Agent 6 | Build regression | `npm run build` | pass | Build completed after live smoke rerun; Next still prints the known edge-server `SIGTERM` trace after successful completion. |
-| 2026-03-19 |  |  |  |  |  |
+| 2026-03-19 | Agent 6 | Release gate | create success/conflict, resource full, reschedule success, deterministic rollback proof, account ownership, ticket restore, admin auth | pass | `RELEASE_GATE_REPORT_2026-03-19.json`: all release-gate checks passed, including deterministic forced rollback with `rollbackVerified: true`; final decision `GO`. |
 
 Log format:
 - `Scope`: the feature area or agent slice you touched
 - `Checks run`: short list of smoke items executed
 - `Result`: `pass`, `pass with note`, or `fail`
 - `Notes / follow-up`: one line on blockers, rollbacks, or next fix
+- Rollback checks must include before/after evidence; otherwise mark `insufficient_evidence`, not `pass`.
+
+## Controlled Live Use Evidence
+For the daily bookings controlled-use lane, the generated report from `scripts/phase2-live-smoke.mjs` should always include:
+- `seeds`: `location_id`, `provider_group_id`, `resource_id`, `booking_id`, `order_id`, `transaction_id`, `customer_id`, `holiday_id`, `user_ticket_id`, `staff_id`
+- `controlled_booking_flow`: one chained create/reschedule/cancel lifecycle with stable request dates, slot selections, booking id, and pass/fail summary
+- `controlled_booking_evidence.create`: request seed, response status/code, booking snapshot, allocation count
+- `controlled_booking_evidence.reschedule`: before/after snapshots plus allocation rebuild evidence
+- `controlled_booking_evidence.cancel`: before/after snapshots plus ticket restore evidence
+- `checks.controlled_booking_create`, `checks.controlled_booking_reschedule`, `checks.controlled_booking_cancel`
+- `evidence_checked`: a compact array of the same three lifecycle checks for easy triage
+
+If any lifecycle step cannot be exercised because the base URL is missing, mark that step as `blocked` instead of omitting it.
 
 ## Service Relation Save Flow
 - Open one service in [app/components/admin/ServicesTab.jsx](/C:/Users/Administrator/Desktop/viva/Hair-salon/app/components/admin/ServicesTab.jsx).
