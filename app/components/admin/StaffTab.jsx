@@ -4,13 +4,13 @@ import { useEffect, useMemo, useState } from 'react'
 import { AdminActionBar, ChipRow, EmptyState, StatusPill } from './AdminConfigKit'
 
 const DAYS = [
-  ['0', 'Sun'],
-  ['1', 'Mon'],
-  ['2', 'Tue'],
-  ['3', 'Wed'],
-  ['4', 'Thu'],
-  ['5', 'Fri'],
-  ['6', 'Sat'],
+  ['0', '日'],
+  ['1', '一'],
+  ['2', '二'],
+  ['3', '三'],
+  ['4', '四'],
+  ['5', '五'],
+  ['6', '六'],
 ]
 
 const fieldStyle = {
@@ -34,7 +34,7 @@ const normalizeBreak = (row) => ({
   day_of_week: row?.day_of_week == null ? '1' : String(row.day_of_week),
   start_time: parseTime(row?.start_time) || '12:00',
   end_time: parseTime(row?.end_time) || '13:00',
-  label: row?.label || 'Break',
+  label: row?.label || '休息',
   enabled: row?.enabled !== false,
 })
 const normalizeTimeOff = (row) => ({ ...row, date: parseDate(row?.date), start_time: parseTime(row?.start_time), end_time: parseTime(row?.end_time), is_all_day: Boolean(row?.is_all_day), reason: row?.reason || '' })
@@ -53,7 +53,7 @@ function Panel({ title, subtitle, actions, children, soft = false }) {
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'flex-start', flexWrap: 'wrap', marginBottom: '16px' }}>
         <div>
-          <div style={{ fontSize: '12px', fontWeight: 800, letterSpacing: '0.08em', color: '#A68B6A' }}>{soft ? 'SCHEDULE' : 'PROFILE'}</div>
+          <div style={{ fontSize: '12px', fontWeight: 800, letterSpacing: '0.08em', color: '#A68B6A' }}>{soft ? '排程' : '資料'}</div>
           <h3 style={{ margin: '6px 0 0', fontSize: '17px', fontWeight: 800, color: 'var(--text)' }}>{title}</h3>
           {subtitle && <p style={{ margin: '6px 0 0', fontSize: '13px', lineHeight: 1.6, color: 'var(--text-light)' }}>{subtitle}</p>}
         </div>
@@ -145,7 +145,7 @@ const dedupeChips = (items = []) => {
 }
 
 const scopeSummary = (count, singular, plural = `${singular}s`) => {
-  if (!count) return `No ${plural}`
+  if (!count) return `沒有${plural}`
   return `${count} ${count === 1 ? singular : plural}`
 }
 
@@ -305,11 +305,11 @@ export default function StaffTab({
       const params = new URLSearchParams({ date: previewDate, serviceId: String(previewServiceId), staffId: String(selectedStaffId) })
       const res = await fetch(`/api/availability?${params.toString()}`)
       const data = await res.json()
-      if (!res.ok) throw new Error(data?.error || 'Unable to load availability')
+      if (!res.ok) throw new Error(data?.error || '無法載入可預約時段')
       setPreviewSlotMatrix(Array.isArray(data?.slotMatrix) ? data.slotMatrix : [])
     } catch (error) {
       setPreviewSlotMatrix([])
-      setPreviewError(error?.message || 'Unable to load availability')
+      setPreviewError(error?.message || '無法載入可預約時段')
     } finally {
       setPreviewLoading(false)
     }
@@ -357,11 +357,11 @@ export default function StaffTab({
                 color: off ? '#fff' : 'var(--primary-dark)',
               }}
             >
-              {off ? 'Off' : 'Work'}
+              {off ? '休息' : '上班'}
             </button>
           </div>
           <div style={{ fontSize: '11px', lineHeight: 1.5, color: 'var(--text-light)' }}>
-            {shift ? 'Manual override' : daysOff.includes(dayKey) ? 'Weekly off' : schedule?.start ? 'Default hours' : 'No baseline'}
+            {shift ? '手動覆寫' : daysOff.includes(dayKey) ? '每週休息' : schedule?.start ? '預設工時' : '未設定基準'}
           </div>
           {!off && (
             <div style={{ display: 'grid', gap: '6px' }}>
@@ -371,7 +371,7 @@ export default function StaffTab({
                 onChange={(event) => updateShift(date, 'start_time', event.target.value)}
                 style={{ ...fieldStyle, padding: '8px 10px', fontSize: '12px' }}
               />
-              <div style={{ textAlign: 'center', fontSize: '11px', color: 'var(--text-light)', fontWeight: 700 }}>to</div>
+              <div style={{ textAlign: 'center', fontSize: '11px', color: 'var(--text-light)', fontWeight: 700 }}>至</div>
               <input
                 type="time"
                 value={shift?.end_time || schedule?.end || '20:00'}
@@ -387,7 +387,7 @@ export default function StaffTab({
   }
 
   if (!staff.length) {
-    return <div className="admin-card" style={{ padding: '36px', textAlign: 'center', color: 'var(--text-light)' }}>No staff members yet.</div>
+    return <div className="admin-card" style={{ padding: '36px', textAlign: 'center', color: 'var(--text-light)' }}>暫時未有人員資料。</div>
   }
 
   return (
@@ -406,27 +406,27 @@ export default function StaffTab({
         }}
       >
         <div>
-          <div style={{ fontSize: '12px', fontWeight: 800, letterSpacing: '0.08em', color: '#A68B6A' }}>STAFF SCHEDULING CENTER</div>
-          <div style={{ marginTop: '4px', fontSize: '20px', fontWeight: 800, color: 'var(--text)' }}>Manage people, shifts, breaks, and live availability</div>
+          <div style={{ fontSize: '12px', fontWeight: 800, letterSpacing: '0.08em', color: '#A68B6A' }}>人員排程中心</div>
+          <div style={{ marginTop: '4px', fontSize: '20px', fontWeight: 800, color: 'var(--text)' }}>管理人員、班次、休息時段同即時可用狀態</div>
           <div style={{ marginTop: '6px', fontSize: '13px', lineHeight: 1.6, color: 'var(--text-light)' }}>
-            Select a staff member on the left, then edit the profile, weekly baseline, date overrides, and manual blocks in one flow.
+            先喺左邊揀一位人員，再一次過編輯檔案、每週基準、日期覆寫同手動封鎖時段。
           </div>
         </div>
           <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
-            <StatusPill tone="accent">{staff.length} staff</StatusPill>
+            <StatusPill tone="accent">{staff.length} 人員</StatusPill>
             <button type="button" onClick={onAddStaff} className="btn btn-small btn-interactive">
-              + Add staff
+              + 新增人員
             </button>
           <button type="button" onClick={saveAll} disabled={saving || !selectedStaff} className="btn btn-small btn-interactive" style={{ minWidth: '170px' }}>
             {saving && <span className="spinner"></span>}
-            {saving ? 'Saving...' : 'Save selected staff'}
+            {saving ? '儲存中...' : '儲存所選人員'}
           </button>
         </div>
       </div>
 
       <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap', alignItems: 'flex-start' }}>
         <div style={{ width: '300px', flexShrink: 0, position: 'sticky', top: '88px' }}>
-          <Panel title="Team" subtitle="Pick one person to edit their schedule." soft>
+          <Panel title="團隊" subtitle="揀一位人員去編輯佢嘅時間表。" soft>
             <div style={{ display: 'grid', gap: '10px' }}>
               {staff.map((member) => {
                 const active = selectedStaffId === member.id
@@ -464,11 +464,11 @@ export default function StaffTab({
                         {!member.photo_url && (member.name?.charAt(0) || '?')}
                       </div>
                       <div style={{ minWidth: 0, flex: 1 }}>
-                        <div style={{ fontSize: '15px', fontWeight: 800, color: active ? 'var(--primary-dark)' : 'var(--text)' }}>{member.name || 'Unnamed'}</div>
-                        <div style={{ fontSize: '12px', color: 'var(--text-light)', marginTop: '2px' }}>{member.role || 'Staff'}</div>
+                        <div style={{ fontSize: '15px', fontWeight: 800, color: active ? 'var(--primary-dark)' : 'var(--text)' }}>{member.name || '未命名'}</div>
+                        <div style={{ fontSize: '12px', color: 'var(--text-light)', marginTop: '2px' }}>{member.role || '人員'}</div>
                       </div>
                       <span className="badge" style={{ background: member.enabled ? '#ECFDF5' : '#F3F4F6', color: member.enabled ? '#047857' : '#6B7280' }}>
-                        {member.enabled ? 'Enabled' : 'Hidden'}
+                        {member.enabled ? '已啟用' : '已隱藏'}
                       </span>
                     </div>
                   </button>
@@ -482,8 +482,8 @@ export default function StaffTab({
           {selectedStaff ? (
             <div style={{ display: 'grid', gap: '20px' }}>
               <Panel
-                title="Provider profile"
-                subtitle="Basic details, public visibility, and the recurring break window."
+                title="人員檔案"
+                subtitle="基本資料、公開顯示同重複休息時段。"
                 actions={
                   <button
                     type="button"
@@ -491,7 +491,7 @@ export default function StaffTab({
                     className="btn btn-small btn-interactive"
                     style={{ background: '#FEF2F2', color: '#DC2626', border: '1px solid #FECACA' }}
                   >
-                    Delete
+                    刪除
                   </button>
                 }
               >
@@ -499,91 +499,91 @@ export default function StaffTab({
                   <div style={{ display: 'grid', gap: '14px' }}>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
                       <Label>
-                        Name
-                        <input value={selectedStaff.name || ''} onChange={(e) => onUpdateField(selectedStaff.id, 'name', e.target.value)} placeholder="Staff name" style={fieldStyle} />
+                        名稱
+                        <input value={selectedStaff.name || ''} onChange={(e) => onUpdateField(selectedStaff.id, 'name', e.target.value)} placeholder="人員名稱" style={fieldStyle} />
                       </Label>
                       <Label>
-                        Role
-                        <select value={selectedStaff.role || 'Stylist'} onChange={(e) => onUpdateField(selectedStaff.id, 'role', e.target.value)} style={fieldStyle}>
-                          <option>Stylist</option>
-                          <option>Senior Stylist</option>
-                          <option>Assistant</option>
-                          <option>Manager</option>
+                        職位
+                        <select value={selectedStaff.role || '髮型師'} onChange={(e) => onUpdateField(selectedStaff.id, 'role', e.target.value)} style={fieldStyle}>
+                          <option>髮型師</option>
+                          <option>資深髮型師</option>
+                          <option>助理</option>
+                          <option>經理</option>
                         </select>
                       </Label>
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
                       <Label>
-                        Phone
+                        電話
                         <input value={selectedStaff.phone || ''} onChange={(e) => onUpdateField(selectedStaff.id, 'phone', e.target.value)} placeholder="+852..." style={fieldStyle} />
                       </Label>
                       <Label>
-                        Photo URL
+                        相片網址
                         <input value={selectedStaff.photo_url || ''} onChange={(e) => onUpdateField(selectedStaff.id, 'photo_url', e.target.value)} placeholder="https://..." style={fieldStyle} />
                       </Label>
                     </div>
                     <Label>
-                      Bio
-                      <textarea value={selectedStaff.bio || ''} onChange={(e) => onUpdateField(selectedStaff.id, 'bio', e.target.value)} placeholder="Short intro for the team page." style={{ ...fieldStyle, minHeight: '100px', resize: 'vertical' }} />
+                      簡介
+                      <textarea value={selectedStaff.bio || ''} onChange={(e) => onUpdateField(selectedStaff.id, 'bio', e.target.value)} placeholder="為團隊頁面寫一段簡短介紹。" style={{ ...fieldStyle, minHeight: '100px', resize: 'vertical' }} />
                     </Label>
                   </div>
 
                   <div style={{ padding: '18px', borderRadius: '16px', border: '1px solid var(--gray)', background: 'linear-gradient(180deg, #FAF8F5, #fff)', display: 'grid', gap: '12px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', alignItems: 'center' }}>
                       <div>
-                        <div style={{ fontSize: '13px', fontWeight: 800, color: '#A68B6A' }}>Live summary</div>
-                        <div style={{ fontSize: '12px', color: 'var(--text-light)', marginTop: '4px' }}>What this profile affects</div>
+        <div style={{ fontSize: '13px', fontWeight: 800, color: '#A68B6A' }}>即時摘要</div>
+                        <div style={{ fontSize: '12px', color: 'var(--text-light)', marginTop: '4px' }}>此設定影響內容</div>
                       </div>
                       <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: 700 }}>
                         <input type="checkbox" checked={Boolean(selectedStaff.enabled)} onChange={(e) => onUpdateField(selectedStaff.id, 'enabled', e.target.checked)} />
-                        Enabled
+                        啟用中
                       </label>
                     </div>
 
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                      <span className="badge badge-outline" style={{ background: '#fff' }}>{selectedStaff.services?.length || 0} services</span>
-                      <span className="badge badge-outline" style={{ background: '#fff' }}>{selectedShifts.length} overrides</span>
-                      <span className="badge badge-outline" style={{ background: '#fff' }}>{selectedBreaks.length} breaks</span>
-                      <span className="badge badge-outline" style={{ background: '#fff' }}>{selectedTimeOff.length} time off</span>
-                      <span className="badge badge-outline" style={{ background: '#fff' }}>{selectedBlocked.length} blocks</span>
+                      <span className="badge badge-outline" style={{ background: '#fff' }}>{selectedStaff.services?.length || 0} 項服務</span>
+                      <span className="badge badge-outline" style={{ background: '#fff' }}>{selectedShifts.length} 項覆寫</span>
+                      <span className="badge badge-outline" style={{ background: '#fff' }}>{selectedBreaks.length} 個休息時段</span>
+                      <span className="badge badge-outline" style={{ background: '#fff' }}>{selectedTimeOff.length} 項請假</span>
+                      <span className="badge badge-outline" style={{ background: '#fff' }}>{selectedBlocked.length} 項封鎖</span>
                     </div>
 
                     <div style={{ display: 'grid', gap: '8px' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-                        <div style={{ fontSize: '12px', fontWeight: 800, color: '#A68B6A', letterSpacing: '0.06em' }}>Operational scope</div>
+                        <div style={{ fontSize: '12px', fontWeight: 800, color: '#A68B6A', letterSpacing: '0.06em' }}>營運範圍</div>
                         <span className="badge badge-outline" style={{ background: '#fff' }}>
-                          {scopeSummary(providerScopeChips.length, 'link')}
+                          {scopeSummary(providerScopeChips.length, '連結')}
                         </span>
                       </div>
                       <ChipRow
                         items={providerScopeChips}
-                        emptyLabel="No location or provider-group links wired yet"
+                        emptyLabel="尚未設定地點或服務供應者群組連結"
                       />
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '10px' }}>
                       <div style={{ display: 'grid', gap: '8px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-                          <div style={{ fontSize: '12px', fontWeight: 800, color: '#A68B6A', letterSpacing: '0.06em' }}>Assignable locations</div>
+                          <div style={{ fontSize: '12px', fontWeight: 800, color: '#A68B6A', letterSpacing: '0.06em' }}>可用地點</div>
                           <span className="badge badge-outline" style={{ background: '#fff' }}>
-                            {scopeSummary(selectedStaffLocationChips.length, 'location')}
+                            {scopeSummary(selectedStaffLocationChips.length, '地點')}
                           </span>
                         </div>
-                        <ChipRow items={selectedStaffLocationChips} emptyLabel={locations.length ? 'No location links selected' : 'Location lookup unavailable'} />
+                        <ChipRow items={selectedStaffLocationChips} emptyLabel={locations.length ? '尚未選擇地點連結' : '地點資料未載入'} />
                       </div>
                       <div style={{ display: 'grid', gap: '8px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-                          <div style={{ fontSize: '12px', fontWeight: 800, color: '#A68B6A', letterSpacing: '0.06em' }}>Allowed provider groups</div>
+                          <div style={{ fontSize: '12px', fontWeight: 800, color: '#A68B6A', letterSpacing: '0.06em' }}>允許的服務供應者群組</div>
                           <span className="badge badge-outline" style={{ background: '#fff' }}>
-                            {scopeSummary(selectedStaffGroupChips.length, 'group')}
+                            {scopeSummary(selectedStaffGroupChips.length, '群組')}
                           </span>
                         </div>
-                        <ChipRow items={selectedStaffGroupChips} emptyLabel={providerGroups.length ? 'No provider-group links selected' : 'Provider group lookup unavailable'} />
+                        <ChipRow items={selectedStaffGroupChips} emptyLabel={providerGroups.length ? '尚未選擇服務供應者群組連結' : '服務供應者群組資料未載入'} />
                       </div>
                     </div>
                     <div style={{ fontSize: '12px', lineHeight: 1.6, color: 'var(--text-light)' }}>
                       {locations.length || providerGroups.length
-                        ? 'This profile reads live admin lookup props first, so availability and operator context stay aligned with the configured locations and provider groups.'
-                        : 'Scope lookups are not available yet, so the profile falls back to staff record fields for backward compatibility.'}
+                        ? '此人員資料會先讀取即時管理後台的查詢資料，令可預約時段與操作範圍保持一致。'
+                        : '範圍查詢資料暫未提供，因此此頁會暫時回退至人員資料欄位以維持相容。'}
                     </div>
 
                     <div
@@ -597,14 +597,14 @@ export default function StaffTab({
                         lineHeight: 1.6,
                       }}
                     >
-                      Daily breaks now use the normalized recurring breaks list below. Add or edit break windows in the
-                      <strong> Recurring breaks</strong> panel so staff saves stay aligned with the live schema.
+                      每日休息現已改為使用下方標準化的「重複休息時段」清單。請在
+                      <strong> 重複休息時段</strong> 面板內新增或修改時段，確保儲存內容與即時 schema 保持一致。
                     </div>
                   </div>
                 </div>
               </Panel>
 
-              <Panel title="Services" subtitle="Toggle the services this provider can handle." soft>
+              <Panel title="服務" subtitle="切換此人員可處理的服務。" soft>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
                   {services.map((service) => {
                     const active = selectedStaff.services?.includes(service.id)
@@ -618,7 +618,7 @@ export default function StaffTab({
                 </div>
               </Panel>
 
-              <Panel title="Weekly timetable" subtitle="Set the recurring baseline hours for each weekday.">
+              <Panel title="每週時間表" subtitle="設定每個星期的重複基準工時。">
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: '10px' }}>
                   {DAYS.map(([key, label]) => {
                     const schedule = selectedStaff.schedule?.[key]
@@ -641,9 +641,9 @@ export default function StaffTab({
                             cursor: 'pointer',
                           }}
                         >
-                          <div style={{ fontSize: '14px', fontWeight: 800 }}>{off ? 'Day off' : 'Working'}</div>
+                          <div style={{ fontSize: '14px', fontWeight: 800 }}>{off ? '休息日' : '上班中'}</div>
                           <div style={{ fontSize: '12px', marginTop: '8px', lineHeight: 1.5, color: off ? '#B91C1C' : 'var(--text-light)' }}>
-                            {off ? 'Closed' : schedule?.start ? `${schedule.start} - ${schedule.end}` : 'Tap to set'}
+                            {off ? '休息中' : schedule?.start ? `${schedule.start} - ${schedule.end}` : '點擊設定'}
                           </div>
                         </button>
                       </div>
@@ -659,7 +659,7 @@ export default function StaffTab({
                         <div style={{ fontSize: '12px', fontWeight: 800, color: '#A68B6A', marginBottom: '8px' }}>{label}</div>
                         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                           <input type="time" value={schedule.start || '11:00'} onChange={(e) => onUpdateSchedule(selectedStaff.id, key, 'start', e.target.value)} style={{ ...fieldStyle, padding: '8px 10px', fontSize: '12px' }} />
-                          <span style={{ fontWeight: 800, color: 'var(--text-light)' }}>to</span>
+                          <span style={{ fontWeight: 800, color: 'var(--text-light)' }}>至</span>
                           <input type="time" value={schedule.end || '20:00'} onChange={(e) => onUpdateSchedule(selectedStaff.id, key, 'end', e.target.value)} style={{ ...fieldStyle, padding: '8px 10px', fontSize: '12px' }} />
                         </div>
                       </div>
@@ -669,16 +669,16 @@ export default function StaffTab({
               </Panel>
 
               <Panel
-                title="Date overrides"
-                subtitle="Use a calendar to flip a single date on or off without changing the weekly baseline."
+                title="日期覆寫"
+                subtitle="用日曆單獨開關某一天，不影響每週基準工時。"
                 soft
                 actions={
                   <div style={{ display: 'flex', gap: '8px' }}>
                     <button type="button" onClick={() => setMonth((m) => (m === 0 ? (setYear((y) => y - 1), 11) : m - 1))} className="btn btn-small btn-interactive" style={{ background: '#fff' }}>
-                      Prev
+                      上個月
                     </button>
                     <button type="button" onClick={() => setMonth((m) => (m === 11 ? (setYear((y) => y + 1), 0) : m + 1))} className="btn btn-small btn-interactive" style={{ background: '#fff' }}>
-                      Next
+                      下個月
                     </button>
                   </div>
                 }
@@ -697,10 +697,10 @@ export default function StaffTab({
               </Panel>
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
-              <Panel title="Recurring breaks" subtitle="Weekly break windows that always block availability." actions={<button type="button" onClick={() => setLocalBreaks((current) => [...current, { id: tempId(), staff_id: selectedStaffId, day_of_week: '1', start_time: '12:00', end_time: '13:00', label: 'Break', enabled: true }])} className="btn btn-small btn-interactive">+ Add</button>}>
+              <Panel title="重複休息時段" subtitle="每週固定休息時段，會持續封鎖可預約時段。" actions={<button type="button" onClick={() => setLocalBreaks((current) => [...current, { id: tempId(), staff_id: selectedStaffId, day_of_week: '1', start_time: '12:00', end_time: '13:00', label: '休息', enabled: true }])} className="btn btn-small btn-interactive">+ 新增</button>}>
                   <div style={{ display: 'grid', gap: '12px' }}>
                     {selectedBreaks.length === 0 ? (
-                      <div style={{ padding: '18px', textAlign: 'center', color: 'var(--text-light)', background: '#FAF8F5', borderRadius: '12px' }}>No recurring breaks yet.</div>
+                      <div style={{ padding: '18px', textAlign: 'center', color: 'var(--text-light)', background: '#FAF8F5', borderRadius: '12px' }}>暫時未有重複休息時段。</div>
                     ) : (
                       selectedBreaks.map((row) => (
                         <div key={row.id} className="admin-card" style={{ padding: '14px', border: '1px solid var(--gray)' }}>
@@ -709,18 +709,18 @@ export default function StaffTab({
                               <select value={row.day_of_week} onChange={(e) => setLocalBreaks((cur) => cur.map((item) => (item.id === row.id ? { ...item, day_of_week: e.target.value } : item)))} style={fieldStyle}>
                                 {DAYS.map(([key, label]) => <option key={key} value={key}>{label}</option>)}
                               </select>
-                              <input value={row.label || ''} onChange={(e) => setLocalBreaks((cur) => cur.map((item) => (item.id === row.id ? { ...item, label: e.target.value } : item)))} placeholder="Label" style={fieldStyle} />
+                              <input value={row.label || ''} onChange={(e) => setLocalBreaks((cur) => cur.map((item) => (item.id === row.id ? { ...item, label: e.target.value } : item)))} placeholder="名稱" style={fieldStyle} />
                             </div>
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '10px' }}>
                               <input type="time" value={row.start_time || ''} onChange={(e) => setLocalBreaks((cur) => cur.map((item) => (item.id === row.id ? { ...item, start_time: e.target.value } : item)))} style={fieldStyle} />
                               <input type="time" value={row.end_time || ''} onChange={(e) => setLocalBreaks((cur) => cur.map((item) => (item.id === row.id ? { ...item, end_time: e.target.value } : item)))} style={fieldStyle} />
                               <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 700, fontSize: '13px' }}>
                                 <input type="checkbox" checked={row.enabled !== false} onChange={(e) => setLocalBreaks((cur) => cur.map((item) => (item.id === row.id ? { ...item, enabled: e.target.checked } : item)))} />
-                                Enabled
+                                已啟用
                               </label>
                             </div>
                             <button type="button" onClick={() => removeRow(setLocalBreaks, setDeletedBreakIds, row.id)} className="btn btn-small btn-interactive" style={{ background: '#FEF2F2', color: '#DC2626', border: '1px solid #FECACA', width: 'fit-content' }}>
-                              Remove
+                              刪除
                             </button>
                           </div>
                         </div>
@@ -729,10 +729,10 @@ export default function StaffTab({
                   </div>
                 </Panel>
 
-              <Panel title="Time off" subtitle="Leave or one-off schedule gaps that override the timetable." actions={<button type="button" onClick={() => setLocalTimeOff((current) => [...current, { id: tempId(), staff_id: selectedStaffId, date: previewDate, start_time: '', end_time: '', is_all_day: true, reason: '' }])} className="btn btn-small btn-interactive">+ Add</button>}>
+              <Panel title="請假 / 休假" subtitle="請假或單次排程空檔，會覆蓋時間表。" actions={<button type="button" onClick={() => setLocalTimeOff((current) => [...current, { id: tempId(), staff_id: selectedStaffId, date: previewDate, start_time: '', end_time: '', is_all_day: true, reason: '' }])} className="btn btn-small btn-interactive">+ 新增</button>}>
                   <div style={{ display: 'grid', gap: '12px' }}>
                     {selectedTimeOff.length === 0 ? (
-                      <div style={{ padding: '18px', textAlign: 'center', color: 'var(--text-light)', background: '#FAF8F5', borderRadius: '12px' }}>No time-off entries yet.</div>
+                      <div style={{ padding: '18px', textAlign: 'center', color: 'var(--text-light)', background: '#FAF8F5', borderRadius: '12px' }}>暫時未有請假紀錄。</div>
                     ) : (
                       selectedTimeOff.map((row) => (
                         <div key={row.id} className="admin-card" style={{ padding: '14px', border: '1px solid var(--gray)' }}>
@@ -741,7 +741,7 @@ export default function StaffTab({
                               <input type="date" value={row.date || ''} onChange={(e) => setLocalTimeOff((cur) => cur.map((item) => (item.id === row.id ? { ...item, date: e.target.value } : item)))} style={fieldStyle} />
                               <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 700, fontSize: '13px' }}>
                                 <input type="checkbox" checked={Boolean(row.is_all_day)} onChange={(e) => setLocalTimeOff((cur) => cur.map((item) => (item.id === row.id ? { ...item, is_all_day: e.target.checked } : item)))} />
-                                All day
+                                全日
                               </label>
                             </div>
                             {!row.is_all_day && (
@@ -750,9 +750,9 @@ export default function StaffTab({
                                 <input type="time" value={row.end_time || ''} onChange={(e) => setLocalTimeOff((cur) => cur.map((item) => (item.id === row.id ? { ...item, end_time: e.target.value } : item)))} style={fieldStyle} />
                               </div>
                             )}
-                            <input type="text" value={row.reason || ''} onChange={(e) => setLocalTimeOff((cur) => cur.map((item) => (item.id === row.id ? { ...item, reason: e.target.value } : item)))} placeholder="Reason" style={fieldStyle} />
+                            <input type="text" value={row.reason || ''} onChange={(e) => setLocalTimeOff((cur) => cur.map((item) => (item.id === row.id ? { ...item, reason: e.target.value } : item)))} placeholder="原因" style={fieldStyle} />
                             <button type="button" onClick={() => removeRow(setLocalTimeOff, setDeletedTimeOffIds, row.id)} className="btn btn-small btn-interactive" style={{ background: '#FEF2F2', color: '#DC2626', border: '1px solid #FECACA', width: 'fit-content' }}>
-                              Remove
+                              刪除
                             </button>
                           </div>
                         </div>
@@ -762,10 +762,10 @@ export default function StaffTab({
                 </Panel>
               </div>
 
-              <Panel title="Blocked slots" subtitle="Manual blocks for holidays, maintenance, or private appointments." actions={<button type="button" onClick={() => setLocalBlocked((current) => [...current, { id: tempId(), staff_id: selectedStaffId, date: previewDate, start_time: '15:00', end_time: '16:00', reason: '', source: 'manual' }])} className="btn btn-small btn-interactive">+ Add</button>}>
+              <Panel title="封鎖時段" subtitle="手動封鎖假期、維修或私人預約時段。" actions={<button type="button" onClick={() => setLocalBlocked((current) => [...current, { id: tempId(), staff_id: selectedStaffId, date: previewDate, start_time: '15:00', end_time: '16:00', reason: '', source: 'manual' }])} className="btn btn-small btn-interactive">+ 新增</button>}>
                 <div style={{ display: 'grid', gap: '12px' }}>
                   {selectedBlocked.length === 0 ? (
-                    <div style={{ padding: '18px', textAlign: 'center', color: 'var(--text-light)', background: '#FAF8F5', borderRadius: '12px' }}>No blocked slots yet.</div>
+                    <div style={{ padding: '18px', textAlign: 'center', color: 'var(--text-light)', background: '#FAF8F5', borderRadius: '12px' }}>暫時未有封鎖時段。</div>
                   ) : (
                     selectedBlocked.map((row) => (
                       <div key={row.id} className="admin-card" style={{ padding: '14px', border: '1px solid var(--gray)' }}>
@@ -775,11 +775,11 @@ export default function StaffTab({
                             <input type="time" value={row.start_time || ''} onChange={(e) => setLocalBlocked((cur) => cur.map((item) => (item.id === row.id ? { ...item, start_time: e.target.value } : item)))} style={fieldStyle} />
                             <input type="time" value={row.end_time || ''} onChange={(e) => setLocalBlocked((cur) => cur.map((item) => (item.id === row.id ? { ...item, end_time: e.target.value } : item)))} style={fieldStyle} />
                           </div>
-                          <input type="text" value={row.reason || ''} onChange={(e) => setLocalBlocked((cur) => cur.map((item) => (item.id === row.id ? { ...item, reason: e.target.value } : item)))} placeholder="Reason" style={fieldStyle} />
+                            <input type="text" value={row.reason || ''} onChange={(e) => setLocalBlocked((cur) => cur.map((item) => (item.id === row.id ? { ...item, reason: e.target.value } : item)))} placeholder="原因" style={fieldStyle} />
                           <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-                            <span className="badge badge-outline" style={{ background: '#fff' }}>Source: {row.source || 'manual'}</span>
+                            <span className="badge badge-outline" style={{ background: '#fff' }}>來源：{row.source || 'manual'}</span>
                             <button type="button" onClick={() => removeRow(setLocalBlocked, setDeletedBlockedIds, row.id)} className="btn btn-small btn-interactive" style={{ background: '#FEF2F2', color: '#DC2626', border: '1px solid #FECACA' }}>
-                              Remove
+                              刪除
                             </button>
                           </div>
                         </div>
@@ -789,14 +789,14 @@ export default function StaffTab({
                 </div>
               </Panel>
 
-              <Panel title="Live slot preview" subtitle="Confirm that the frontend slots reflect the current schedule." soft actions={<button type="button" onClick={loadAvailability} className="btn btn-small btn-interactive">Check availability</button>}>
+              <Panel title="即時時段預覽" subtitle="確認前台顯示的時段是否跟目前排程一致。" soft actions={<button type="button" onClick={loadAvailability} className="btn btn-small btn-interactive">查看可預約時段</button>}>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px', marginBottom: '16px' }}>
                   <Label>
-                    Date
+                    日期
                     <input type="date" value={previewDate} onChange={(e) => setPreviewDate(e.target.value)} style={fieldStyle} />
                   </Label>
                   <Label>
-                    Service
+                    服務
                     <select value={previewServiceId} onChange={(e) => setPreviewServiceId(Number(e.target.value))} style={fieldStyle}>
                       {services.map((service) => (
                         <option key={service.id} value={service.id}>
@@ -806,7 +806,7 @@ export default function StaffTab({
                     </select>
                   </Label>
                   <Label>
-                    Staff
+                    人員
                     <select value={selectedStaffId || ''} onChange={(e) => setSelectedStaffId(Number(e.target.value))} style={fieldStyle}>
                       {staff.map((member) => (
                         <option key={member.id} value={member.id}>
@@ -819,14 +819,14 @@ export default function StaffTab({
 
                 <div className="admin-card" style={{ padding: '16px', border: '1px solid var(--gray)' }}>
                   {previewLoading ? (
-                    <div style={{ color: 'var(--text-light)' }}>Loading availability...</div>
+                    <div style={{ color: 'var(--text-light)' }}>正在載入可預約時段...</div>
                   ) : previewError ? (
                     <div style={{ color: '#DC2626' }}>{previewError}</div>
                   ) : previewSlotMatrix.length ? (
                     <div style={{ display: 'grid', gap: '12px' }}>
                       <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                        <span className="badge badge-outline" style={{ background: '#ECFDF5', borderColor: '#A7F3D0', color: '#047857' }}>Available</span>
-                        <span className="badge badge-outline" style={{ background: '#F3F4F6', borderColor: '#E5E7EB', color: '#6B7280' }}>Unavailable</span>
+                        <span className="badge badge-outline" style={{ background: '#ECFDF5', borderColor: '#A7F3D0', color: '#047857' }}>可用</span>
+                        <span className="badge badge-outline" style={{ background: '#F3F4F6', borderColor: '#E5E7EB', color: '#6B7280' }}>不可用</span>
                       </div>
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(88px, 1fr))', gap: '8px' }}>
                         {previewSlotMatrix.map((slot) => (
@@ -849,15 +849,15 @@ export default function StaffTab({
                       </div>
                     </div>
                   ) : (
-                    <div style={{ color: 'var(--text-light)' }}>Choose a date, service, and staff, then click Check availability.</div>
+                    <div style={{ color: 'var(--text-light)' }}>請先選擇日期、服務及人員，然後按「查看可預約時段」。</div>
                   )}
                 </div>
               </Panel>
             </div>
           ) : (
             <div className="admin-card" style={{ padding: '100px 40px', textAlign: 'center', color: 'var(--text-light)', border: '1px dashed var(--gray)', background: 'linear-gradient(180deg, #fff, #FAF8F5)' }}>
-              <div style={{ fontSize: '20px', fontWeight: 800, marginBottom: '8px', color: 'var(--text)' }}>Select a staff member</div>
-              <div style={{ fontSize: '14px', lineHeight: 1.7 }}>Manage profile, services, weekly hours, monthly overrides, breaks, time off, and blocked slots from one place.</div>
+              <div style={{ fontSize: '20px', fontWeight: 800, marginBottom: '8px', color: 'var(--text)' }}>請先選擇一位人員</div>
+              <div style={{ fontSize: '14px', lineHeight: 1.7 }}>可在此集中管理人員資料、服務、每週工時、月曆覆寫、休息、請假及封鎖時段。</div>
             </div>
           )}
         </div>
