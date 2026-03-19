@@ -22,6 +22,12 @@ const getTicketLabel = (ticket, servicePackages = []) => {
   return ticket?.name || ticket?.ticket_name || ticket?.title || packageName || `Ticket #${ticket?.id || '-'}`
 }
 
+const toSortTimestamp = (value) => {
+  if (!value) return 0
+  const timestamp = Date.parse(value)
+  return Number.isFinite(timestamp) ? timestamp : 0
+}
+
 const deriveTier = (spend) => {
   if (spend >= 10000) return 'VIP'
   if (spend >= 5000) return 'Gold'
@@ -35,6 +41,8 @@ export default function CustomersTab({ users = [], bookings = [], orders = [], t
   const [tierFilter, setTierFilter] = useState('all')
   const [activityFilter, setActivityFilter] = useState('all')
   const [notesDraft, setNotesDraft] = useState({})
+  const [savingNotesId, setSavingNotesId] = useState(null)
+  const [notesStatus, setNotesStatus] = useState({})
 
   const customerRows = useMemo(() => {
     return (users || []).map((user) => {
@@ -96,7 +104,7 @@ export default function CustomersTab({ users = [], bookings = [], orders = [], t
         })),
       ]
         .filter((item) => item.when)
-        .sort((a, b) => new Date(b.when || 0) - new Date(a.when || 0))
+        .sort((a, b) => toSortTimestamp(b.when) - toSortTimestamp(a.when))
         .slice(0, 4)
 
       return {
@@ -151,7 +159,23 @@ export default function CustomersTab({ users = [], bookings = [], orders = [], t
   }, [selectedCustomer?.id, selectedCustomer?.notes])
 
   const updateCustomer = (id, patch) => {
-    if (onUpdateCustomer) onUpdateCustomer(id, patch)
+    if (!onUpdateCustomer) return
+    setSavingNotesId(id)
+    setNotesStatus((current) => ({ ...current, [id]: { state: 'saving', message: 'Saving notes...' } }))
+    Promise.resolve(onUpdateCustomer(id, patch))
+      .then(() => {
+        const nextNotes = patch?.notes
+        if (typeof nextNotes === 'string') {
+          setNotesDraft((current) => ({ ...current, [id]: nextNotes }))
+        }
+        setNotesStatus((current) => ({ ...current, [id]: { state: 'saved', message: 'Notes saved' } }))
+      })
+      .catch((error) => {
+        setNotesStatus((current) => ({ ...current, [id]: { state: 'error', message: error?.message || 'Failed to save notes' } }))
+      })
+      .finally(() => {
+        setSavingNotesId((current) => (current === id ? null : current))
+      })
   }
 
   const getNotesDraft = (customer) => notesDraft[customer.id] ?? customer.notes ?? ''
@@ -192,13 +216,16 @@ export default function CustomersTab({ users = [], bookings = [], orders = [], t
         </select>
       </RecordFilterBar>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
         <SummaryCard label="Visible customers" value={filteredCustomers.length} />
         <SummaryCard label="Visible spend" value={formatMoney(filteredCustomers.reduce((sum, user) => sum + Number(user.__spend || 0), 0), '')} />
         <SummaryCard label="Bookings" value={filteredCustomers.reduce((sum, user) => sum + (user.__bookings?.length || 0), 0)} />
         <SummaryCard label="Orders" value={filteredCustomers.reduce((sum, user) => sum + (user.__orders?.length || 0), 0)} />
         <SummaryCard label="Transactions" value={filteredCustomers.reduce((sum, user) => sum + (user.__transactions?.length || 0), 0)} />
         <SummaryCard label="Tickets / packages" value={filteredCustomers.reduce((sum, user) => sum + (user.__tickets?.length || 0), 0)} />
+      </div>
+      <div style={{ marginTop: '-4px', fontSize: '12px', color: 'var(--text-light)' }}>
+        Visible spend currently reflects booking + order totals only, so it stays aligned with the revenue figures already used in this screen.
       </div>
 
       <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
@@ -266,15 +293,28 @@ export default function CustomersTab({ users = [], bookings = [], orders = [], t
                           <div style={{ fontSize: '11px', color: 'var(--text-light)', marginTop: '3px' }}>Ledger entries</div>
                         </td>
                         {!selectedCustomer && (
-                          <td style={{ padding: '14px 12px' }}>
-                            <input
-                              type="text"
-                              value={user.notes || ''}
-                              placeholder="Internal notes"
-                              onBlur={(event) => updateCustomer(user.id, { notes: event.target.value })}
-                              onClick={(event) => event.stopPropagation()}
-                              style={{ ...smallFieldStyle, background: '#f9fafb' }}
-                            />
+                      <td style={{ padding: '14px 12px' }}>
+                        <div style={{ display: 'grid', gap: '6px' }}>
+                          <input
+                            type="text"
+                            value={user.notes || ''}
+                            placeholder="Internal notes"
+                            onChange={(event) => setNotesDraftForCustomer(user.id, event.target.value)}
+                            onBlur={(event) => updateCustomer(user.id, { notes: event.target.value })}
+                            onClick={(event) => event.stopPropagation()}
+                            style={{ ...smallFieldStyle, background: '#f9fafb' }}
+                          />
+                          {notesStatus[user.id]?.message && (
+                            <div
+                              style={{
+                                fontSize: '11px',
+                                color: notesStatus[user.id]?.state === 'error' ? '#DC2626' : notesStatus[user.id]?.state === 'saved' ? '#047857' : 'var(--text-light)',
+                              }}
+                            >
+                              {savingNotesId === user.id ? 'Saving notes...' : notesStatus[user.id].message}
+                            </div>
+                          )}
+                        </div>
                           </td>
                         )}
                       </tr>
@@ -347,10 +387,23 @@ export default function CustomersTab({ users = [], bookings = [], orders = [], t
               <textarea
                 value={getNotesDraft(selectedCustomer)}
                 onChange={(event) => setNotesDraftForCustomer(selectedCustomer.id, event.target.value)}
-                onBlur={(event) => updateCustomer(selectedCustomer.id, { notes: event.target.value })}
                 placeholder="Write internal notes"
                 style={{ ...fieldStyle, minHeight: '92px', resize: 'vertical' }}
               />
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', marginTop: '8px', alignItems: 'center' }}>
+                <div style={{ fontSize: '12px', color: notesStatus[selectedCustomer.id]?.state === 'error' ? '#DC2626' : notesStatus[selectedCustomer.id]?.state === 'saved' ? '#047857' : 'var(--text-light)' }}>
+                  {notesStatus[selectedCustomer.id]?.message || 'Changes are saved with the Save notes button.'}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => updateCustomer(selectedCustomer.id, { notes: getNotesDraft(selectedCustomer) })}
+                  className="btn btn-small btn-interactive"
+                  disabled={savingNotesId === selectedCustomer.id}
+                  style={{ minWidth: '120px' }}
+                >
+                  {savingNotesId === selectedCustomer.id ? 'Saving...' : 'Save notes'}
+                </button>
+              </div>
             </div>
 
             <div>
