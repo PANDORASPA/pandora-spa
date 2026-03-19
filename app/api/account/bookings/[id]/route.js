@@ -42,6 +42,39 @@ const getBookingScope = async (supabase, bookingId, userId) => {
   return { booking: data, error }
 }
 
+const getBookingStatus = (booking) => {
+  const status = String(booking?.status || '').trim().toLowerCase()
+  return status || 'pending'
+}
+
+const parseOptionalTicketId = (value) => {
+  if (value == null || value === '') return null
+  const parsed = Number(value)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null
+}
+
+const restoreTicketIfNeeded = async (supabase, booking) => {
+  const ticketId = Number(booking?.user_ticket_id)
+  if (!Number.isFinite(ticketId) || ticketId <= 0) return
+  if (getBookingStatus(booking) === 'cancelled') return
+
+  const ticketRes = await supabase
+    .from('user_tickets')
+    .select('id,remaining_count')
+    .eq('id', ticketId)
+    .maybeSingle()
+
+  if (ticketRes.error) throw ticketRes.error
+  if (!ticketRes.data) return
+
+  const updateRes = await supabase
+    .from('user_tickets')
+    .update({ remaining_count: Number(ticketRes.data.remaining_count || 0) + 1 })
+    .eq('id', ticketId)
+
+  if (updateRes.error) throw updateRes.error
+}
+
 export async function PATCH(request, { params }) {
   try {
     const authSupabase = getServerClient()
@@ -64,6 +97,8 @@ export async function PATCH(request, { params }) {
     const action = body?.action || 'reschedule'
 
     if (action === 'cancel') {
+      await restoreTicketIfNeeded(supabase, existingBooking)
+
       const { data, error } = await supabase
         .from('bookings')
         .update({ status: 'cancelled' })
@@ -77,21 +112,37 @@ export async function PATCH(request, { params }) {
     }
 
     const dateISO = body?.date
-    const serviceId = Number(body?.serviceId || existingBooking.service_id)
+    const requestedServiceId = Number(body?.serviceId || existingBooking.service_id)
+    const existingServiceId = Number(existingBooking.service_id)
     const startTime = String(body?.startTime || '')
     const customerName = String(body?.customerName || existingBooking.customer_name || existingBooking.name || '')
     const customerPhone = String(body?.customerPhone || existingBooking.customer_phone || existingBooking.phone || '')
     const staffIdInput = body?.staffId == null || body?.staffId === '' || body?.staffId === 'random' ? null : Number(body.staffId)
+    const requestedCoupon = String(body?.couponCode || '').trim() || null
+    const existingCoupon = String(existingBooking.coupon || '').trim() || null
+    const requestedTicketId = parseOptionalTicketId(body?.userTicketId)
+    const existingTicketId = parseOptionalTicketId(existingBooking.user_ticket_id)
 
     if (!dateISO || !/^\d{4}-\d{2}-\d{2}$/.test(dateISO)) {
       return NextResponse.json({ error: 'Invalid appointment date.' }, { status: 400 })
     }
-    if (!Number.isFinite(serviceId)) {
+    if (!Number.isFinite(requestedServiceId)) {
       return NextResponse.json({ error: 'Invalid service.' }, { status: 400 })
     }
     if (!startTime) {
       return NextResponse.json({ error: 'Please choose a time slot.' }, { status: 400 })
     }
+    if (Number.isFinite(existingServiceId) && requestedServiceId !== existingServiceId) {
+      return NextResponse.json({ error: 'Service changes are not supported when rescheduling.' }, { status: 400 })
+    }
+    if (requestedCoupon !== existingCoupon) {
+      return NextResponse.json({ error: 'Coupon changes are not supported when rescheduling.' }, { status: 400 })
+    }
+    if (requestedTicketId !== existingTicketId) {
+      return NextResponse.json({ error: 'Ticket changes are not supported when rescheduling.' }, { status: 400 })
+    }
+
+    const serviceId = Number.isFinite(existingServiceId) ? existingServiceId : requestedServiceId
 
     const serviceRes = await supabase.from('services').select('id,name,price,time,buffer_min,enabled').eq('id', serviceId).single()
     const settingsRes = await supabase.from('settings').select('key,value')
@@ -200,8 +251,8 @@ export async function PATCH(request, { params }) {
 
     const payload = {
       service: serviceRes.data.name,
-      service_price: serviceRes.data.price,
-      final_price: serviceRes.data.price,
+      service_price: existingBooking.service_price ?? serviceRes.data.price,
+      final_price: existingBooking.final_price ?? serviceRes.data.price,
       date: legacyDate,
       time: startTime,
       staff_id: chosenStaff.id,
@@ -221,7 +272,9 @@ export async function PATCH(request, { params }) {
       buffer_end_at: bufferEndAt,
       duration_min: durationMin,
       buffer_min: bufferMin,
-      status: 'pending',
+      coupon: existingBooking.coupon || null,
+      user_ticket_id: existingBooking.user_ticket_id ?? null,
+      status: getBookingStatus(existingBooking),
     }
 
     const { data, error } = await supabase
