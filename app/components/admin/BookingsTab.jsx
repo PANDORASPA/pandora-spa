@@ -4,15 +4,15 @@ import { useEffect, useMemo, useState } from 'react'
 import { EmptyState, Pill, RecordFilterBar, SectionHeader, fieldStyle, parseDate, parseTime, smallFieldStyle } from './opsUi'
 
 const STATUS_OPTIONS = [
-  { value: 'pending', label: 'Pending', tone: 'warning' },
-  { value: 'confirmed', label: 'Confirmed', tone: 'success' },
-  { value: 'completed', label: 'Completed', tone: 'default' },
-  { value: 'cancelled', label: 'Cancelled', tone: 'danger' },
+  { value: 'pending', label: '待處理', tone: 'warning' },
+  { value: 'confirmed', label: '已確認', tone: 'success' },
+  { value: 'completed', label: '已完成', tone: 'default' },
+  { value: 'cancelled', label: '已取消', tone: 'danger' },
 ]
 
 const getBookingDate = (booking) => parseDate(booking?.appointment_date || booking?.date || '')
 const getBookingTime = (booking) => parseTime(booking?.start_time || booking?.time || '')
-const getCustomerName = (booking) => booking?.customer_name || booking?.name || 'Guest'
+const getCustomerName = (booking) => booking?.customer_name || booking?.name || '訪客'
 const getCustomerPhone = (booking) => booking?.customer_phone || booking?.phone || ''
 const getServiceName = (booking) => booking?.service_name || booking?.service || '-'
 const getLocationName = (booking) => booking?.location_name || booking?.location || booking?.branch_name || '-'
@@ -20,10 +20,10 @@ const getLocationId = (booking) => booking?.location_id ?? booking?.branch_id ??
 const getProviderName = (booking) => booking?.staff_name || booking?.provider_name || booking?.provider || '-'
 const getProviderGroupName = (booking) => booking?.provider_group_name || booking?.provider_group || booking?.group_name || '-'
 const getProviderGroupId = (booking) => booking?.provider_group_id ?? booking?.group_id ?? ''
-const getPaymentText = (booking) => booking?.payment || booking?.payment_method || booking?.payment_status || 'Not set'
+const getPaymentText = (booking) => booking?.payment || booking?.payment_method || booking?.payment_status || '未設定'
 const getTicketText = (booking) => booking?.ticket_name || booking?.user_ticket_name || booking?.ticket || ''
 const getStaffName = (member) => member?.name || member?.full_name || member?.display_name || member?.title || ''
-const getResourceName = (resource) => resource?.name || resource?.title || resource?.label || resource?.code || `Resource #${resource?.id || ''}`
+const getResourceName = (resource) => resource?.name || resource?.title || resource?.label || resource?.code || `資源 #${resource?.id || ''}`
 const getTransactionRef = (transaction) => transaction?.ref || transaction?.payment_ref || transaction?.reference || transaction?.id
 const getTransactionBookingId = (transaction) => transaction?.booking_id ?? transaction?.bookingId ?? transaction?.order_booking_id ?? ''
 const getTransactionOrderId = (transaction) => transaction?.order_id ?? transaction?.orderId ?? ''
@@ -96,14 +96,14 @@ export default function BookingsTab({
 
   const locationNameMap = useMemo(() => {
     return (locations || []).reduce((acc, item) => {
-      acc[item.id] = item?.name || item?.title || `Location #${item?.id}`
+      acc[item.id] = item?.name || item?.title || `地點 #${item?.id}`
       return acc
     }, {})
   }, [locations])
 
   const providerGroupNameMap = useMemo(() => {
     return (providerGroups || []).reduce((acc, item) => {
-      acc[item.id] = item?.name || item?.title || `Group #${item?.id}`
+      acc[item.id] = item?.name || item?.title || `組別 #${item?.id}`
       return acc
     }, {})
   }, [providerGroups])
@@ -251,16 +251,16 @@ export default function BookingsTab({
   return (
     <div style={{ display: 'grid', gap: '20px' }}>
       <SectionHeader
-        eyebrow="BOOKINGS"
-        title="Bookings and allocation"
-        description="Manage appointment date, provider, payment status, and ticket usage from one compact table."
-        actions={<Pill>{filteredBookings.length} visible</Pill>}
+        eyebrow="預約記錄"
+        title="預約與資源分配"
+        description="在同一個表格管理預約日期、服務供應者、付款狀態及票券使用。"
+        actions={<Pill>{filteredBookings.length} 筆顯示中</Pill>}
       />
 
       <RecordFilterBar columns="repeat(auto-fit, minmax(160px, 1fr))">
-        <input type="text" placeholder="Search customer, service, provider, location, ticket..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} style={fieldStyle} />
+        <input type="text" placeholder="搜尋顧客、服務、供應者、地點、票券..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} style={fieldStyle} />
         <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={fieldStyle}>
-          <option value="all">All statuses</option>
+          <option value="all">全部狀態</option>
           {STATUS_OPTIONS.map((option) => (
             <option key={option.value} value={option.value}>
               {option.label}
@@ -270,7 +270,7 @@ export default function BookingsTab({
         <input type="date" value={dateFromFilter} onChange={(e) => setDateFromFilter(e.target.value)} style={fieldStyle} />
         <input type="date" value={dateToFilter} onChange={(e) => setDateToFilter(e.target.value)} style={fieldStyle} />
         <select value={serviceFilter} onChange={(e) => setServiceFilter(e.target.value)} style={fieldStyle}>
-          <option value="all">All services</option>
+          <option value="all">全部服務</option>
           {(services || []).map((service) => (
             <option key={service.id} value={String(service.id)}>
               {service.name}
@@ -278,7 +278,7 @@ export default function BookingsTab({
           ))}
         </select>
         <select value={providerFilter} onChange={(e) => setProviderFilter(e.target.value)} style={fieldStyle}>
-          <option value="all">All providers</option>
+          <option value="all">全部供應者</option>
           {(staff || []).map((member) => (
             <option key={member.id} value={String(member.id)}>
               {member.name}
@@ -286,18 +286,18 @@ export default function BookingsTab({
           ))}
         </select>
         <select value={locationFilter} onChange={(e) => setLocationFilter(e.target.value)} style={fieldStyle}>
-          <option value="all">All locations</option>
+          <option value="all">全部地點</option>
           {(locations || []).map((location) => (
             <option key={location.id} value={String(location.id)}>
-              {location.name || location.title || `Location #${location.id}`}
+              {location.name || location.title || `地點 #${location.id}`}
             </option>
           ))}
         </select>
         <select value={providerGroupFilter} onChange={(e) => setProviderGroupFilter(e.target.value)} style={fieldStyle}>
-          <option value="all">All provider groups</option>
+          <option value="all">全部供應者組別</option>
           {(providerGroups || []).map((group) => (
             <option key={group.id} value={String(group.id)}>
-              {group.name || group.title || `Group #${group.id}`}
+              {group.name || group.title || `組別 #${group.id}`}
             </option>
           ))}
         </select>
@@ -308,20 +308,20 @@ export default function BookingsTab({
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', minWidth: '1120px' }}>
             <thead>
               <tr style={{ background: '#FAF8F5', borderBottom: '1px solid var(--gray)' }}>
-                <th style={{ padding: '14px 12px', textAlign: 'left', color: 'var(--text-light)' }}>Appointment</th>
-                <th style={{ padding: '14px 12px', textAlign: 'left', color: 'var(--text-light)' }}>Customer</th>
-                <th style={{ padding: '14px 12px', textAlign: 'left', color: 'var(--text-light)' }}>Service</th>
-                <th style={{ padding: '14px 12px', textAlign: 'left', color: 'var(--text-light)' }}>Location / Provider</th>
-                <th style={{ padding: '14px 12px', textAlign: 'left', color: 'var(--text-light)' }}>Payment / Ticket</th>
-                <th style={{ padding: '14px 12px', textAlign: 'left', color: 'var(--text-light)' }}>Status</th>
-                <th style={{ padding: '14px 12px', textAlign: 'center', color: 'var(--text-light)' }}>Action</th>
+                <th style={{ padding: '14px 12px', textAlign: 'left', color: 'var(--text-light)' }}>預約時間</th>
+                <th style={{ padding: '14px 12px', textAlign: 'left', color: 'var(--text-light)' }}>顧客</th>
+                <th style={{ padding: '14px 12px', textAlign: 'left', color: 'var(--text-light)' }}>服務</th>
+                <th style={{ padding: '14px 12px', textAlign: 'left', color: 'var(--text-light)' }}>地點 / 供應者</th>
+                <th style={{ padding: '14px 12px', textAlign: 'left', color: 'var(--text-light)' }}>付款 / 票券</th>
+                <th style={{ padding: '14px 12px', textAlign: 'left', color: 'var(--text-light)' }}>狀態</th>
+                <th style={{ padding: '14px 12px', textAlign: 'center', color: 'var(--text-light)' }}>操作</th>
               </tr>
             </thead>
             <tbody>
               {filteredBookings.length === 0 ? (
                 <tr>
                   <td colSpan="7">
-                    <EmptyState title="No bookings found" description="Try a different search term or clear the filters." />
+                    <EmptyState title="暫無預約記錄" description="請嘗試其他搜尋字詞，或清除篩選條件。" />
                   </td>
                 </tr>
               ) : (
@@ -333,7 +333,7 @@ export default function BookingsTab({
                       <td style={{ padding: '14px 12px' }}>
                         <div style={{ fontWeight: 800 }}>{getBookingDate(booking) || '-'}</div>
                         <div style={{ fontSize: '12px', color: 'var(--primary)', fontWeight: 700, marginTop: '3px' }}>{getBookingTime(booking) || '-'}</div>
-                        {booking.ref && <div style={{ fontSize: '11px', color: 'var(--text-light)', marginTop: '4px' }}>#{booking.ref}</div>}
+                        {booking.ref && <div style={{ fontSize: '11px', color: 'var(--text-light)', marginTop: '4px' }}>預約編號 #{booking.ref}</div>}
                       </td>
                       <td style={{ padding: '14px 12px' }}>
                         <div style={{ fontWeight: 800 }}>{getCustomerName(booking)}</div>
@@ -352,7 +352,7 @@ export default function BookingsTab({
                       </td>
                       <td style={{ padding: '14px 12px' }}>
                         <div style={{ fontWeight: 700 }}>{getPaymentText(booking)}</div>
-                        <div style={{ fontSize: '11px', color: 'var(--text-light)', marginTop: '3px' }}>{getTicketText(booking) || 'No ticket'}</div>
+                        <div style={{ fontSize: '11px', color: 'var(--text-light)', marginTop: '3px' }}>{getTicketText(booking) || '無票券'}</div>
                       </td>
                       <td style={{ padding: '14px 12px' }}>
                         <span
@@ -376,7 +376,7 @@ export default function BookingsTab({
                           className="btn-interactive"
                           style={{ padding: '6px 12px', background: '#f5f5f5', border: '1px solid var(--gray)', borderRadius: '8px', cursor: 'pointer', fontSize: '12px', fontWeight: 700 }}
                         >
-                          Details
+                          詳情
                         </button>
                       </td>
                     </tr>
@@ -409,21 +409,21 @@ export default function BookingsTab({
             </button>
 
             <div style={{ marginBottom: '18px' }}>
-              <div style={{ fontSize: '12px', fontWeight: 800, color: '#A68B6A', letterSpacing: '0.08em' }}>BOOKING DETAILS</div>
-              <h3 style={{ margin: '6px 0 0', fontSize: '18px' }}>{selectedBooking.ref || 'Booking'}</h3>
+              <div style={{ fontSize: '12px', fontWeight: 800, color: '#A68B6A', letterSpacing: '0.08em' }}>預約詳情</div>
+              <h3 style={{ margin: '6px 0 0', fontSize: '18px' }}>{selectedBooking.ref || '預約'}</h3>
             </div>
 
             <div style={{ display: 'grid', gap: '14px' }}>
               <div style={{ background: '#f9fafb', padding: '16px', borderRadius: '12px' }}>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
                   <div>
-                    <div style={{ fontSize: '12px', color: 'var(--text-light)', fontWeight: 700, marginBottom: '4px' }}>Appointment</div>
+                    <div style={{ fontSize: '12px', color: 'var(--text-light)', fontWeight: 700, marginBottom: '4px' }}>預約時間</div>
                     <div style={{ fontWeight: 800 }}>
                       {getBookingDate(selectedBooking)} {getBookingTime(selectedBooking)}
                     </div>
                   </div>
                   <div>
-                    <div style={{ fontSize: '12px', color: 'var(--text-light)', fontWeight: 700, marginBottom: '4px' }}>Customer</div>
+                    <div style={{ fontSize: '12px', color: 'var(--text-light)', fontWeight: 700, marginBottom: '4px' }}>顧客</div>
                     <div style={{ fontWeight: 800 }}>{getCustomerName(selectedBooking)}</div>
                     <div style={{ fontSize: '12px', color: 'var(--text-light)', marginTop: '3px' }}>{getCustomerPhone(selectedBooking) || '-'}</div>
                   </div>
@@ -432,64 +432,64 @@ export default function BookingsTab({
 
               <div className="admin-card" style={{ padding: '16px', border: '1px solid var(--gray)' }}>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px', marginBottom: '12px' }}>
-                  <LabelBlock label="Service" value={getServiceName(selectedBooking)} />
-                  <LabelBlock label="Location" value={selectedDetails?.locationName || getLocationName(selectedBooking)} />
-                  <LabelBlock label="Provider group" value={selectedDetails?.providerGroupName || getProviderGroupName(selectedBooking)} />
-                  <LabelBlock label="Staff" value={getProviderName(selectedBooking)} />
+                  <LabelBlock label="服務" value={getServiceName(selectedBooking)} />
+                  <LabelBlock label="地點" value={selectedDetails?.locationName || getLocationName(selectedBooking)} />
+                  <LabelBlock label="供應者組別" value={selectedDetails?.providerGroupName || getProviderGroupName(selectedBooking)} />
+                  <LabelBlock label="供應者" value={getProviderName(selectedBooking)} />
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px', marginBottom: '12px' }}>
-                  <LabelBlock label="Payment" value={getPaymentText(selectedBooking)} />
-                  <LabelBlock label="Ticket" value={getTicketText(selectedBooking) || 'No ticket'} />
-                  <LabelBlock label="Orders" value={selectedDetails?.linkedOrders.length ? `${selectedDetails.linkedOrders.length} linked` : 'No linked orders'} />
-                  <LabelBlock label="Transactions" value={selectedDetails?.linkedTransactions.length ? `${selectedDetails.linkedTransactions.length} linked` : 'No linked transactions'} />
+                  <LabelBlock label="付款" value={getPaymentText(selectedBooking)} />
+                  <LabelBlock label="票券" value={getTicketText(selectedBooking) || '無票券'} />
+                  <LabelBlock label="訂單" value={selectedDetails?.linkedOrders.length ? `${selectedDetails.linkedOrders.length} 已連結` : '沒有連結訂單'} />
+                  <LabelBlock label="交易" value={selectedDetails?.linkedTransactions.length ? `${selectedDetails.linkedTransactions.length} 已連結` : '沒有連結交易'} />
                 </div>
 
                 <div style={{ display: 'grid', gap: '10px' }}>
-                  <SummaryBlock title="Resource allocations">
+                  <SummaryBlock title="資源分配">
                     {selectedDetails?.allocations.length ? (
                       selectedDetails.allocations.map((row) => (
                         <div key={row.id} style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', padding: '10px 0', borderBottom: '1px solid #f3f4f6' }}>
                           <div>
-                            <div style={{ fontWeight: 700 }}>{resourceNameMap[row.resource_id] || `Resource #${row.resource_id || '-'}`}</div>
+                            <div style={{ fontWeight: 700 }}>{resourceNameMap[row.resource_id] || `資源 #${row.resource_id || '-'}`}</div>
                             <div style={{ fontSize: '12px', color: 'var(--text-light)', marginTop: '3px' }}>
-                              Qty {row.quantity ?? 1}
-                              {row.required === false ? ' optional' : ' required'}
+                              數量 {row.quantity ?? 1}
+                              {row.required === false ? ' 可選' : ' 必要'}
                             </div>
                           </div>
-                          <div style={{ fontSize: '12px', color: 'var(--text-light)', textAlign: 'right' }}>{row.status || 'allocated'}</div>
+                          <div style={{ fontSize: '12px', color: 'var(--text-light)', textAlign: 'right' }}>{row.status || '已分配'}</div>
                         </div>
                       ))
                     ) : (
-                      <div style={{ color: 'var(--text-light)' }}>No resource allocation linked to this booking.</div>
+                      <div style={{ color: 'var(--text-light)' }}>此預約未連結任何資源分配。</div>
                     )}
                   </SummaryBlock>
 
-                  <SummaryBlock title="Linked transactions">
+                  <SummaryBlock title="已連結交易">
                     {selectedDetails?.linkedTransactions.length ? (
                       selectedDetails.linkedTransactions.map((transaction) => (
                         <div key={transaction.id} style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', padding: '10px 0', borderBottom: '1px solid #f3f4f6' }}>
                           <div>
-                            <div style={{ fontWeight: 700 }}>{getTransactionRef(transaction) || `Transaction #${transaction.id}`}</div>
+                            <div style={{ fontWeight: 700 }}>{getTransactionRef(transaction) || `交易 #${transaction.id}`}</div>
                             <div style={{ fontSize: '12px', color: 'var(--text-light)', marginTop: '3px' }}>
-                              {getTransactionCustomerName(transaction) || transaction.payment_method || transaction.kind || 'Transaction'}
+                              {getTransactionCustomerName(transaction) || transaction.payment_method || transaction.kind || '交易'}
                             </div>
                           </div>
                           <div style={{ fontWeight: 800, color: 'var(--primary)' }}>{Number(transaction.amount || 0).toLocaleString()}</div>
                         </div>
                       ))
                     ) : (
-                      <div style={{ color: 'var(--text-light)' }}>No linked transaction found.</div>
+                      <div style={{ color: 'var(--text-light)' }}>沒有找到連結交易。</div>
                     )}
                   </SummaryBlock>
 
                   {selectedDetails?.linkedOrders.length > 0 && (
-                    <SummaryBlock title="Linked orders">
+                    <SummaryBlock title="已連結訂單">
                       {selectedDetails.linkedOrders.map((order) => (
                         <div key={order.id} style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', padding: '10px 0', borderBottom: '1px solid #f3f4f6' }}>
                           <div>
-                            <div style={{ fontWeight: 700 }}>{getOrderRef(order) || `Order #${order.id}`}</div>
-                            <div style={{ fontSize: '12px', color: 'var(--text-light)', marginTop: '3px' }}>{order.status || 'Linked to booking'}</div>
+                            <div style={{ fontWeight: 700 }}>{getOrderRef(order) || `訂單 #${order.id}`}</div>
+                            <div style={{ fontSize: '12px', color: 'var(--text-light)', marginTop: '3px' }}>{order.status || '已連結至預約'}</div>
                           </div>
                           <div style={{ fontSize: '12px', color: 'var(--text-light)', textAlign: 'right' }}>
                             {order.total != null ? Number(order.total).toLocaleString() : '-'}
@@ -504,7 +504,7 @@ export default function BookingsTab({
               <div className="admin-card" style={{ padding: '16px', border: '1px solid var(--gray)' }}>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px', marginBottom: '12px' }}>
                   <div>
-                    <div style={{ fontSize: '12px', color: 'var(--text-light)', fontWeight: 700, marginBottom: '4px' }}>Status</div>
+                    <div style={{ fontSize: '12px', color: 'var(--text-light)', fontWeight: 700, marginBottom: '4px' }}>狀態</div>
                     <select value={selectedBooking.status || 'pending'} onChange={(e) => updateStatus(selectedBooking.id, e.target.value)} style={smallFieldStyle}>
                       {STATUS_OPTIONS.map((option) => (
                         <option key={option.value} value={option.value}>
@@ -514,9 +514,9 @@ export default function BookingsTab({
                     </select>
                   </div>
                   <div>
-                    <div style={{ fontSize: '12px', color: 'var(--text-light)', fontWeight: 700, marginBottom: '4px' }}>Provider</div>
+                    <div style={{ fontSize: '12px', color: 'var(--text-light)', fontWeight: 700, marginBottom: '4px' }}>供應者</div>
                     <select value={selectedBooking.staff_id || ''} onChange={(e) => updateStaff(selectedBooking.id, e.target.value)} style={smallFieldStyle}>
-                      <option value="">Unassigned</option>
+                      <option value="">未分配</option>
                       {(staff || []).map((member) => (
                         <option key={member.id} value={member.id}>
                           {member.name}
@@ -529,7 +529,7 @@ export default function BookingsTab({
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
                 <button type="button" onClick={() => setSelectedBooking(null)} className="btn btn-small btn-interactive" style={{ background: '#fff' }}>
-                  Close
+                  關閉
                 </button>
               </div>
             </div>
