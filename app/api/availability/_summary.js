@@ -121,20 +121,37 @@ export const buildDateSummary = async ({ supabase, dateISO, serviceId, staffId, 
   const evaluation = evaluatePhase2Availability(context, { requestedStaffId: staff.id })
   const slotMatrix = Array.isArray(evaluation.staffSlotMatrix?.[staff.id]) ? evaluation.staffSlotMatrix[staff.id] : []
   const availableCount = slotMatrix.filter((entry) => entry?.available).length
+  const dateSummary = evaluation.dateSummary || {}
+  const workingCount = Number(dateSummary.workingCount || 0)
+  const resourceBlockedCount = Number(dateSummary.resourceBlockedCount || 0)
   const hasWorkingHours =
     Boolean(workingWindow) &&
     Number.isFinite(workingWindow?.startMin) &&
     Number.isFinite(workingWindow?.endMin) &&
     workingWindow.startMin < workingWindow.endMin
 
+  const reason = !hasWorkingHours
+    ? 'off'
+    : !evaluation.locationSelectionRequired && !evaluation.requestedStaffEligible
+      ? 'provider_mismatch'
+      : evaluation.locationSelectionRequired
+        ? 'location_required'
+        : availableCount > 0
+          ? 'available'
+          : resourceBlockedCount > 0
+            ? 'resource_full'
+            : workingCount > 0
+              ? 'fully_booked'
+              : 'no_bookable_slots'
+
   return {
     date: dateISO,
-    status: !hasWorkingHours ? 'off' : availableCount > 0 ? 'available' : 'full',
+    status: reason === 'off' ? 'off' : availableCount > 0 ? 'available' : 'full',
     hasWorkingHours,
     hasAvailableSlots: availableCount > 0,
     availableCount,
     slotCount: slotMatrix.length,
-    reason: !hasWorkingHours ? 'off' : availableCount > 0 ? 'available' : 'full',
+    reason,
   }
 }
 
