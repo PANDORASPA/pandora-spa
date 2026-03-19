@@ -28,11 +28,26 @@ const matchRecord = (rows, value, aliases = []) => {
   }) || null
 }
 
-const getCustomerLabel = (customer) => customer?.name || customer?.full_name || customer?.display_name || customer?.email || customer?.phone || 'Member'
-const getBookingLabel = (booking) => booking?.ref || booking?.booking_ref || booking?.code || `Booking #${booking?.id || ''}`
-const getOrderLabel = (order) => order?.ref || order?.order_no || order?.code || `Order #${order?.id || ''}`
-const getLocationLabel = (location) => location?.name || location?.title || location?.code || 'Location'
-const getProviderGroupLabel = (group) => group?.name || group?.title || group?.code || 'Provider group'
+const getCustomerLabel = (customer) => customer?.name || customer?.full_name || customer?.display_name || customer?.email || customer?.phone || '會員'
+const getBookingLabel = (booking) => booking?.ref || booking?.booking_ref || booking?.code || `預約 #${booking?.id || ''}`
+const getOrderLabel = (order) => order?.ref || order?.order_no || order?.code || `訂單 #${order?.id || ''}`
+const getLocationLabel = (location) => location?.name || location?.title || location?.code || '地點'
+const getProviderGroupLabel = (group) => group?.name || group?.title || group?.code || '供應者群組'
+const getKindLabel = (kind) =>
+  ({
+    sale: '銷售',
+    refund: '退款',
+    adjustment: '調整',
+    deposit: '訂金',
+  })[kind] || kind || '-'
+const getStatusLabel = (status) =>
+  ({
+    pending: '待處理',
+    paid: '已付款',
+    failed: '失敗',
+    reconciled: '已對帳',
+    cancelled: '已取消',
+  })[status] || status || '-'
 const getLinkedLocationId = (row) => row?.location_id ?? row?.branch_id ?? row?.location?.id ?? row?.branch?.id ?? ''
 const getLinkedProviderGroupId = (row) => row?.provider_group_id ?? row?.group_id ?? row?.provider_group?.id ?? ''
 
@@ -250,7 +265,7 @@ export default function TransactionsTab({
   if (!available) {
     return (
       <div className="admin-card" style={{ padding: '28px', color: 'var(--text-light)' }}>
-        Transactions table is not available yet. Run the latest migration to enable ledger-style payment tracking.
+        交易表暫時未可用。請先完成最新 migration 以啟用帳目式付款追蹤。
       </div>
     )
   }
@@ -260,18 +275,18 @@ export default function TransactionsTab({
   return (
     <div style={{ display: 'grid', gap: '20px' }}>
       <SectionHeader
-        eyebrow="TRANSACTIONS"
-        title="Operational ledger"
-        description="Track transaction refs, payment methods, linked bookings, and the resolved operational scope from one operational screen."
+        eyebrow="交易紀錄"
+        title="營運帳目"
+        description="追蹤交易參考編號、付款方式、已連結預約，以及已解析的營運範圍。"
         actions={
           <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-            <Pill>{filteredTransactions.length} visible</Pill>
-            <Pill>{summary.linkedBookings} booking links</Pill>
-            <Pill>{summary.linkedOrders} order links</Pill>
+            <Pill>{filteredTransactions.length} 可見</Pill>
+            <Pill>{summary.linkedBookings} 個預約連結</Pill>
+            <Pill>{summary.linkedOrders} 個訂單連結</Pill>
             {saveTransactions && (
               <button type="button" onClick={handleSave} disabled={isSaving} className="btn btn-small btn-interactive" style={{ background: '#34D399' }}>
                 {isSaving && <span className="spinner"></span>}
-                {isSaving ? 'Saving...' : 'Save changes'}
+                {isSaving ? '儲存中...' : '儲存變更'}
               </button>
             )}
           </div>
@@ -282,43 +297,43 @@ export default function TransactionsTab({
         columns="repeat(auto-fit, minmax(180px, 1fr))"
         actions={
           <button type="button" onClick={addTransaction} className="btn btn-small btn-interactive">
-            + Add transaction
+            + 新增交易
           </button>
         }
       >
-        <input type="text" placeholder="Search ref, customer, booking, order, notes..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} style={fieldStyle} />
+        <input type="text" placeholder="搜尋參考編號、顧客、預約、訂單、備註..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} style={fieldStyle} />
         <select value={kindFilter} onChange={(e) => setKindFilter(e.target.value)} style={fieldStyle}>
-          <option value="all">All kinds</option>
-          <option value="sale">Sale</option>
-          <option value="refund">Refund</option>
-          <option value="adjustment">Adjustment</option>
-          <option value="deposit">Deposit</option>
+          <option value="all">全部類型</option>
+          <option value="sale">銷售</option>
+          <option value="refund">退款</option>
+          <option value="adjustment">調整</option>
+          <option value="deposit">訂金</option>
         </select>
         <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={fieldStyle}>
-          <option value="all">All statuses</option>
-          <option value="pending">Pending</option>
-          <option value="paid">Paid</option>
-          <option value="failed">Failed</option>
-          <option value="reconciled">Reconciled</option>
-          <option value="cancelled">Cancelled</option>
+          <option value="all">全部狀態</option>
+          <option value="pending">待處理</option>
+          <option value="paid">已付款</option>
+          <option value="failed">失敗</option>
+          <option value="reconciled">已對帳</option>
+          <option value="cancelled">已取消</option>
         </select>
       </RecordFilterBar>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
         <div className="admin-card" style={{ padding: '16px', border: '1px solid var(--gray)' }}>
-          <div style={{ fontSize: '12px', fontWeight: 800, color: '#A68B6A', marginBottom: '6px' }}>Rows</div>
+          <div style={{ fontSize: '12px', fontWeight: 800, color: '#A68B6A', marginBottom: '6px' }}>記錄數</div>
           <div style={{ fontSize: '22px', fontWeight: 800 }}>{summary.rows}</div>
         </div>
         <div className="admin-card" style={{ padding: '16px', border: '1px solid var(--gray)' }}>
-          <div style={{ fontSize: '12px', fontWeight: 800, color: '#A68B6A', marginBottom: '6px' }}>Ledger total</div>
+          <div style={{ fontSize: '12px', fontWeight: 800, color: '#A68B6A', marginBottom: '6px' }}>帳目總額</div>
           <div style={{ fontSize: '22px', fontWeight: 800, color: 'var(--primary)' }}>{formatMoney(summary.amount, 'HKD')}</div>
         </div>
         <div className="admin-card" style={{ padding: '16px', border: '1px solid var(--gray)' }}>
-          <div style={{ fontSize: '12px', fontWeight: 800, color: '#A68B6A', marginBottom: '6px' }}>Linked customers</div>
+          <div style={{ fontSize: '12px', fontWeight: 800, color: '#A68B6A', marginBottom: '6px' }}>已連結顧客</div>
           <div style={{ fontSize: '22px', fontWeight: 800 }}>{summary.linkedCustomers}</div>
         </div>
         <div className="admin-card" style={{ padding: '16px', border: '1px solid var(--gray)' }}>
-          <div style={{ fontSize: '12px', fontWeight: 800, color: '#A68B6A', marginBottom: '6px' }}>Reconciled</div>
+          <div style={{ fontSize: '12px', fontWeight: 800, color: '#A68B6A', marginBottom: '6px' }}>已對帳</div>
           <div style={{ fontSize: '22px', fontWeight: 800 }}>{summary.reconciled}</div>
         </div>
       </div>
@@ -328,31 +343,31 @@ export default function TransactionsTab({
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', minWidth: '1360px' }}>
             <thead>
               <tr style={{ background: '#FAF8F5', borderBottom: '1px solid var(--gray)' }}>
-                <th style={{ padding: '14px 12px', textAlign: 'left', color: 'var(--text-light)' }}>When</th>
-                <th style={{ padding: '14px 12px', textAlign: 'left', color: 'var(--text-light)' }}>Ref</th>
-                <th style={{ padding: '14px 12px', textAlign: 'left', color: 'var(--text-light)' }}>Kind</th>
-                <th style={{ padding: '14px 12px', textAlign: 'left', color: 'var(--text-light)' }}>Amount</th>
-                <th style={{ padding: '14px 12px', textAlign: 'left', color: 'var(--text-light)' }}>Payment</th>
-                <th style={{ padding: '14px 12px', textAlign: 'left', color: 'var(--text-light)' }}>Booking / Order</th>
-                <th style={{ padding: '14px 12px', textAlign: 'left', color: 'var(--text-light)' }}>Scope / Link</th>
-                <th style={{ padding: '14px 12px', textAlign: 'left', color: 'var(--text-light)' }}>Notes</th>
-                <th style={{ padding: '14px 12px', textAlign: 'left', color: 'var(--text-light)' }}>Status</th>
-                <th style={{ padding: '14px 12px', textAlign: 'center', color: 'var(--text-light)' }}>Action</th>
+                <th style={{ padding: '14px 12px', textAlign: 'left', color: 'var(--text-light)' }}>時間</th>
+                <th style={{ padding: '14px 12px', textAlign: 'left', color: 'var(--text-light)' }}>參考編號</th>
+                <th style={{ padding: '14px 12px', textAlign: 'left', color: 'var(--text-light)' }}>類型</th>
+                <th style={{ padding: '14px 12px', textAlign: 'left', color: 'var(--text-light)' }}>金額</th>
+                <th style={{ padding: '14px 12px', textAlign: 'left', color: 'var(--text-light)' }}>付款方式</th>
+                <th style={{ padding: '14px 12px', textAlign: 'left', color: 'var(--text-light)' }}>預約 / 訂單</th>
+                <th style={{ padding: '14px 12px', textAlign: 'left', color: 'var(--text-light)' }}>範圍 / 連結</th>
+                <th style={{ padding: '14px 12px', textAlign: 'left', color: 'var(--text-light)' }}>備註</th>
+                <th style={{ padding: '14px 12px', textAlign: 'left', color: 'var(--text-light)' }}>狀態</th>
+                <th style={{ padding: '14px 12px', textAlign: 'center', color: 'var(--text-light)' }}>操作</th>
               </tr>
             </thead>
             <tbody>
               {filteredTransactions.length === 0 ? (
                 <tr>
                   <td colSpan="10">
-                    <EmptyState title="No transactions recorded yet" description="Transactions will appear once orders, bookings, or adjustments are synced here." />
+                    <EmptyState title="暫無交易記錄" description="當訂單、預約或調整同步後，交易會顯示於此。" />
                   </td>
                 </tr>
               ) : (
                 filteredTransactions.map((row) => {
                   const deleted = Boolean(row.__deleted)
                   const tone = statusTone(row.status || 'completed')
-                  const bookingLabel = row.__booking ? getBookingLabel(row.__booking) : row.booking_id ? `Booking #${row.booking_id}` : '-'
-                  const orderLabel = row.__order ? getOrderLabel(row.__order) : row.order_id ? `Order #${row.order_id}` : '-'
+                  const bookingLabel = row.__booking ? getBookingLabel(row.__booking) : row.booking_id ? `預約 #${row.booking_id}` : '-'
+                  const orderLabel = row.__order ? getOrderLabel(row.__order) : row.order_id ? `訂單 #${row.order_id}` : '-'
                   const customerLabel = row.__customer ? getCustomerLabel(row.__customer) : row.customer_name || '-'
                   const scopeParts = [
                     row.__location ? getLocationLabel(row.__location) : row.location_name || '',
@@ -378,10 +393,10 @@ export default function TransactionsTab({
                       </td>
                       <td style={{ padding: '12px' }}>
                         <select value={row.kind || 'sale'} onChange={(e) => update(row.id, { kind: e.target.value })} style={smallFieldStyle} disabled={deleted} onClick={(event) => event.stopPropagation()}>
-                          <option value="sale">Sale</option>
-                          <option value="refund">Refund</option>
-                          <option value="adjustment">Adjustment</option>
-                          <option value="deposit">Deposit</option>
+                          <option value="sale">銷售</option>
+                          <option value="refund">退款</option>
+                          <option value="adjustment">調整</option>
+                          <option value="deposit">訂金</option>
                         </select>
                       </td>
                       <td style={{ padding: '12px' }}>
@@ -398,7 +413,7 @@ export default function TransactionsTab({
                         <input
                           value={row.payment_method || ''}
                           onChange={(e) => update(row.id, { payment_method: e.target.value })}
-                          placeholder="Cash / Card / Bank"
+                          placeholder="現金 / 信用卡 / 銀行轉帳"
                           style={smallFieldStyle}
                           disabled={deleted}
                           onClick={(event) => event.stopPropagation()}
@@ -415,7 +430,7 @@ export default function TransactionsTab({
                               color: row.__location || row.__providerGroup ? '#047857' : '#B45309',
                             }}
                           >
-                            {row.__location || row.__providerGroup ? 'Scoped' : 'Scope missing'}
+                            {row.__location || row.__providerGroup ? '已設定' : '缺少範圍'}
                           </span>
                         </div>
                         <div style={{ fontWeight: 700 }}>{bookingLabel}</div>
@@ -426,14 +441,14 @@ export default function TransactionsTab({
                         <div style={{ fontWeight: 700 }}>{scopeParts.length ? scopeParts.join(' / ') : '-'}</div>
                         <div style={{ fontSize: '11px', color: 'var(--text-light)', marginTop: '4px' }}>
                           {row.currency || 'HKD'}
-                          {row.location_id ? ` - location #${row.location_id}` : ''}
+                          {row.location_id ? ` - 地點 #${row.location_id}` : ''}
                         </div>
                       </td>
                       <td style={{ padding: '12px' }}>
                         <textarea
                           value={row.notes || ''}
                           onChange={(e) => update(row.id, { notes: e.target.value })}
-                          placeholder="Operational notes"
+                          placeholder="營運備註"
                           style={{ ...smallFieldStyle, minHeight: '68px', resize: 'vertical', width: '100%' }}
                           disabled={deleted}
                           onClick={(event) => event.stopPropagation()}
@@ -441,11 +456,11 @@ export default function TransactionsTab({
                       </td>
                       <td style={{ padding: '12px' }}>
                         <select value={row.status || 'pending'} onChange={(e) => update(row.id, { status: e.target.value })} style={smallFieldStyle} disabled={deleted} onClick={(event) => event.stopPropagation()}>
-                          <option value="pending">Pending</option>
-                          <option value="paid">Paid</option>
-                          <option value="failed">Failed</option>
-                          <option value="reconciled">Reconciled</option>
-                          <option value="cancelled">Cancelled</option>
+                          <option value="pending">待處理</option>
+                          <option value="paid">已付款</option>
+                          <option value="failed">失敗</option>
+                          <option value="reconciled">已對帳</option>
+                          <option value="cancelled">已取消</option>
                         </select>
                         <div style={{ marginTop: '6px' }}>
                           <span
@@ -456,10 +471,10 @@ export default function TransactionsTab({
                               color: tone === 'success' ? '#047857' : tone === 'warning' ? '#B45309' : tone === 'danger' ? '#DC2626' : '#374151',
                             }}
                           >
-                            {row.status || 'pending'}
-                          </span>
-                        </div>
-                      </td>
+                          {getStatusLabel(row.status || 'pending')}
+                        </span>
+                      </div>
+                    </td>
                       <td style={{ padding: '12px', textAlign: 'center' }}>
                         <button
                           type="button"
@@ -479,7 +494,7 @@ export default function TransactionsTab({
                             marginRight: '8px',
                           }}
                         >
-                          Details
+                          詳情
                         </button>
                         <button
                           type="button"
@@ -499,7 +514,7 @@ export default function TransactionsTab({
                             fontWeight: 700,
                           }}
                         >
-                          {deleted ? 'Restore' : 'Delete'}
+                          {deleted ? '還原' : '刪除'}
                         </button>
                       </td>
                     </tr>
@@ -527,49 +542,49 @@ export default function TransactionsTab({
           onClick={() => setSelectedTransaction(null)}
         >
           <div className="admin-card" style={{ width: '100%', maxWidth: '760px', padding: '24px', position: 'relative' }} onClick={(event) => event.stopPropagation()}>
-            <button type="button" onClick={() => setSelectedTransaction(null)} style={{ position: 'absolute', top: '16px', right: '16px', background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#999' }}>
-              x
+              <button type="button" onClick={() => setSelectedTransaction(null)} style={{ position: 'absolute', top: '16px', right: '16px', background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#999' }}>
+              關閉
             </button>
 
             <div style={{ marginBottom: '18px' }}>
-              <div style={{ fontSize: '12px', fontWeight: 800, color: '#A68B6A', letterSpacing: '0.08em' }}>TRANSACTION DETAILS</div>
+              <div style={{ fontSize: '12px', fontWeight: 800, color: '#A68B6A', letterSpacing: '0.08em' }}>交易詳情</div>
               <h3 style={{ margin: '6px 0 0', fontSize: '18px' }}>{selectedTransaction.ref || selectedTransaction.id}</h3>
             </div>
 
             <div style={{ display: 'grid', gap: '14px' }}>
               <div style={{ background: '#f9fafb', padding: '16px', borderRadius: '12px' }}>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
-                  <DetailBlock label="When" value={selectedTransaction.occurred_at ? new Date(selectedTransaction.occurred_at).toLocaleString() : selectedTransaction.created_at ? new Date(selectedTransaction.created_at).toLocaleString() : '-'} />
-                  <DetailBlock label="Kind" value={selectedTransaction.kind || '-'} />
-                  <DetailBlock label="Status" value={selectedTransaction.status || '-'} />
-                  <DetailBlock label="Amount" value={formatMoney(Number(selectedTransaction.amount || 0), selectedTransaction.currency || 'HKD')} />
+                  <DetailBlock label="時間" value={selectedTransaction.occurred_at ? new Date(selectedTransaction.occurred_at).toLocaleString() : selectedTransaction.created_at ? new Date(selectedTransaction.created_at).toLocaleString() : '-'} />
+                  <DetailBlock label="類型" value={getKindLabel(selectedTransaction.kind)} />
+                  <DetailBlock label="狀態" value={getStatusLabel(selectedTransaction.status || 'pending')} />
+                  <DetailBlock label="金額" value={formatMoney(Number(selectedTransaction.amount || 0), selectedTransaction.currency || 'HKD')} />
                 </div>
               </div>
 
               <div className="admin-card" style={{ padding: '16px', border: '1px solid var(--gray)' }}>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px', marginBottom: '12px' }}>
-                  <DetailBlock label="Booking" value={selectedTransaction.__booking ? getBookingLabel(selectedTransaction.__booking) : selectedTransaction.booking_id ? `Booking #${selectedTransaction.booking_id}` : '-'} />
-                  <DetailBlock label="Order" value={selectedTransaction.__order ? getOrderLabel(selectedTransaction.__order) : selectedTransaction.order_id ? `Order #${selectedTransaction.order_id}` : '-'} />
-                  <DetailBlock label="Customer" value={selectedTransaction.__customer ? getCustomerLabel(selectedTransaction.__customer) : selectedTransaction.customer_name || '-'} />
-                  <DetailBlock label="Payment method" value={selectedTransaction.payment_method || selectedTransaction.__order?.payment_method || selectedTransaction.__booking?.payment_method || '-'} />
+                  <DetailBlock label="預約" value={selectedTransaction.__booking ? getBookingLabel(selectedTransaction.__booking) : selectedTransaction.booking_id ? `預約 #${selectedTransaction.booking_id}` : '-'} />
+                  <DetailBlock label="訂單" value={selectedTransaction.__order ? getOrderLabel(selectedTransaction.__order) : selectedTransaction.order_id ? `訂單 #${selectedTransaction.order_id}` : '-'} />
+                  <DetailBlock label="顧客" value={selectedTransaction.__customer ? getCustomerLabel(selectedTransaction.__customer) : selectedTransaction.customer_name || '-'} />
+                  <DetailBlock label="付款方式" value={selectedTransaction.payment_method || selectedTransaction.__order?.payment_method || selectedTransaction.__booking?.payment_method || '-'} />
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
-                  <DetailBlock label="Location" value={selectedTransaction.__location ? getLocationLabel(selectedTransaction.__location) : selectedTransaction.location_name || selectedTransaction.__order?.location_name || selectedTransaction.__booking?.location_name || '-'} />
-                  <DetailBlock label="Provider group" value={selectedTransaction.__providerGroup ? getProviderGroupLabel(selectedTransaction.__providerGroup) : selectedTransaction.provider_group_name || selectedTransaction.__order?.provider_group_name || selectedTransaction.__booking?.provider_group_name || '-'} />
-                  <DetailBlock label="Provider ref" value={selectedTransaction.provider || selectedTransaction.__order?.provider || selectedTransaction.__booking?.provider || '-'} />
-                  <DetailBlock label="Payment ref" value={selectedTransaction.payment_ref || selectedTransaction.__order?.payment_ref || selectedTransaction.__booking?.payment_ref || '-'} />
+                  <DetailBlock label="地點" value={selectedTransaction.__location ? getLocationLabel(selectedTransaction.__location) : selectedTransaction.location_name || selectedTransaction.__order?.location_name || selectedTransaction.__booking?.location_name || '-'} />
+                  <DetailBlock label="供應者群組" value={selectedTransaction.__providerGroup ? getProviderGroupLabel(selectedTransaction.__providerGroup) : selectedTransaction.provider_group_name || selectedTransaction.__order?.provider_group_name || selectedTransaction.__booking?.provider_group_name || '-'} />
+                  <DetailBlock label="供應者參考" value={selectedTransaction.provider || selectedTransaction.__order?.provider || selectedTransaction.__booking?.provider || '-'} />
+                  <DetailBlock label="付款參考" value={selectedTransaction.payment_ref || selectedTransaction.__order?.payment_ref || selectedTransaction.__booking?.payment_ref || '-'} />
                 </div>
               </div>
 
               <div className="admin-card" style={{ padding: '16px', border: '1px solid var(--gray)' }}>
-                <div style={{ fontSize: '12px', color: 'var(--text-light)', fontWeight: 700, marginBottom: '4px' }}>Notes</div>
-                <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.7 }}>{selectedTransaction.notes || 'No notes.'}</div>
+                <div style={{ fontSize: '12px', color: 'var(--text-light)', fontWeight: 700, marginBottom: '4px' }}>備註</div>
+                <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.7 }}>{selectedTransaction.notes || '沒有備註。'}</div>
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
                 <button type="button" onClick={() => setSelectedTransaction(null)} className="btn btn-small btn-interactive" style={{ background: '#fff' }}>
-                  Close
+                  關閉
                 </button>
               </div>
             </div>
