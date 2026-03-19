@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { EmptyState, Pill, SectionHeader, fieldStyle, formatMoney, smallFieldStyle } from './opsUi'
+import { EmptyState, Pill, RecordFilterBar, SectionHeader, fieldStyle, formatMoney, smallFieldStyle } from './opsUi'
 
 const getCustomerName = (user) => user?.name || user?.full_name || user?.display_name || 'Member'
 const getCustomerPhone = (user) => user?.phone || user?.mobile || user?.customer_phone || '-'
@@ -9,6 +9,18 @@ const getBookingPhone = (booking) => booking?.phone || booking?.customer_phone |
 const getBookingDate = (booking) => booking?.appointment_date || booking?.date || ''
 const getBookingTime = (booking) => booking?.start_time || booking?.time || ''
 const getBookingService = (booking) => booking?.service_name || booking?.service || '-'
+const getOrderDate = (order) => order?.created_at || order?.ordered_at || order?.date || ''
+const getOrderLabel = (order) => order?.ref || order?.order_no || order?.order_number || order?.id || '-'
+const getTransactionDate = (transaction) => transaction?.occurred_at || transaction?.created_at || transaction?.date || ''
+const getTransactionLabel = (transaction) => transaction?.ref || transaction?.payment_ref || transaction?.id || '-'
+const getTicketLabel = (ticket, servicePackages = []) => {
+  const packageName =
+    ticket?.package_name ||
+    ticket?.service_package_name ||
+    servicePackages.find((item) => String(item?.id) === String(ticket?.service_package_id || ticket?.package_id))?.name ||
+    ''
+  return ticket?.name || ticket?.ticket_name || ticket?.title || packageName || `Ticket #${ticket?.id || '-'}`
+}
 
 const deriveTier = (spend) => {
   if (spend >= 10000) return 'VIP'
@@ -17,9 +29,11 @@ const deriveTier = (spend) => {
   return 'Regular'
 }
 
-export default function CustomersTab({ users = [], bookings = [], orders = [], onUpdateCustomer }) {
+export default function CustomersTab({ users = [], bookings = [], orders = [], transactions = [], tickets = [], servicePackages = [], onUpdateCustomer }) {
   const [selectedCustomerId, setSelectedCustomerId] = useState(null)
   const [searchTerm, setSearchTerm] = useState('')
+  const [tierFilter, setTierFilter] = useState('all')
+  const [activityFilter, setActivityFilter] = useState('all')
   const [notesDraft, setNotesDraft] = useState({})
 
   const customerRows = useMemo(() => {
@@ -35,23 +49,68 @@ export default function CustomersTab({ users = [], bookings = [], orders = [], o
         const orderPhone = order?.phone || order?.user_phone || ''
         return userIdMatch || (orderPhone && phone && orderPhone === phone)
       })
+      const matchedTransactions = (transactions || []).filter((transaction) => {
+        const userIdMatch = transaction?.member_user_id && user?.id && String(transaction.member_user_id) === String(user.id)
+        const customerIdMatch = transaction?.customer_id && user?.id && String(transaction.customer_id) === String(user.id)
+        const transactionPhone = transaction?.phone || transaction?.customer_phone || ''
+        const viaOrder = matchedOrders.some((order) => String(order?.id) === String(transaction?.order_id))
+        const viaBooking = matchedBookings.some((booking) => String(booking?.id) === String(transaction?.booking_id))
+        return userIdMatch || customerIdMatch || (transactionPhone && phone && transactionPhone === phone) || viaOrder || viaBooking
+      })
+      const matchedTickets = (tickets || []).filter((ticket) => {
+        const userIdMatch = ticket?.member_user_id && user?.id && String(ticket.member_user_id) === String(user.id)
+        const customerIdMatch = ticket?.customer_id && user?.id && String(ticket.customer_id) === String(user.id)
+        const ticketPhone = ticket?.phone || ticket?.customer_phone || ''
+        return userIdMatch || customerIdMatch || (ticketPhone && phone && ticketPhone === phone)
+      })
       const bookingSpend = matchedBookings.reduce((sum, booking) => sum + Number(booking.final_price || booking.service_price || 0), 0)
       const orderSpend = matchedOrders.reduce((sum, order) => sum + Number(order.total || 0), 0)
       const totalSpend = bookingSpend + orderSpend
-      const recentActivity = [...matchedBookings]
-        .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
-        .slice(0, 3)
+      const recentActivity = [
+        ...matchedBookings.map((booking) => ({
+          kind: 'booking',
+          when: booking.created_at || booking.updated_at || getBookingDate(booking),
+          title: getBookingService(booking),
+          detail: `${getBookingDate(booking)} ${getBookingTime(booking)}`.trim(),
+          reference: booking.ref || booking.id || '',
+          amount: booking.final_price || booking.service_price || 0,
+          status: booking.status || 'pending',
+        })),
+        ...matchedOrders.map((order) => ({
+          kind: 'order',
+          when: getOrderDate(order),
+          title: getOrderLabel(order),
+          detail: order?.status || order?.payment_status || 'Order',
+          reference: order?.ref || order?.order_no || order?.order_number || order?.id || '',
+          amount: order?.total || 0,
+          status: order?.status || order?.payment_status || 'pending',
+        })),
+        ...matchedTransactions.map((transaction) => ({
+          kind: 'transaction',
+          when: getTransactionDate(transaction),
+          title: getTransactionLabel(transaction),
+          detail: transaction?.payment_method || transaction?.kind || 'Transaction',
+          reference: transaction?.payment_ref || transaction?.ref || transaction?.id || '',
+          amount: transaction?.amount || 0,
+          status: transaction?.status || 'completed',
+        })),
+      ]
+        .filter((item) => item.when)
+        .sort((a, b) => new Date(b.when || 0) - new Date(a.when || 0))
+        .slice(0, 4)
 
       return {
         ...user,
         __bookings: matchedBookings,
         __orders: matchedOrders,
+        __transactions: matchedTransactions,
+        __tickets: matchedTickets,
         __spend: totalSpend,
         __tier: user.membership_level || user.tier || deriveTier(totalSpend),
         __recent: recentActivity,
       }
     })
-  }, [users, bookings, orders])
+  }, [users, bookings, orders, transactions, tickets])
 
   const filteredCustomers = useMemo(() => {
     const needle = searchTerm.toLowerCase().trim()
@@ -62,13 +121,22 @@ export default function CustomersTab({ users = [], bookings = [], orders = [], o
         user.__tier,
         user.notes,
         String(user.__spend || 0),
+        String(user.__transactions?.length || 0),
       ]
         .filter(Boolean)
         .join(' ')
         .toLowerCase()
-      return !needle || haystack.includes(needle)
+      const matchesTier = tierFilter === 'all' || String(user.__tier || '') === tierFilter
+      const matchesActivity =
+        activityFilter === 'all' ||
+        (activityFilter === 'bookings' && (user.__bookings?.length || 0) > 0) ||
+        (activityFilter === 'orders' && (user.__orders?.length || 0) > 0) ||
+        (activityFilter === 'transactions' && (user.__transactions?.length || 0) > 0) ||
+        (activityFilter === 'tickets' && (user.__tickets?.length || 0) > 0)
+
+      return (!needle || haystack.includes(needle)) && matchesTier && matchesActivity
     })
-  }, [customerRows, searchTerm])
+  }, [customerRows, searchTerm, tierFilter, activityFilter])
 
   const selectedCustomer = filteredCustomers.find((item) => item.id === selectedCustomerId) || filteredCustomers[0] || null
 
@@ -100,7 +168,7 @@ export default function CustomersTab({ users = [], bookings = [], orders = [], o
         actions={<Pill>{filteredCustomers.length} visible</Pill>}
       />
 
-      <div className="admin-card" style={{ padding: '18px', border: '1px solid var(--gray)' }}>
+      <RecordFilterBar columns="1.2fr repeat(2, minmax(160px, 220px))">
         <input
           type="text"
           placeholder="Search by name, phone, tier, notes, or spend..."
@@ -108,6 +176,29 @@ export default function CustomersTab({ users = [], bookings = [], orders = [], o
           onChange={(e) => setSearchTerm(e.target.value)}
           style={fieldStyle}
         />
+        <select value={tierFilter} onChange={(e) => setTierFilter(e.target.value)} style={fieldStyle}>
+          <option value="all">All tiers</option>
+          <option value="Regular">Regular</option>
+          <option value="Silver">Silver</option>
+          <option value="Gold">Gold</option>
+          <option value="VIP">VIP</option>
+        </select>
+        <select value={activityFilter} onChange={(e) => setActivityFilter(e.target.value)} style={fieldStyle}>
+          <option value="all">All activity</option>
+          <option value="bookings">Has bookings</option>
+          <option value="orders">Has orders</option>
+          <option value="transactions">Has transactions</option>
+          <option value="tickets">Has tickets</option>
+        </select>
+      </RecordFilterBar>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
+        <SummaryCard label="Visible customers" value={filteredCustomers.length} />
+        <SummaryCard label="Visible spend" value={formatMoney(filteredCustomers.reduce((sum, user) => sum + Number(user.__spend || 0), 0), '')} />
+        <SummaryCard label="Bookings" value={filteredCustomers.reduce((sum, user) => sum + (user.__bookings?.length || 0), 0)} />
+        <SummaryCard label="Orders" value={filteredCustomers.reduce((sum, user) => sum + (user.__orders?.length || 0), 0)} />
+        <SummaryCard label="Transactions" value={filteredCustomers.reduce((sum, user) => sum + (user.__transactions?.length || 0), 0)} />
+        <SummaryCard label="Tickets / packages" value={filteredCustomers.reduce((sum, user) => sum + (user.__tickets?.length || 0), 0)} />
       </div>
 
       <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
@@ -120,13 +211,14 @@ export default function CustomersTab({ users = [], bookings = [], orders = [], o
                   <th style={{ padding: '16px 12px', textAlign: 'left', color: 'var(--text-light)' }}>Tier</th>
                   <th style={{ padding: '16px 12px', textAlign: 'left', color: 'var(--text-light)' }}>Spend</th>
                   <th style={{ padding: '16px 12px', textAlign: 'left', color: 'var(--text-light)' }}>Bookings</th>
+                  <th style={{ padding: '16px 12px', textAlign: 'left', color: 'var(--text-light)' }}>Transactions</th>
                   {!selectedCustomer && <th style={{ padding: '16px 12px', textAlign: 'left', color: 'var(--text-light)' }}>Notes</th>}
                 </tr>
               </thead>
               <tbody>
                 {filteredCustomers.length === 0 ? (
                   <tr>
-                    <td colSpan="5">
+                    <td colSpan={selectedCustomer ? 5 : 6}>
                       <EmptyState title="No customers found" description="Try another search term or clear filters." />
                     </td>
                   </tr>
@@ -168,6 +260,10 @@ export default function CustomersTab({ users = [], bookings = [], orders = [], o
                         <td style={{ padding: '14px 12px' }}>
                           <div style={{ fontWeight: 800 }}>{user.__bookings?.length || 0}</div>
                           <div style={{ fontSize: '11px', color: 'var(--text-light)', marginTop: '3px' }}>Linked bookings</div>
+                        </td>
+                        <td style={{ padding: '14px 12px' }}>
+                          <div style={{ fontWeight: 800 }}>{user.__transactions?.length || 0}</div>
+                          <div style={{ fontSize: '11px', color: 'var(--text-light)', marginTop: '3px' }}>Ledger entries</div>
                         </td>
                         {!selectedCustomer && (
                           <td style={{ padding: '14px 12px' }}>
@@ -223,6 +319,10 @@ export default function CustomersTab({ users = [], bookings = [], orders = [], o
                 <div style={{ fontSize: '18px', fontWeight: 800 }}>{selectedCustomer.__bookings?.length || 0}</div>
               </div>
               <div className="admin-card" style={{ padding: '12px', border: '1px solid var(--gray)', textAlign: 'center' }}>
+                <div style={{ fontSize: '12px', color: 'var(--text-light)' }}>Transactions</div>
+                <div style={{ fontSize: '18px', fontWeight: 800 }}>{selectedCustomer.__transactions?.length || 0}</div>
+              </div>
+              <div className="admin-card" style={{ padding: '12px', border: '1px solid var(--gray)', textAlign: 'center' }}>
                 <div style={{ fontSize: '12px', color: 'var(--text-light)' }}>Joined</div>
                 <div style={{ fontSize: '14px', fontWeight: 700 }}>{selectedCustomer.created_at ? new Date(selectedCustomer.created_at).toLocaleDateString() : '-'}</div>
               </div>
@@ -257,18 +357,24 @@ export default function CustomersTab({ users = [], bookings = [], orders = [], o
               <h4 style={{ fontSize: '14px', fontWeight: 800, marginBottom: '12px' }}>Recent activity</h4>
               <div style={{ maxHeight: '280px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }} className="hide-scrollbar">
                 {selectedCustomer.__recent.length ? (
-                  selectedCustomer.__recent.map((booking) => (
-                    <div key={booking.id} className="admin-card" style={{ padding: '12px', border: '1px solid var(--gray)' }}>
+                  selectedCustomer.__recent.map((entry, index) => (
+                    <div key={`${entry.kind}-${entry.title}-${index}`} className="admin-card" style={{ padding: '12px', border: '1px solid var(--gray)' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', marginBottom: '4px' }}>
-                        <span style={{ fontWeight: 700 }}>{getBookingService(booking)}</span>
-                        <span style={{ color: 'var(--primary)', fontWeight: 800 }}>{formatMoney(booking.final_price || booking.service_price || 0, '')}</span>
+                        <span style={{ fontWeight: 700 }}>
+                          <span className="badge badge-outline" style={{ marginRight: '8px', fontSize: '10px', padding: '2px 6px' }}>
+                            {entry.kind}
+                          </span>
+                          {entry.title}
+                        </span>
+                        <span style={{ color: 'var(--primary)', fontWeight: 800 }}>{formatMoney(entry.amount || 0, '')}</span>
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', color: 'var(--text-light)' }}>
-                        <span>
-                          {getBookingDate(booking)} {getBookingTime(booking)}
+                        <span style={{ display: 'grid', gap: '2px' }}>
+                          <span>{entry.detail || (entry.when ? new Date(entry.when).toLocaleString() : '-')}</span>
+                          {entry.reference && <span style={{ fontSize: '11px' }}>Ref: {entry.reference}</span>}
                         </span>
                         <span className="badge badge-outline" style={{ fontSize: '10px', padding: '2px 6px' }}>
-                          {booking.status || 'pending'}
+                          {entry.status || 'pending'}
                         </span>
                       </div>
                     </div>
@@ -278,9 +384,54 @@ export default function CustomersTab({ users = [], bookings = [], orders = [], o
                 )}
               </div>
             </div>
+
+            <div style={{ marginTop: '18px' }}>
+              <h4 style={{ fontSize: '14px', fontWeight: 800, marginBottom: '12px' }}>Tickets / packages</h4>
+              <div style={{ display: 'grid', gap: '8px' }}>
+                {selectedCustomer.__tickets.length ? (
+                  selectedCustomer.__tickets.slice(0, 4).map((ticket) => (
+                    <div key={ticket.id} className="admin-card" style={{ padding: '12px', border: '1px solid var(--gray)', display: 'grid', gap: '8px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', alignItems: 'flex-start' }}>
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontWeight: 800, lineHeight: 1.35 }}>{getTicketLabel(ticket, servicePackages)}</div>
+                          <div style={{ fontSize: '11px', color: 'var(--text-light)', marginTop: '3px' }}>
+                            {ticket.code || ticket.ref || ticket.ticket_code || ticket.id ? `#${ticket.code || ticket.ref || ticket.ticket_code || ticket.id}` : 'Member entitlement'}
+                          </div>
+                        </div>
+                        <span style={{ color: 'var(--primary)', fontWeight: 800, whiteSpace: 'nowrap' }}>{formatMoney(ticket.price || ticket.amount || 0, '')}</span>
+                      </div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
+                        <span className="badge badge-outline" style={{ fontSize: '10px', padding: '2px 6px' }}>
+                          {ticket.status || ticket.state || 'Active'}
+                        </span>
+                        {ticket.remaining_uses != null && <span style={{ fontSize: '11px', color: 'var(--text-light)' }}>{ticket.remaining_uses} uses left</span>}
+                        {ticket.used_count != null && <span style={{ fontSize: '11px', color: 'var(--text-light)' }}>{ticket.used_count} used</span>}
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', color: 'var(--text-light)', fontSize: '12px' }}>
+                        <span>{ticket.expires_at ? `Expires ${new Date(ticket.expires_at).toLocaleDateString()}` : ticket.valid_until ? `Valid until ${new Date(ticket.valid_until).toLocaleDateString()}` : 'No expiry set'}</span>
+                        <span>{ticket.issued_at ? `Issued ${new Date(ticket.issued_at).toLocaleDateString()}` : ticket.created_at ? `Created ${new Date(ticket.created_at).toLocaleDateString()}` : ''}</span>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="admin-card" style={{ padding: '12px', border: '1px solid var(--gray)', color: 'var(--text-light)' }}>
+                    No ticket or package record linked to this member.
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         )}
       </div>
+    </div>
+  )
+}
+
+function SummaryCard({ label, value }) {
+  return (
+    <div className="admin-card" style={{ padding: '14px 16px', border: '1px solid var(--gray)' }}>
+      <div style={{ fontSize: '12px', fontWeight: 800, color: '#A68B6A', marginBottom: '6px' }}>{label}</div>
+      <div style={{ fontSize: '22px', fontWeight: 800 }}>{value}</div>
     </div>
   )
 }
