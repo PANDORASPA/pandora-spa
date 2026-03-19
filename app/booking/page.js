@@ -7,12 +7,12 @@ import { toast } from 'react-hot-toast'
 import { bookingOpsCopy } from '../components/admin/opsUi'
 
 const T = {
-  title: '\u9078\u64c7\u8a2d\u8a08\u5e2b',
-  intro: '\u5148\u9078\u64c7\u8a2d\u8a08\u5e2b\uff0c\u518d\u9032\u5165\u9810\u7d04\u9801\u9762\u9078\u64c7\u670d\u52d9\u3001\u65e5\u671f\u8207\u6642\u9593\u3002',
+  title: '選擇服務供應者',
+  intro: '先選擇服務供應者，再進入預約頁面選擇服務、日期與時間。',
   loading: bookingOpsCopy.loading,
   redirecting: '正在載入預約資料...',
   loadFailed: '無法載入預約入口',
-  noStaff: '目前未有可預約的設計師',
+  noStaff: '目前沒有可預約的服務供應者。',
   roleFallback: '髮型師',
   cta: '立即預約',
   editFallback: '無法載入原預約，請從「我的預約」重新進入。',
@@ -44,8 +44,8 @@ export default function BookingPage() {
     if (staffId && staffId !== 'random') {
       const params = new URLSearchParams(query.raw)
       params.delete('staffId')
-      const query = params.toString()
-      router.replace(`/booking/${encodeURIComponent(staffId)}${query ? `?${query}` : ''}`)
+      const nextQuery = params.toString()
+      router.replace(`/booking/${encodeURIComponent(staffId)}${nextQuery ? `?${nextQuery}` : ''}`)
       return
     }
 
@@ -154,7 +154,7 @@ export default function BookingPage() {
                       {member.photoUrl ? (
                         <img src={member.photoUrl} alt={member.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                       ) : (
-                        <div style={{ fontSize: '56px' }}>✦</div>
+                        <div style={{ fontSize: '56px' }}>✂</div>
                       )}
                     </div>
                     <div style={{ padding: '18px' }}>
@@ -163,7 +163,7 @@ export default function BookingPage() {
                         {member.role || T.roleFallback}
                       </div>
                       <div style={{ fontSize: '13px', color: '#666', lineHeight: 1.6, minHeight: '42px' }}>
-                        {member.bio || '\u9032\u5165\u8a73\u60c5\u9801\u9762\u9078\u64c7\u670d\u52d9\u3001\u65e5\u671f\u8207\u9810\u7d04\u6642\u6bb5\u3002'}
+                        {member.bio || '進入詳細頁面選擇服務、日期與預約時段。'}
                       </div>
                       <div style={{ marginTop: '16px', padding: '12px 16px', borderRadius: '12px', background: '#3D3D3D', color: '#fff', fontWeight: 800, textAlign: 'center' }}>
                         {T.cta}
