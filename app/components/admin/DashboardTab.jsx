@@ -6,6 +6,20 @@ const formatMoney = (value) => `$${Number(value || 0).toLocaleString()}`
 
 const getDateText = (booking) => booking?.appointment_date || booking?.date || booking?.created_at?.slice?.(0, 10) || '-'
 const getTimeText = (booking) => booking?.start_time || booking?.time || '-'
+const getBookingStatusLabel = (status) => {
+  const value = String(status || 'pending').toLowerCase()
+  if (value === 'completed') return '已完成'
+  if (value === 'confirmed') return '已確認'
+  if (value === 'cancelled') return '已取消'
+  return '待處理'
+}
+
+const getOrderStatusLabel = (status) => {
+  const value = String(status || '').toLowerCase()
+  if (value === 'paid' || value === 'completed' || value === 'reconciled') return '已結清'
+  if (value === 'cancelled' || value === 'failed') return '失敗 / 已取消'
+  return '待處理'
+}
 
 function MetricCard({ label, value, tone = 'default', hint }) {
   const toneStyle =
@@ -32,7 +46,7 @@ function MiniList({ title, items, emptyText, renderItem }) {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
         <div>
           <div style={{ fontSize: '13px', fontWeight: 800, color: '#A68B6A', letterSpacing: '0.06em' }}>{title}</div>
-          <div style={{ fontSize: '12px', color: 'var(--text-light)', marginTop: '4px' }}>{items.length} items</div>
+          <div style={{ fontSize: '12px', color: 'var(--text-light)', marginTop: '4px' }}>{items.length} 筆</div>
         </div>
       </div>
       <div style={{ display: 'grid', gap: '10px' }}>
@@ -135,70 +149,70 @@ export default function DashboardTab({ stats = {}, bookings = [], orders = [], t
           background: 'linear-gradient(135deg, #fff, #FBF8F4)',
         }}
       >
-        <div style={{ fontSize: '12px', fontWeight: 800, letterSpacing: '0.08em', color: '#A68B6A' }}>ADMIN OVERVIEW</div>
-        <div style={{ marginTop: '6px', fontSize: '22px', fontWeight: 800, color: 'var(--text)' }}>Operational snapshot at a glance</div>
+        <div style={{ fontSize: '12px', fontWeight: 800, letterSpacing: '0.08em', color: '#A68B6A' }}>營運總覽</div>
+        <div style={{ marginTop: '6px', fontSize: '22px', fontWeight: 800, color: 'var(--text)' }}>營運概況一眼掌握</div>
         <div style={{ marginTop: '6px', fontSize: '13px', lineHeight: 1.6, color: 'var(--text-light)' }}>
-          Track bookings, revenue, customer movement, and ticket pressure from one server-truth summary.
+          集中查看預約、收入、客戶動態及票券壓力，全部以伺服器真實數據為準。
         </div>
       </div>
 
       <div style={{ display: 'grid', gap: '12px' }}>
-        <div style={{ fontSize: '12px', fontWeight: 800, color: '#A68B6A', letterSpacing: '0.08em' }}>BOOKING FLOW</div>
+        <div style={{ fontSize: '12px', fontWeight: 800, color: '#A68B6A', letterSpacing: '0.08em' }}>預約流程</div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
-          <MetricCard label="Bookings today" value={stats.todayBookings || 0} hint="Appointments scheduled for the current day." />
-          <MetricCard label="Today revenue" value={formatMoney(stats.todayRevenue || 0)} tone="success" hint="Booking revenue recorded for today." />
-          <MetricCard label="Pending follow-up" value={stats.pending || 0} tone="warning" hint="Bookings still waiting on confirmation." />
-          <MetricCard label="Members" value={stats.totalUsers || 0} tone="default" hint="Registered customer accounts." />
+          <MetricCard label="今日預約" value={stats.todayBookings || 0} hint="今日已排入的預約數量。" />
+          <MetricCard label="今日收入" value={formatMoney(stats.todayRevenue || 0)} tone="success" hint="今日已記錄的預約收入。" />
+          <MetricCard label="待跟進" value={stats.pending || 0} tone="warning" hint="仍待確認或處理的預約。" />
+          <MetricCard label="會員" value={stats.totalUsers || 0} tone="default" hint="已註冊顧客帳戶。" />
         </div>
       </div>
 
       <div style={{ display: 'grid', gap: '12px' }}>
-        <div style={{ fontSize: '12px', fontWeight: 800, color: '#A68B6A', letterSpacing: '0.08em' }}>OPERATIONS HEALTH</div>
+        <div style={{ fontSize: '12px', fontWeight: 800, color: '#A68B6A', letterSpacing: '0.08em' }}>營運健康</div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
-          <MetricCard label="Bookings total" value={dashboard.bookingTotals.total} hint="All loaded booking records." />
-          <MetricCard label="Completed ratio" value={completedRatio} tone="success" hint="Completed bookings as a share of all loaded bookings." />
-          <MetricCard label="Cancelled ratio" value={cancelledRatio} tone="danger" hint="Cancelled bookings as a share of all loaded bookings." />
-          <MetricCard label="Active customers" value={dashboard.activeCustomers} tone="default" hint="Customers visible across booking, order, or transaction signals." />
+          <MetricCard label="預約總數" value={dashboard.bookingTotals.total} hint="目前已載入的預約紀錄。" />
+          <MetricCard label="完成率" value={completedRatio} tone="success" hint="完成預約佔全部預約的比例。" />
+          <MetricCard label="取消率" value={cancelledRatio} tone="danger" hint="取消預約佔全部預約的比例。" />
+          <MetricCard label="活躍顧客" value={dashboard.activeCustomers} tone="default" hint="來自預約、訂單或交易訊號的顧客數。" />
         </div>
       </div>
 
       <div style={{ display: 'grid', gap: '12px' }}>
-        <div style={{ fontSize: '12px', fontWeight: 800, color: '#A68B6A', letterSpacing: '0.08em' }}>ORDER LEDGER & TICKETS</div>
+        <div style={{ fontSize: '12px', fontWeight: 800, color: '#A68B6A', letterSpacing: '0.08em' }}>訂單帳務與票券</div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
-          <MetricCard label="Orders total" value={dashboard.orderTotals.total} hint="Loaded order records." />
-          <MetricCard label="Order revenue" value={formatMoney(dashboard.orderTotals.revenue)} tone="success" hint="Totals derived from order rows." />
-          <MetricCard label="Settled" value={dashboard.orderTotals.settled} tone="success" hint="Paid, completed, or reconciled orders." />
-          <MetricCard label="Open / failed" value={dashboard.orderTotals.pending + dashboard.orderTotals.failed} tone="warning" hint="Needs attention or retry." />
-          <MetricCard label="Tickets in use" value={dashboard.ticketTotals.active} tone="default" hint="Issued ticket balances with remaining uses." />
-          <MetricCard label="Low ticket balance" value={dashboard.ticketTotals.lowBalance} tone="warning" hint="Ticket rows with 1 or fewer uses left." />
+          <MetricCard label="訂單總數" value={dashboard.orderTotals.total} hint="目前已載入的訂單紀錄。" />
+          <MetricCard label="訂單收入" value={formatMoney(dashboard.orderTotals.revenue)} tone="success" hint="由訂單列計算出的總額。" />
+          <MetricCard label="已結清" value={dashboard.orderTotals.settled} tone="success" hint="已付款、已完成或已對帳的訂單。" />
+          <MetricCard label="未處理 / 失敗" value={dashboard.orderTotals.pending + dashboard.orderTotals.failed} tone="warning" hint="需要跟進或重試的訂單。" />
+          <MetricCard label="使用中票券" value={dashboard.ticketTotals.active} tone="default" hint="仍有可用次數的票券。" />
+          <MetricCard label="低餘額票券" value={dashboard.ticketTotals.lowBalance} tone="warning" hint="剩餘 1 次或以下的票券。" />
         </div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px' }}>
         <MiniList
-          title="Today's appointment queue"
+          title="今日預約隊列"
           items={dashboard.todayBookings}
-          emptyText="No bookings loaded."
+          emptyText="暫未載入預約。"
           renderItem={(booking) => (
             <div key={booking.id} className="admin-card" style={{ padding: '14px', border: '1px solid var(--gray)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', alignItems: 'flex-start' }}>
                 <div>
-                  <div style={{ fontSize: '14px', fontWeight: 800, color: 'var(--text)' }}>{booking.name || booking.customer_name || 'Guest'}</div>
+                  <div style={{ fontSize: '14px', fontWeight: 800, color: 'var(--text)' }}>{booking.name || booking.customer_name || '訪客'}</div>
                   <div style={{ fontSize: '12px', color: 'var(--text-light)', marginTop: '4px' }}>
                     {getDateText(booking)} {getTimeText(booking)}
                   </div>
                 </div>
-                <span className="badge badge-outline" style={{ background: '#fff' }}>
-                  {booking.status || 'pending'}
+                  <span className="badge badge-outline" style={{ background: '#fff' }}>
+                  {getBookingStatusLabel(booking.status)}
                 </span>
               </div>
               <div style={{ marginTop: '10px', fontSize: '12px', color: 'var(--text-light)' }}>
-                {booking.service_name || booking.service || 'Service'} {booking.staff_name ? `- ${booking.staff_name}` : ''}
+                {booking.service_name || booking.service || '服務'} {booking.staff_name ? `- ${booking.staff_name}` : ''}
               </div>
               {onOpenTab ? (
                 <div style={{ marginTop: '10px' }}>
                   <button type="button" onClick={() => onOpenTab('bookings')} className="btn btn-small btn-interactive">
-                    Open bookings
+                    開啟預約
                   </button>
                 </div>
               ) : null}
@@ -207,14 +221,14 @@ export default function DashboardTab({ stats = {}, bookings = [], orders = [], t
         />
 
         <MiniList
-          title="Recent order activity"
+          title="最近訂單動態"
           items={dashboard.recentOrders}
-          emptyText="No orders loaded."
+          emptyText="暫未載入訂單。"
           renderItem={(order) => (
             <div key={order.id} className="admin-card" style={{ padding: '14px', border: '1px solid var(--gray)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', alignItems: 'flex-start' }}>
                 <div>
-                  <div style={{ fontSize: '14px', fontWeight: 800, color: 'var(--text)' }}>{order.user_name || order.customer_name || 'Customer'}</div>
+                  <div style={{ fontSize: '14px', fontWeight: 800, color: 'var(--text)' }}>{order.user_name || order.customer_name || '客戶'}</div>
                   <div style={{ fontSize: '12px', color: 'var(--text-light)', marginTop: '4px' }}>
                     {order.created_at ? new Date(order.created_at).toLocaleDateString() : '-'}
                   </div>
@@ -222,12 +236,13 @@ export default function DashboardTab({ stats = {}, bookings = [], orders = [], t
                 <div style={{ fontSize: '14px', fontWeight: 800, color: 'var(--primary)' }}>{formatMoney(order.total)}</div>
               </div>
               <div style={{ marginTop: '10px', fontSize: '12px', color: 'var(--text-light)' }}>
-                {order.delivery || order.delivery_method || 'Delivery not set'} {order.payment || order.payment_method ? `- ${order.payment || order.payment_method}` : ''}
+                {order.delivery || order.delivery_method || '未設定配送'} {order.payment || order.payment_method ? `- ${order.payment || order.payment_method}` : ''}
               </div>
+              <div style={{ marginTop: '6px', fontSize: '12px', color: 'var(--text-light)' }}>狀態：{getOrderStatusLabel(order.status || order.payment_status)}</div>
               {onOpenTab ? (
                 <div style={{ marginTop: '10px' }}>
                   <button type="button" onClick={() => onOpenTab('orders')} className="btn btn-small btn-interactive">
-                    Open orders
+                    開啟訂單
                   </button>
                 </div>
               ) : null}
