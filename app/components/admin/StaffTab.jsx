@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import toast from 'react-hot-toast'
 import { AdminActionBar, ChipRow, EmptyState, StatusPill } from './AdminConfigKit'
+import { bookingOpsCopy } from './opsUi'
 
 const DAYS = [
   ['0', '日'],
@@ -145,9 +146,9 @@ const dedupeChips = (items = []) => {
   })
 }
 
-const scopeSummary = (count, singular, plural = `${singular}s`) => {
-  if (!count) return `沒有${plural}`
-  return `${count} ${count === 1 ? singular : plural}`
+const scopeSummary = (count, singular) => {
+  if (!count) return `沒有${singular}`
+  return `${count} ${singular}`
 }
 
 export default function StaffTab({
@@ -297,7 +298,7 @@ export default function StaffTab({
           deletedIds: deletedBlockedIds,
         }, { silentSuccess: true })
       }
-      toast.success('??????????')
+      toast.success('人員排班已儲存')
     } catch (error) {
       console.error(error)
     }
@@ -311,11 +312,11 @@ export default function StaffTab({
       const params = new URLSearchParams({ date: previewDate, serviceId: String(previewServiceId), staffId: String(selectedStaffId) })
       const res = await fetch(`/api/availability?${params.toString()}`)
       const data = await res.json()
-      if (!res.ok) throw new Error(data?.error || '無法載入可預約時段')
+      if (!res.ok) throw new Error(data?.error || '無法載入時段預覽')
       setPreviewSlotMatrix(Array.isArray(data?.slotMatrix) ? data.slotMatrix : [])
     } catch (error) {
       setPreviewSlotMatrix([])
-      setPreviewError(error?.message || '無法載入可預約時段')
+      setPreviewError(error?.message || '無法載入時段預覽')
     } finally {
       setPreviewLoading(false)
     }
@@ -341,8 +342,8 @@ export default function StaffTab({
           style={{
             padding: '12px',
             minHeight: '122px',
-            background: off ? '#FFF7F7' : '#fff',
-            border: `1px solid ${shift ? 'rgba(166, 139, 106, 0.35)' : 'var(--gray)'}`,
+            background: off ? '#F3F4F6' : '#fff',
+            border: `1px solid ${shift ? '#111827' : off ? '#D1D5DB' : 'var(--gray)'}`,
             display: 'grid',
             gap: '8px',
           }}
@@ -359,15 +360,16 @@ export default function StaffTab({
                 padding: '6px 10px',
                 fontSize: '11px',
                 fontWeight: 800,
-                background: off ? '#EF4444' : 'rgba(166, 139, 106, 0.12)',
-                color: off ? '#fff' : 'var(--primary-dark)',
+                background: off ? '#111827' : '#fff',
+                color: off ? '#fff' : '#111827',
+                border: `1px solid ${off ? '#111827' : '#D1D5DB'}`,
               }}
             >
-              {off ? '休息' : '上班'}
+                {off ? bookingOpsCopy.rest : bookingOpsCopy.working}
             </button>
           </div>
           <div style={{ fontSize: '11px', lineHeight: 1.5, color: 'var(--text-light)' }}>
-            {shift ? '手動覆寫' : daysOff.includes(dayKey) ? '每週休息' : schedule?.start ? '預設工時' : '未設定基準'}
+              {shift ? '手動覆寫' : daysOff.includes(dayKey) ? '每週休息日' : schedule?.start ? '週期上班' : '未設定基準工時'}
           </div>
           {!off && (
             <div style={{ display: 'grid', gap: '6px' }}>
@@ -393,7 +395,7 @@ export default function StaffTab({
   }
 
   if (!staff.length) {
-    return <div className="admin-card" style={{ padding: '36px', textAlign: 'center', color: 'var(--text-light)' }}>暫時未有人員資料。</div>
+    return <div className="admin-card" style={{ padding: '36px', textAlign: 'center', color: 'var(--text-light)' }}>目前暫未有人員資料。</div>
   }
 
   return (
@@ -413,7 +415,7 @@ export default function StaffTab({
       >
         <div>
           <div style={{ fontSize: '12px', fontWeight: 800, letterSpacing: '0.08em', color: '#A68B6A' }}>人員排程中心</div>
-          <div style={{ marginTop: '4px', fontSize: '20px', fontWeight: 800, color: 'var(--text)' }}>管理人員、班次、休息時段同即時可用狀態</div>
+          <div style={{ marginTop: '4px', fontSize: '20px', fontWeight: 800, color: 'var(--text)' }}>管理人員、班次、休息時段與即時可用狀態</div>
           <div style={{ marginTop: '6px', fontSize: '13px', lineHeight: 1.6, color: 'var(--text-light)' }}>
             先喺左邊揀一位人員，再一次過編輯檔案、每週基準、日期覆寫同手動封鎖時段。
           </div>
@@ -489,7 +491,7 @@ export default function StaffTab({
             <div style={{ display: 'grid', gap: '20px' }}>
               <Panel
                 title="人員檔案"
-                subtitle="基本資料、公開顯示同重複休息時段。"
+                subtitle="基本資料、公開顯示與重複休息時段。"
                 actions={
                   <button
                     type="button"
@@ -537,8 +539,8 @@ export default function StaffTab({
                   <div style={{ padding: '18px', borderRadius: '16px', border: '1px solid var(--gray)', background: 'linear-gradient(180deg, #FAF8F5, #fff)', display: 'grid', gap: '12px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', alignItems: 'center' }}>
                       <div>
-        <div style={{ fontSize: '13px', fontWeight: 800, color: '#A68B6A' }}>即時摘要</div>
-                        <div style={{ fontSize: '12px', color: 'var(--text-light)', marginTop: '4px' }}>此設定影響內容</div>
+                        <div style={{ fontSize: '13px', fontWeight: 800, color: '#A68B6A' }}>即時摘要</div>
+                        <div style={{ fontSize: '12px', color: 'var(--text-light)', marginTop: '4px' }}>前台會依此人員的上班日、休息日、請假、封鎖時段與服務範圍顯示可預約時段。</div>
                       </div>
                       <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: 700 }}>
                         <input type="checkbox" checked={Boolean(selectedStaff.enabled)} onChange={(e) => onUpdateField(selectedStaff.id, 'enabled', e.target.checked)} />
@@ -558,7 +560,7 @@ export default function StaffTab({
                       <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
                         <div style={{ fontSize: '12px', fontWeight: 800, color: '#A68B6A', letterSpacing: '0.06em' }}>營運範圍</div>
                         <span className="badge badge-outline" style={{ background: '#fff' }}>
-                          {scopeSummary(providerScopeChips.length, '連結')}
+                          {scopeSummary(providerScopeChips.length, '項連結')}
                         </span>
                       </div>
                       <ChipRow
@@ -574,7 +576,7 @@ export default function StaffTab({
                             {scopeSummary(selectedStaffLocationChips.length, '地點')}
                           </span>
                         </div>
-                        <ChipRow items={selectedStaffLocationChips} emptyLabel={locations.length ? '尚未選擇地點連結' : '地點資料未載入'} />
+                        <ChipRow items={selectedStaffLocationChips} emptyLabel={locations.length ? '尚未選擇地點連結' : '地點資料尚未載入'} />
                       </div>
                       <div style={{ display: 'grid', gap: '8px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
@@ -583,13 +585,13 @@ export default function StaffTab({
                             {scopeSummary(selectedStaffGroupChips.length, '群組')}
                           </span>
                         </div>
-                        <ChipRow items={selectedStaffGroupChips} emptyLabel={providerGroups.length ? '尚未選擇服務供應者群組連結' : '服務供應者群組資料未載入'} />
+                        <ChipRow items={selectedStaffGroupChips} emptyLabel={providerGroups.length ? '尚未選擇服務供應者群組連結' : '服務供應者群組資料尚未載入'} />
                       </div>
                     </div>
                     <div style={{ fontSize: '12px', lineHeight: 1.6, color: 'var(--text-light)' }}>
                       {locations.length || providerGroups.length
-                        ? '此人員資料會先讀取即時管理後台的查詢資料，令可預約時段與操作範圍保持一致。'
-                        : '範圍查詢資料暫未提供，因此此頁會暫時回退至人員資料欄位以維持相容。'}
+                        ? '此人員資料會先讀取即時管理後台的地點與供應者群組資料，令前台可預約時段保持一致。'
+                        : '地點與供應者群組資料暫未提供，因此此頁會暫時回退至人員資料欄位以維持相容。'}
                     </div>
 
                     <div
@@ -640,16 +642,16 @@ export default function StaffTab({
                             width: '100%',
                             minHeight: '88px',
                             borderRadius: '14px',
-                            border: `1px solid ${off ? '#FCA5A5' : 'var(--gray)'}`,
-                            background: off ? '#FEF2F2' : '#fff',
-                            color: off ? '#DC2626' : 'var(--text)',
+                            border: `1px solid ${off ? '#D1D5DB' : '#111827'}`,
+                            background: off ? '#F3F4F6' : '#fff',
+                            color: '#111827',
                             padding: '12px 10px',
                             cursor: 'pointer',
                           }}
                         >
-                          <div style={{ fontSize: '14px', fontWeight: 800 }}>{off ? '休息日' : '上班中'}</div>
-                          <div style={{ fontSize: '12px', marginTop: '8px', lineHeight: 1.5, color: off ? '#B91C1C' : 'var(--text-light)' }}>
-                            {off ? '休息中' : schedule?.start ? `${schedule.start} - ${schedule.end}` : '點擊設定'}
+                          <div style={{ fontSize: '14px', fontWeight: 800 }}>{off ? bookingOpsCopy.rest : bookingOpsCopy.working}</div>
+                          <div style={{ fontSize: '12px', marginTop: '8px', lineHeight: 1.5, color: off ? '#6B7280' : 'var(--text-light)' }}>
+                            {off ? '此日不提供前台可預約時段' : schedule?.start ? `${schedule.start} - ${schedule.end}` : '尚未設定基準工時'}
                           </div>
                         </button>
                       </div>
@@ -825,14 +827,14 @@ export default function StaffTab({
 
                 <div className="admin-card" style={{ padding: '16px', border: '1px solid var(--gray)' }}>
                   {previewLoading ? (
-                    <div style={{ color: 'var(--text-light)' }}>正在載入可預約時段...</div>
+                    <div style={{ color: 'var(--text-light)' }}>{bookingOpsCopy.loading}</div>
                   ) : previewError ? (
                     <div style={{ color: '#DC2626' }}>{previewError}</div>
                   ) : previewSlotMatrix.length ? (
                     <div style={{ display: 'grid', gap: '12px' }}>
                       <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                        <span className="badge badge-outline" style={{ background: '#ECFDF5', borderColor: '#A7F3D0', color: '#047857' }}>可用</span>
-                        <span className="badge badge-outline" style={{ background: '#F3F4F6', borderColor: '#E5E7EB', color: '#6B7280' }}>不可用</span>
+                        <span className="badge badge-outline" style={{ background: '#fff', borderColor: '#111827', color: '#111827' }}>{bookingOpsCopy.available}</span>
+                        <span className="badge badge-outline" style={{ background: '#F3F4F6', borderColor: '#D1D5DB', color: '#6B7280' }}>{bookingOpsCopy.unavailable}</span>
                       </div>
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(88px, 1fr))', gap: '8px' }}>
                         {previewSlotMatrix.map((slot) => (
@@ -844,9 +846,9 @@ export default function StaffTab({
                               textAlign: 'center',
                               fontWeight: 700,
                               fontSize: '13px',
-                              background: slot.available ? '#ECFDF5' : '#F3F4F6',
-                              border: `1px solid ${slot.available ? '#A7F3D0' : '#E5E7EB'}`,
-                              color: slot.available ? '#047857' : '#6B7280',
+                              background: slot.available ? '#fff' : '#F3F4F6',
+                              border: `1px solid ${slot.available ? '#111827' : '#D1D5DB'}`,
+                              color: slot.available ? '#111827' : '#6B7280',
                             }}
                           >
                             {slot.time}
@@ -855,7 +857,7 @@ export default function StaffTab({
                       </div>
                     </div>
                   ) : (
-                    <div style={{ color: 'var(--text-light)' }}>請先選擇日期、服務及人員，然後按「查看可預約時段」。</div>
+                    <div style={{ color: 'var(--text-light)' }}>請先選擇日期、服務及人員，然後按「查看可預約時段」。前台會只顯示與目前排班、休息、請假、封鎖及服務範圍一致的時段。</div>
                   )}
                 </div>
               </Panel>
