@@ -14,7 +14,7 @@ import AnalyticsTab from '../components/admin/AnalyticsTab'
 import DashboardTab from '../components/admin/DashboardTab'
 import ArticlesTab from '../components/admin/ArticlesTab'
 import FaqsTab from '../components/admin/FaqsTab'
-import StaffTab from '../components/admin/StaffTab'
+import SchedulingTab from '../components/admin/SchedulingTab'
 import BookingsTab from '../components/admin/BookingsTab'
 import LocationsTab from '../components/admin/LocationsTab'
 import HolidaysTab from '../components/admin/HolidaysTab'
@@ -372,6 +372,43 @@ export default function Admin() {
     setLoading(false)
   }
 
+  const refreshStaffTableState = async (table) => {
+    switch (table) {
+      case 'staff': {
+        const { data, error } = await supabase.from('staff').select('*').order('id')
+        if (error) throw error
+        if (data) setStaff(data.map(normalizeStaffRow))
+        return
+      }
+      case 'staff_shifts': {
+        const { data, error } = await supabase.from('staff_shifts').select('*')
+        if (error) throw error
+        if (data) setStaffShifts(data)
+        return
+      }
+      case 'staff_breaks': {
+        const { data, error } = await supabase.from('staff_breaks').select('*').order('staff_id').order('day_of_week')
+        if (error) throw error
+        if (data) setStaffBreaks(data)
+        return
+      }
+      case 'staff_time_off': {
+        const { data, error } = await supabase.from('staff_time_off').select('*').order('date')
+        if (error) throw error
+        if (data) setStaffTimeOff(data.map(normalizeScheduleRow))
+        return
+      }
+      case 'blocked_slots': {
+        const { data, error } = await supabase.from('blocked_slots').select('*').order('date')
+        if (error) throw error
+        if (data) setBlockedSlots(data.map(normalizeScheduleRow))
+        return
+      }
+      default:
+        return
+    }
+  }
+
   const stripTransientFields = (row) => {
     const payload = { ...row }
     delete payload.__isNew
@@ -405,8 +442,6 @@ export default function Admin() {
     try {
       const shifts = Array.isArray(payloadOrRows) ? payloadOrRows : payloadOrRows?.rows || []
       const deletedIds = Array.isArray(payloadOrRows?.deletedIds) ? payloadOrRows.deletedIds : []
-      const existingIds = (staffShifts || []).map((s) => Number(s.id)).filter((n) => Number.isFinite(n))
-      let nextId = (existingIds.length ? Math.max(...existingIds) : 0) + 1
       const businessHours = parseBusinessHours(settings?.business_hours)
 
       const payload = (shifts || []).map((shift) => {
@@ -418,10 +453,8 @@ export default function Admin() {
         row.date = row.date ? String(row.date).substring(0, 10) : row.date
         if (!Number.isInteger(Number(row.id)) || Number(row.id) <= 0 || Number(row.id) > 2147483647) {
           delete row.id
-        }
-        if (!row.id) {
-          row.id = nextId
-          nextId += 1
+        } else {
+          row.id = Number(row.id)
         }
         row.is_off = Boolean(row.is_off)
         row.start_time = row.is_off ? null : String(row.start_time || baselineStart).substring(0, 5)
@@ -442,8 +475,7 @@ export default function Admin() {
         if (deleteError) throw deleteError
       }
 
-      const { data } = await supabase.from('staff_shifts').select('*')
-      if (data) setStaffShifts(data)
+      await refreshStaffTableState('staff_shifts')
       if (!silentSuccess) toast.success('儲存成功')
     } catch (error) {
       toast.error('班次儲存失敗：' + (error?.message || '未知錯誤'))
@@ -500,7 +532,7 @@ export default function Admin() {
         if (error) throw error
       }
 
-      await fetchData()
+      await refreshStaffTableState(table)
       if (!silentSuccess) toast.success('儲存成功')
     } catch (error) {
       toast.error(`${table} 儲存失敗：${error?.message || '未知錯誤'}`)
@@ -634,7 +666,7 @@ export default function Admin() {
         const { error } = await supabase.from('staff').upsert(payload)
         if (error) throw error
       }
-      await fetchData()
+      await refreshStaffTableState('staff')
       if (!silentSuccess) toast.success('儲存成功')
     } catch (error) {
       toast.error('服務供應者儲存失敗：' + (error?.message || '未知錯誤'))
@@ -1011,7 +1043,7 @@ export default function Admin() {
     if (activeTab === 'bookings') return <BookingsTab bookings={bookings} staff={staff} services={services} locations={locations} providerGroups={providerGroups} resources={resources} transactions={transactions} orders={orders} bookingResourceAllocations={bookingResourceAllocations} onUpdateStatus={updateStatus} onUpdateBookingStaff={updateBookingStaff} />
     if (activeTab === 'staff') {
       return (
-        <StaffTab
+        <SchedulingTab
           staff={staff}
           services={services}
           operationalContext={{ locations, providerGroups, availableTables }}
