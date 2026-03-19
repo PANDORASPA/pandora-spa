@@ -35,7 +35,7 @@ const deriveTier = (spend) => {
   return 'Regular'
 }
 
-export default function CustomersTab({ users = [], bookings = [], orders = [], transactions = [], tickets = [], servicePackages = [], onUpdateCustomer }) {
+export default function CustomersTab({ users = [], bookings = [], orders = [], transactions = [], userTickets = [], servicePackages = [], onUpdateCustomer }) {
   const [selectedCustomerId, setSelectedCustomerId] = useState(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [tierFilter, setTierFilter] = useState('all')
@@ -65,7 +65,7 @@ export default function CustomersTab({ users = [], bookings = [], orders = [], t
         const viaBooking = matchedBookings.some((booking) => String(booking?.id) === String(transaction?.booking_id))
         return userIdMatch || customerIdMatch || (transactionPhone && phone && transactionPhone === phone) || viaOrder || viaBooking
       })
-      const matchedTickets = (tickets || []).filter((ticket) => {
+      const matchedTickets = (userTickets || []).filter((ticket) => {
         const userIdMatch = ticket?.member_user_id && user?.id && String(ticket.member_user_id) === String(user.id)
         const customerIdMatch = ticket?.customer_id && user?.id && String(ticket.customer_id) === String(user.id)
         const ticketPhone = ticket?.phone || ticket?.customer_phone || ''
@@ -118,7 +118,7 @@ export default function CustomersTab({ users = [], bookings = [], orders = [], t
         __recent: recentActivity,
       }
     })
-  }, [users, bookings, orders, transactions, tickets])
+  }, [users, bookings, orders, transactions, userTickets])
 
   const filteredCustomers = useMemo(() => {
     const needle = searchTerm.toLowerCase().trim()
