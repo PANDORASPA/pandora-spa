@@ -36,6 +36,8 @@ const getScopeText = (order) =>
     .join(' / ')
 const getBookingText = (booking) => booking?.ref || booking?.booking_ref || booking?.code || `Booking #${booking?.id || ''}`
 const getTransactionText = (transaction) => transaction?.ref || transaction?.payment_ref || transaction?.code || `TX #${transaction?.id || ''}`
+const getLinkedLocationId = (row) => row?.location_id ?? row?.branch_id ?? row?.location?.id ?? row?.branch?.id ?? ''
+const getLinkedProviderGroupId = (row) => row?.provider_group_id ?? row?.group_id ?? row?.provider_group?.id ?? ''
 
 const normalizeOrder = (order) => ({
   ...order,
@@ -125,10 +127,19 @@ export default function OrdersTab({
   const enrichedOrders = useMemo(() => {
     return (orders || []).map((order) => {
       const booking = order.booking_id != null ? bookingLookup[String(order.booking_id)] || matchRecord(bookings, order.booking_id, ['booking_id']) : null
-      const transaction = order.transaction_id != null ? transactionLookup[String(order.transaction_id)] || matchRecord(transactions, order.transaction_id, ['transaction_id']) : null
-      const customer = resolveCustomer(order, customers)
-      const location = order.location_id != null ? locationLookup[String(order.location_id)] || matchRecord(locations, order.location_id, ['location_id']) : null
-      const providerGroup = order.provider_group_id != null ? providerGroupLookup[String(order.provider_group_id)] || matchRecord(providerGroups, order.provider_group_id, ['provider_group_id']) : null
+      const transaction =
+        (order.transaction_id != null ? transactionLookup[String(order.transaction_id)] || matchRecord(transactions, order.transaction_id, ['transaction_id']) : null) ||
+        (order.payment_ref ? transactionLookup[String(order.payment_ref)] || matchRecord(transactions, order.payment_ref, ['payment_ref', 'ref']) : null)
+      const customer = resolveCustomer(order, customers) || (booking ? resolveCustomer(booking, customers) : null) || (transaction ? resolveCustomer(transaction, customers) : null)
+      const locationId = getLinkedLocationId(order) || getLinkedLocationId(booking) || getLinkedLocationId(transaction)
+      const providerGroupId = getLinkedProviderGroupId(order) || getLinkedProviderGroupId(booking) || getLinkedProviderGroupId(transaction)
+      const location =
+        (locationId !== '' ? locationLookup[String(locationId)] || matchRecord(locations, locationId, ['location_id', 'branch_id']) : null) ||
+        matchRecord(locations, order.location_name || booking?.location_name || transaction?.location_name, ['name', 'title', 'code'])
+      const providerGroup =
+        (providerGroupId !== '' ? providerGroupLookup[String(providerGroupId)] || matchRecord(providerGroups, providerGroupId, ['provider_group_id', 'group_id']) : null) ||
+        matchRecord(providerGroups, order.provider_group_name || booking?.provider_group_name || transaction?.provider_group_name, ['name', 'title', 'code'])
+      const scopeParts = [location ? getLocationText(location) : '', providerGroup ? getProviderGroupText(providerGroup) : ''].filter(Boolean)
 
       return {
         ...order,
@@ -137,6 +148,8 @@ export default function OrdersTab({
         __customer: customer,
         __location: location,
         __providerGroup: providerGroup,
+        __scopeLabel: scopeParts.join(' / '),
+        __hasScope: Boolean(scopeParts.length),
       }
     })
   }, [orders, bookings, bookingLookup, transactionLookup, transactions, customers, locations, locationLookup, providerGroups, providerGroupLookup])
@@ -144,16 +157,14 @@ export default function OrdersTab({
   const filterOptions = useMemo(() => {
     const deliveryValues = [...new Set(enrichedOrders.map((order) => getDeliveryText(order)).filter(Boolean))].filter((value) => value && value !== 'Not set')
     const paymentValues = [...new Set(enrichedOrders.map((order) => getPaymentText(order)).filter(Boolean))].filter((value) => value && value !== 'Not set')
-    const scopeValues = [...new Set(enrichedOrders.map((order) => getScopeText(order)).filter(Boolean))]
+    const scopeValues = [...new Set(enrichedOrders.map((order) => order.__scopeLabel || getScopeText(order)).filter(Boolean))]
     return { deliveryValues, paymentValues, scopeValues }
   }, [enrichedOrders])
 
   const filteredOrders = useMemo(() => {
     const needle = searchTerm.toLowerCase().trim()
     return enrichedOrders.filter((order) => {
-      const linkedBooking = Boolean(order.__booking)
-      const linkedTransaction = Boolean(order.__transaction)
-      const scopeLabel = getScopeText(order)
+      const scopeLabel = order.__scopeLabel || getScopeText(order)
 
       const haystack = [
         order.ref,
@@ -175,8 +186,8 @@ export default function OrdersTab({
 
       const scopeFilterMatch =
         scopeFilter === 'all' ||
-        (scopeFilter === 'linked' && (linkedBooking || linkedTransaction)) ||
-        (scopeFilter === 'unlinked' && !linkedBooking && !linkedTransaction) ||
+        (scopeFilter === 'scoped' && Boolean(order.__hasScope)) ||
+        (scopeFilter === 'unscoped' && !order.__hasScope) ||
         scopeFilter === scopeLabel
 
       return (
@@ -268,9 +279,9 @@ export default function OrdersTab({
           ))}
         </select>
         <select value={scopeFilter} onChange={(e) => setScopeFilter(e.target.value)} style={fieldStyle}>
-          <option value="all">All scopes</option>
-          <option value="linked">Linked records only</option>
-          <option value="unlinked">Unlinked only</option>
+          <option value="all">All scope states</option>
+          <option value="scoped">Operational scope set</option>
+          <option value="unscoped">Operational scope missing</option>
           {filterOptions.scopeValues.map((value) => (
             <option key={value} value={value}>
               {value}
@@ -325,7 +336,7 @@ export default function OrdersTab({
                 filteredOrders.map((order) => {
                   const normalizedStatus = order.status || 'pending'
                   const statusMeta = STATUS_OPTIONS.find((item) => item.value === normalizedStatus) || STATUS_OPTIONS[0]
-                  const scopeLabel = getScopeText(order)
+                  const scopeLabel = order.__scopeLabel || getScopeText(order)
 
                   return (
                     <tr
@@ -444,8 +455,8 @@ export default function OrdersTab({
             <div style={{ display: 'grid', gap: '14px' }}>
               <div style={{ background: '#f9fafb', padding: '16px', borderRadius: '12px' }}>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
-                  <DetailBlock label="Customer" value={getCustomerName(selectedOrder)} />
-                  <DetailBlock label="Phone" value={getCustomerPhone(selectedOrder)} />
+                  <DetailBlock label="Customer" value={selectedOrder.__customer ? getCustomerName(selectedOrder.__customer) : getCustomerName(selectedOrder)} />
+                  <DetailBlock label="Phone" value={selectedOrder.__customer ? getCustomerPhone(selectedOrder.__customer) : getCustomerPhone(selectedOrder)} />
                   <DetailBlock label="Date" value={getDateText(selectedOrder)} />
                   <DetailBlock label="Status" value={selectedOrder.status || 'pending'} />
                 </div>
@@ -461,7 +472,7 @@ export default function OrdersTab({
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
                   <DetailBlock label="Payment" value={getPaymentText(selectedOrder)} />
-                  <DetailBlock label="Payment ref" value={selectedOrder.payment_ref || selectedOrder.__transaction?.payment_ref || '-'} />
+                  <DetailBlock label="Payment ref" value={selectedOrder.payment_ref || selectedOrder.__transaction?.payment_ref || selectedOrder.__transaction?.provider || '-'} />
                   <DetailBlock label="Booking link" value={selectedOrder.__booking ? getBookingText(selectedOrder.__booking) : selectedOrder.booking_id ? `Booking #${selectedOrder.booking_id}` : '-'} />
                   <DetailBlock label="Transaction link" value={selectedOrder.__transaction ? getTransactionText(selectedOrder.__transaction) : selectedOrder.transaction_id ? `TX #${selectedOrder.transaction_id}` : '-'} />
                 </div>
