@@ -45,9 +45,10 @@ export const formatMoney = (value, currency = '') => {
 export const bookingOpsCopy = {
   loading: '載入中...',
   loadingPage: '載入頁面中...',
-  loadingMember: '載入會員資料中...',
+  loadingMember: '載入顧客資料中...',
   loadingDates: '載入可預約日期中...',
   loadingSlots: '載入可預約時段中...',
+  loadingCalendar: '載入月曆中...',
   available: '可預約',
   unavailable: '不可預約',
   selected: '已選擇',
@@ -59,8 +60,11 @@ export const bookingOpsCopy = {
   noAvailability: '暫時沒有可預約時段',
   chooseDateFirst: '請先選擇日期',
   chooseTimeFirst: '請先選擇時段',
-  restDay: '該日休息',
-  fullDay: '當日已約滿',
+  restDay: '休息日',
+  fullDay: '當日已滿',
+  fullDayHint: '有上班，但今天已滿',
+  offDayHint: '今日休息，未有可預約時段',
+  loadFailed: '無法載入資料',
 }
 
 export const sectionShell = {
@@ -163,7 +167,9 @@ export function Pill({ children, tone = 'default' }) {
         ? { background: '#FEF3C7', color: '#B45309' }
         : tone === 'danger'
           ? { background: '#FEF2F2', color: '#DC2626' }
-          : { background: '#fff', color: 'var(--text)' }
+          : tone === 'muted'
+            ? { background: '#F8FAFC', color: '#6B7280' }
+            : { background: '#fff', color: 'var(--text)' }
 
   return (
     <span className="badge badge-outline" style={{ background: colors.background, color: colors.color, borderColor: 'rgba(166, 139, 106, 0.18)' }}>
