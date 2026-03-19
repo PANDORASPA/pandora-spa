@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 export const fieldStyle = {
   width: '100%',
@@ -43,12 +43,12 @@ export const formatMoney = (value, currency = '') => {
 }
 
 export const bookingOpsCopy = {
-  loading: '載入中...',
-  loadingPage: '載入頁面中...',
-  loadingMember: '載入顧客資料中...',
-  loadingDates: '載入可預約日期中...',
-  loadingSlots: '載入可預約時段中...',
-  loadingCalendar: '載入月曆中...',
+  loading: '載入中…',
+  loadingPage: '載入頁面中…',
+  loadingMember: '載入顧客資料中…',
+  loadingDates: '載入可預約日期中…',
+  loadingSlots: '載入可預約時段中…',
+  loadingCalendar: '載入月曆中…',
   available: '可預約',
   unavailable: '不可預約',
   selected: '已選擇',
@@ -61,10 +61,14 @@ export const bookingOpsCopy = {
   chooseDateFirst: '請先選擇日期',
   chooseTimeFirst: '請先選擇時段',
   restDay: '休息日',
-  fullDay: '當日已滿',
+  fullDay: '今天已滿',
   fullDayHint: '有上班，但今天已滿',
   offDayHint: '今日休息，未有可預約時段',
+  limitedDayHint: '已安排上班，但目前未形成可預約時段',
   loadFailed: '無法載入資料',
+  calendarAvailable: '上班 / 可預約',
+  calendarFull: '上班 / 已滿',
+  calendarRest: '休息',
 }
 
 export const sectionShell = {
