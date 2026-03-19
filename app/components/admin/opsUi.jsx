@@ -42,6 +42,22 @@ export const formatMoney = (value, currency = '') => {
   return `${currency ? `${currency} ` : ''}${amount.toLocaleString()}`
 }
 
+export const bookingOpsCopy = {
+  loading: '載入中...',
+  loadingPage: '載入頁面中...',
+  loadingMember: '載入會員資料中...',
+  loadingSlots: '載入可預約時段中...',
+  available: '可預約',
+  unavailable: '不可預約',
+  selected: '已選擇',
+  working: '上班日',
+  rest: '休息日',
+  full: '已滿',
+  warning: '提示',
+  noData: '暫時沒有資料',
+  noAvailability: '暫時未有可預約時段',
+}
+
 export const sectionShell = {
   padding: '20px',
   border: '1px solid rgba(166, 139, 106, 0.16)',
@@ -96,7 +112,7 @@ export function EmptyState({ title, description, actions }) {
     <div className="admin-card" style={{ padding: '28px', textAlign: 'center', color: 'var(--text-light)' }}>
       <div style={{ fontSize: '16px', fontWeight: 800, color: 'var(--text)', marginBottom: '6px' }}>{title}</div>
       <div style={{ fontSize: '13px', lineHeight: 1.6 }}>{description}</div>
-      {actions && <div style={{ marginTop: '14px', display: 'flex', justifyContent: 'center', gap: '10px', flexWrap: 'wrap' }}>{actions}</div>}
+      {actions ? <div style={{ marginTop: '14px', display: 'flex', justifyContent: 'center', gap: '10px', flexWrap: 'wrap' }}>{actions}</div> : null}
     </div>
   )
 }
@@ -117,10 +133,10 @@ export function AdminActionBar({ eyebrow, title, description, status, actions, c
       }}
     >
       <div style={{ minWidth: 0 }}>
-        {eyebrow && <div style={{ fontSize: '12px', fontWeight: 800, letterSpacing: '0.08em', color: '#A68B6A' }}>{eyebrow}</div>}
+        {eyebrow ? <div style={{ fontSize: '12px', fontWeight: 800, letterSpacing: '0.08em', color: '#A68B6A' }}>{eyebrow}</div> : null}
         <div style={{ marginTop: '4px', fontSize: '20px', fontWeight: 800, color: 'var(--text)' }}>{title}</div>
-        {description && <div style={{ marginTop: '6px', fontSize: '13px', color: 'var(--text-light)', lineHeight: 1.6 }}>{description}</div>}
-        {status && <div style={{ marginTop: '8px' }}>{status}</div>}
+        {description ? <div style={{ marginTop: '6px', fontSize: '13px', color: 'var(--text-light)', lineHeight: 1.6 }}>{description}</div> : null}
+        {status ? <div style={{ marginTop: '8px' }}>{status}</div> : null}
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
         {children}
@@ -145,14 +161,7 @@ export function Pill({ children, tone = 'default' }) {
           : { background: '#fff', color: 'var(--text)' }
 
   return (
-    <span
-      className="badge badge-outline"
-      style={{
-        background: colors.background,
-        color: colors.color,
-        borderColor: 'rgba(166, 139, 106, 0.18)',
-      }}
-    >
+    <span className="badge badge-outline" style={{ background: colors.background, color: colors.color, borderColor: 'rgba(166, 139, 106, 0.18)' }}>
       {children}
     </span>
   )
