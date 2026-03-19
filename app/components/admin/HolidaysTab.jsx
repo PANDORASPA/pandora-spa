@@ -55,8 +55,8 @@ export default function HolidaysTab({
 }) {
   const [rows, setRows] = useState([])
   const [deletedIds, setDeletedIds] = useState([])
-  const providerGroupsReady = providerGroupsAvailable && providerGroups.length > 0
-  const providerGroupsUnavailable = !providerGroupsReady
+  const providerGroupsReady = providerGroupsAvailable
+  const providerGroupsUnavailable = !providerGroupsAvailable
 
   useEffect(() => {
     setRows((holidays || []).map(normalizeRow))
@@ -102,24 +102,24 @@ export default function HolidaysTab({
           </p>
         </div>
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-          <button type="button" onClick={addRow} className="btn btn-small btn-interactive" disabled={providerGroupsUnavailable}>
+          <button type="button" onClick={addRow} className="btn btn-small btn-interactive">
             + Add holiday
           </button>
           <button
             type="button"
             onClick={() => saveHolidays?.({ rows, deletedIds })}
-            disabled={saving || providerGroupsUnavailable}
+            disabled={saving}
             className="btn btn-small btn-interactive"
             style={{ minWidth: '120px' }}
           >
-            {saving ? 'Saving...' : providerGroupsUnavailable ? 'Provider groups unavailable' : 'Save'}
+            {saving ? 'Saving...' : 'Save'}
           </button>
         </div>
       </div>
 
-      {!providerGroupsReady && (
+      {providerGroupsUnavailable && (
         <div className="admin-card" style={{ padding: '14px 16px', border: '1px solid #FCD34D', background: '#FFFBEB', color: '#92400E', fontSize: '13px', lineHeight: 1.6 }}>
-          Provider groups are not loaded yet. This page stays editable for location and staff targeting, but provider-group scoped saves are disabled until the lookup table is available.
+          Provider groups are not loaded yet. Location and staff targeting still work, but provider-group targeting cannot be added or changed until the lookup table is available.
         </div>
       )}
 
