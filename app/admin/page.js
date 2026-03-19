@@ -585,7 +585,6 @@ export default function Admin() {
     try {
       const businessHours = parseBusinessHours(settings?.business_hours)
       for (const item of staff) {
-        const payload = { ...item }
         const normalizedSchedule = Object.entries(item.schedule || {}).reduce((acc, [dayKey, value]) => {
           const start = String(value?.start || '').substring(0, 5)
           const end = String(value?.end || '').substring(0, 5)
@@ -596,9 +595,21 @@ export default function Admin() {
           }
           return acc
         }, {})
-        payload.daysoff = Array.isArray(item.daysOff) ? item.daysOff : []
-        payload.schedule = normalizedSchedule
-        delete payload.daysOff
+        const payload = {
+          id: item.id,
+          name: item.name || 'New Staff',
+          role: item.role || 'Stylist',
+          phone: item.phone || '',
+          photo_url: item.photo_url || '',
+          bio: item.bio || '',
+          enabled: item.enabled !== false,
+          schedule: normalizedSchedule,
+          services: Array.isArray(item.services) ? item.services : [],
+          daysoff: Array.isArray(item.daysOff) ? item.daysOff : [],
+          location_id: normalizeNullableNumber(item.location_id),
+          provider_group_id: normalizeNullableNumber(item.provider_group_id),
+          booking_mode: item.booking_mode ? String(item.booking_mode) : 'staff',
+        }
         if (typeof payload.id === 'number' && payload.id > 2147483647) delete payload.id
         const { error } = await supabase.from('staff').upsert(payload)
         if (error) throw error
@@ -890,8 +901,6 @@ export default function Admin() {
         daysoff: [],
         photo_url: '',
         bio: '',
-        break_start: '15:00',
-        break_end: '16:00',
       },
     ])
   }
