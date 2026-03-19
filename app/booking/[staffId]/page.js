@@ -5,6 +5,11 @@ import Link from 'next/link'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'react-hot-toast'
 
+const MONTH_SUMMARY_CACHE_TTL_MS = 60 * 1000
+const DAILY_SLOTS_CACHE_TTL_MS = 30 * 1000
+const monthSummaryCache = new Map()
+const dailySlotsCache = new Map()
+
 const fieldStyle = {
   width: '100%',
   minHeight: '46px',
@@ -114,6 +119,23 @@ const getCalendarStatusLabel = (summary) => {
   return T.full
 }
 
+const readCached = (cache, key, ttlMs) => {
+  const cached = cache.get(key)
+  if (!cached) return null
+  if (Date.now() - cached.createdAt > ttlMs) {
+    cache.delete(key)
+    return null
+  }
+  return cached.value
+}
+
+const writeCached = (cache, key, value) => {
+  cache.set(key, {
+    createdAt: Date.now(),
+    value,
+  })
+}
+
 export default function BookingStaffPage() {
   const router = useRouter()
   const params = useParams()
@@ -170,6 +192,13 @@ export default function BookingStaffPage() {
     let cancelled = false
     setLoadingSummary(true)
     setError('')
+    const monthSummaryKey = [staffId, serviceId, staff?.location_id || 'none', monthKey].join(':')
+    const cachedMonthSummary = readCached(monthSummaryCache, monthSummaryKey, MONTH_SUMMARY_CACHE_TTL_MS)
+    if (cachedMonthSummary) {
+      setMonthSummary(cachedMonthSummary)
+      setLoadingSummary(false)
+      return
+    }
     fetch(`/api/availability/month-summary?staffId=${staffId}&serviceId=${serviceId}&year=${monthKey.slice(0, 4)}&month=${monthKey.slice(5, 7)}`)
       .then(async (response) => {
         const payload = await response.json().catch(() => ({}))
@@ -179,6 +208,7 @@ export default function BookingStaffPage() {
       .then((payload) => {
         if (cancelled) return
         const dates = Array.isArray(payload?.dates) ? payload.dates : []
+        writeCached(monthSummaryCache, monthSummaryKey, dates)
         setMonthSummary(dates)
       })
       .catch((fetchError) => {
@@ -190,7 +220,7 @@ export default function BookingStaffPage() {
     return () => {
       cancelled = true
     }
-  }, [monthKey, serviceId, staffId])
+  }, [monthKey, serviceId, staff?.location_id, staffId])
 
   const summaryMap = useMemo(() => new Map(monthSummary.map((entry) => [entry.date, entry])), [monthSummary])
   const monthGrid = useMemo(() => buildMonthGrid(monthKey), [monthKey])
@@ -229,6 +259,13 @@ export default function BookingStaffPage() {
     let cancelled = false
     setLoadingSlots(true)
     setError('')
+    const dailySlotsKey = [staffId, serviceId, staff?.location_id || 'none', selectedDate].join(':')
+    const cachedSlots = readCached(dailySlotsCache, dailySlotsKey, DAILY_SLOTS_CACHE_TTL_MS)
+    if (cachedSlots) {
+      setSlots(cachedSlots)
+      setLoadingSlots(false)
+      return
+    }
     fetch(`/api/availability?date=${selectedDate}&serviceId=${serviceId}&staffId=${staffId}`)
       .then(async (response) => {
         const payload = await response.json().catch(() => ({}))
@@ -242,6 +279,7 @@ export default function BookingStaffPage() {
           : Array.isArray(payload?.slotMatrix)
             ? payload.slotMatrix.flat().filter(Boolean)
             : []
+        writeCached(dailySlotsCache, dailySlotsKey, nextSlots)
         setSlots(nextSlots)
       })
       .catch((fetchError) => {
@@ -256,7 +294,7 @@ export default function BookingStaffPage() {
     return () => {
       cancelled = true
     }
-  }, [selectedDate, serviceId, staffId, summaryMap])
+  }, [selectedDate, serviceId, staff?.location_id, staffId, summaryMap])
 
   const handleSubmit = async (event) => {
     event.preventDefault()
