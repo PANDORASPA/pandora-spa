@@ -22,7 +22,14 @@ import ResourcesTab from '../components/admin/ResourcesTab'
 import TransactionsTab from '../components/admin/TransactionsTab'
 import { analyzeScheduleRows } from '../../lib/booking/admin-schedule'
 
-const tabGroups = [
+const scheduleTableLabels = {
+  staff_shifts: '日期覆蓋',
+  staff_breaks: '固定休息時段',
+  staff_time_off: '休假時段',
+  blocked_slots: '封鎖時段',
+}
+
+const tabGroupsLegacy = [
   { name: '概覽', tabs: [{ id: 'dashboard', name: '總覽' }, { id: 'analytics', name: '分析' }] },
   { name: '預約', tabs: [{ id: 'bookings', name: '預約' }, { id: 'staff', name: '排程' }, { id: 'holidays', name: '假期' }, { id: 'locations', name: '地點' }, { id: 'resources', name: '資源設備' }] },
   { name: '營運', tabs: [{ id: 'orders', name: '訂單' }, { id: 'transactions', name: '交易紀錄' }, { id: 'inventory', name: '庫存' }, { id: 'coupons', name: '優惠碼' }] },
@@ -32,7 +39,7 @@ const tabGroups = [
   { name: '系統', tabs: [{ id: 'settings', name: '設定' }] },
 ]
 
-const tabMeta = {
+const tabMetaLegacy = {
   dashboard: {
     title: '營運總覽',
     eyebrow: '營運儀表板',
@@ -115,6 +122,99 @@ const tabMeta = {
   },
 }
 
+const tabGroups = [
+  { name: '總覽', tabs: [{ id: 'dashboard', name: '總覽' }, { id: 'analytics', name: '分析' }] },
+  { name: '預約', tabs: [{ id: 'bookings', name: '預約' }, { id: 'staff', name: '排班' }, { id: 'holidays', name: '假期' }, { id: 'locations', name: '地點' }, { id: 'resources', name: '資源設備' }] },
+  { name: '營運', tabs: [{ id: 'orders', name: '訂單' }, { id: 'transactions', name: '交易紀錄' }, { id: 'inventory', name: '庫存' }, { id: 'coupons', name: '優惠券' }] },
+  { name: '服務', tabs: [{ id: 'services', name: '服務' }] },
+  { name: '顧客', tabs: [{ id: 'customers', name: '顧客' }] },
+  { name: '內容', tabs: [{ id: 'articles', name: '文章' }, { id: 'faqs', name: '常見問題' }] },
+  { name: '系統', tabs: [{ id: 'settings', name: '設定' }] },
+]
+
+const tabMeta = {
+  dashboard: {
+    title: '營運總覽',
+    eyebrow: '營運儀表板',
+    description: '在同一個畫面掌握今日預約、銷售、顧客活動，以及營運團隊最需要的快速入口。',
+  },
+  analytics: {
+    title: '營運分析',
+    eyebrow: '數據觀察',
+    description: '查看預約走勢、銷售表現、服務供應者效率，以及會員與套票的使用情況。',
+  },
+  bookings: {
+    title: '預約管理',
+    eyebrow: '預約紀錄',
+    description: '追蹤服務預約、服務供應者安排、時段狀態、付款摘要，以及整體預約流程。',
+  },
+  orders: {
+    title: '訂單管理',
+    eyebrow: '銷售紀錄',
+    description: '管理商品與套票訂單，並一致查看配送、付款及訂單狀態。',
+  },
+  staff: {
+    title: '服務供應者',
+    eyebrow: '排班中心',
+    description: '管理服務供應者資料、每週時間表、指定日期安排、休息時段、休假與封鎖時段。',
+  },
+  services: {
+    title: '服務設定',
+    eyebrow: '服務內容',
+    description: '設定服務項目、時間、價格，以及影響可預約時段的規則。',
+  },
+  inventory: {
+    title: '庫存',
+    eyebrow: '商品與套票',
+    description: '以分層方式管理可售商品、套票與票券項目。',
+  },
+  locations: {
+    title: '地點',
+    eyebrow: '營運據點',
+    description: '管理分店與地點的可預約設定，支援多地點預約流程。',
+  },
+  holidays: {
+    title: '假期',
+    eyebrow: '休息與封鎖',
+    description: '設定分店休息、服務供應者休假，以及會影響可預約時段的封鎖日期。',
+  },
+  resources: {
+    title: '資源設備',
+    eyebrow: '容量控制',
+    description: '管理房間、座位、設備與其他可預約資源，避免超額預約。',
+  },
+  transactions: {
+    title: '交易紀錄',
+    eyebrow: '付款明細',
+    description: '查看付款參考編號、關聯紀錄，以及可供營運追查的交易資訊。',
+  },
+  coupons: {
+    title: '優惠券',
+    eyebrow: '推廣活動',
+    description: '維護折扣與推廣設定，同時保留預約流程中的可見性。',
+  },
+  articles: {
+    title: '文章',
+    eyebrow: '內容管理',
+    description: '管理前台與會員可見的教學及推廣內容。',
+  },
+  faqs: {
+    title: '常見問題',
+    eyebrow: '內容管理',
+    description: '持續更新常見問題內容，讓預約與服務流程更清楚。',
+  },
+  customers: {
+    title: '顧客',
+    eyebrow: '會員營運',
+    description: '在同一個頁面查看顧客資料、預約紀錄、付款紀錄與聯絡方式。',
+  },
+  settings: {
+    title: '設定',
+    eyebrow: '系統控制',
+    description: '設定全店營業時間、公休日期與影響預約規則的系統值。',
+  },
+}
+
 const pad2 = (value) => String(value).padStart(2, '0')
 
 const getLocalISODate = (date = new Date()) => {
@@ -172,7 +272,7 @@ const parseBusinessHours = (value) => {
 
 const formatScheduleIssues = (issues = []) => {
   return issues
-    .map((issue) => issue?.message || 'Invalid schedule data')
+    .map((issue) => issue?.message || '排班資料無效')
     .filter(Boolean)
     .join('; ')
 }
@@ -476,7 +576,7 @@ export default function Admin() {
       }
 
       await refreshStaffTableState('staff_shifts')
-      if (!silentSuccess) toast.success('儲存成功')
+      if (!silentSuccess) toast.success('已儲存班次')
     } catch (error) {
       toast.error('班次儲存失敗：' + (error?.message || '未知錯誤'))
     } finally {
@@ -533,9 +633,9 @@ export default function Admin() {
       }
 
       await refreshStaffTableState(table)
-      if (!silentSuccess) toast.success('儲存成功')
+      if (!silentSuccess) toast.success(`已儲存${scheduleTableLabels[table] || '排班設定'}`)
     } catch (error) {
-      toast.error(`${table} 儲存失敗：${error?.message || '未知錯誤'}`)
+      toast.error(`${scheduleTableLabels[table] || table}儲存失敗：${error?.message || '未知錯誤'}`)
     } finally {
       setSaving(false)
     }
@@ -667,7 +767,7 @@ export default function Admin() {
         if (error) throw error
       }
       await refreshStaffTableState('staff')
-      if (!silentSuccess) toast.success('儲存成功')
+      if (!silentSuccess) toast.success('已儲存目前服務供應者')
     } catch (error) {
       toast.error('服務供應者儲存失敗：' + (error?.message || '未知錯誤'))
     } finally {
@@ -1031,9 +1131,9 @@ export default function Admin() {
   }
 
   const activeTabMeta = tabMeta[activeTab] || {
-    title: 'Admin',
-    eyebrow: 'Operations',
-    description: 'Manage operational data and storefront configuration.',
+    title: '管理後台',
+    eyebrow: '營運管理',
+    description: '管理營運資料、預約規則與網站設定。',
   }
 
   const renderActiveContent = () => {
