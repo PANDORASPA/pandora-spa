@@ -74,11 +74,13 @@ npm run build
 - Product checkout posts to `/api/orders/create`.
 - Frontend cart storage is limited to `viva_cart` and is treated as UI-only state.
 - Member identity and order ownership do not rely on browser-stored user objects.
+- Order totals are recomputed on the server from live product rows; client-supplied totals are ignored.
 
 ### Tickets
 
 - Ticket purchases post to `/api/tickets/purchase`.
-- Purchased tickets are stored in `user_tickets` and can later be consumed in booking flow.
+- Ticket entitlements are only issued after an explicitly confirmed payment path.
+- Unpaid ticket purchase requests now create an order record in `awaiting_payment` state instead of minting `user_tickets`.
 
 ## Supabase Setup
 
@@ -107,7 +109,9 @@ Before demo or launch review:
 3. Create a booking and confirm it appears in member bookings.
 4. Cancel or reschedule a booking and confirm ownership rules hold.
 5. Purchase a ticket and confirm a `user_tickets` row is created.
+   - Also verify unpaid purchase attempts stay as `awaiting_payment` orders and do not mint tickets.
 6. Place a product order and confirm an `orders` row is created.
+   - The stored total should match live product prices even if the frontend payload is tampered with.
 7. Log into an admin account and confirm `/admin` is accessible.
 8. Confirm a non-admin account is redirected away from `/admin`.
 9. Run `npm run build` and keep the output as the latest baseline.
@@ -117,7 +121,7 @@ Before demo or launch review:
 
 - Validate the new migration set against a real Supabase project, not only through local build success.
 - Validate RLS and admin access in the real Supabase project after applying the new migrations.
-- Add real payment handling and stronger duplicate-purchase protections for ticket and order flows.
+- Add real payment handling so ticket issuance can move from manual payment gating to provider-confirmed settlement.
 - Continue polishing remaining admin tabs and operational content.
 
 ## License
