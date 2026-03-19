@@ -46,8 +46,8 @@ Use this compact log for each merge window.
 
 | Date | Owner | Scope | Checks run | Result | Notes / follow-up |
 | --- | --- | --- | --- | --- | --- |
-| 2026-03-19 |  |  |  |  |  |
-| 2026-03-19 |  |  |  |  |  |
+| 2026-03-19 | Agent 6 | Live smoke gate | bookings detail, transaction roundtrip, customer operational view, resource full, holiday enforcement | pass | Report captured in `LIVE_SMOKE_REPORT_2026-03-19.json` with seeds booking `27`, order `4`, transaction `1`, customer `3`, holiday `4`, staff `3`. |
+| 2026-03-19 | Agent 6 | Build regression | `npm run build` | pass | Build completed after live smoke rerun; Next still prints the known edge-server `SIGTERM` trace after successful completion. |
 | 2026-03-19 |  |  |  |  |  |
 
 Log format:
