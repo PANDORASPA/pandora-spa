@@ -68,7 +68,6 @@ export default function BookingsTab({
   bookingResourceAllocations = [],
   onUpdateBookingStaff,
   onUpdateStatus,
-  onViewDetail,
 }) {
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
@@ -350,7 +349,6 @@ export default function BookingsTab({
                           type="button"
                           onClick={(event) => {
                             event.stopPropagation()
-                            onViewDetail?.(booking)
                             setSelectedBooking(booking)
                           }}
                           className="btn-interactive"
