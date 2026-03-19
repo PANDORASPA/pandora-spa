@@ -208,6 +208,7 @@ export default function Admin() {
   const [servicePackages, setServicePackages] = useState([])
   const [products, setProducts] = useState([])
   const [tickets, setTickets] = useState([])
+  const [userTickets, setUserTickets] = useState([])
   const [staff, setStaff] = useState([])
   const [coupons, setCoupons] = useState([])
   const [users, setUsers] = useState([])
@@ -292,13 +293,14 @@ export default function Admin() {
 
   const fetchData = async () => {
     setLoading(true)
-    const [b, o, s, sp, p, t, c, cust, st, setRows, art, f, sh, br, to, bs, r, loc, providerGroupRows, hol, res, tx, bookingResourceAllocationRows, serviceLocationRows, serviceProviderGroupRows, serviceResourceRows] = await Promise.all([
+    const [b, o, s, sp, p, t, ut, c, cust, st, setRows, art, f, sh, br, to, bs, r, loc, providerGroupRows, hol, res, tx, bookingResourceAllocationRows, serviceLocationRows, serviceProviderGroupRows, serviceResourceRows] = await Promise.all([
       supabase.from('bookings').select('*').order('created_at', { ascending: false }),
       supabase.from('orders').select('*').order('created_at', { ascending: false }),
       supabase.from('services').select('*').order('sort_order'),
       supabase.from('service_packages').select('*'),
       supabase.from('products').select('*'),
       supabase.from('tickets').select('*'),
+      safeTableResult(supabase.from('user_tickets').select('*').order('created_at', { ascending: false })),
       supabase.from('coupons').select('*'),
       supabase.from('customers').select('*').order('created_at', { ascending: false }),
       supabase.from('staff').select('*').order('id'),
@@ -327,6 +329,7 @@ export default function Admin() {
     if (sp.data) setServicePackages(sp.data)
     if (p.data) setProducts(p.data)
     if (t.data) setTickets(t.data)
+    setUserTickets(ut.data || [])
     if (c.data) setCoupons(c.data)
     if (cust.data) setUsers(cust.data)
     if (st.data) setStaff(st.data.map(normalizeStaffRow))
@@ -1132,7 +1135,7 @@ export default function Admin() {
     if (activeTab === 'coupons') return <CouponsTab coupons={coupons} saveCoupons={saveCoupons} />
     if (activeTab === 'articles') return <ArticlesTab articles={articles} />
     if (activeTab === 'faqs') return <FaqsTab faqs={faqs} />
-    if (activeTab === 'customers') return <CustomersTab users={users} bookings={bookings} orders={orders} transactions={transactions} tickets={tickets} servicePackages={servicePackages} onUpdateCustomer={updateCustomer} />
+    if (activeTab === 'customers') return <CustomersTab users={users} bookings={bookings} orders={orders} transactions={transactions} userTickets={userTickets} servicePackages={servicePackages} onUpdateCustomer={updateCustomer} />
     if (activeTab === 'settings') return <SettingsTab settings={settings} saveSettings={saveSettings} saving={saving} />
     return null
   }
