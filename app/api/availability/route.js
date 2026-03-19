@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getServiceClient } from '../../../lib/supabase/service'
-import { getAvailableSlots } from '../../../lib/booking/availability'
+import { getAvailableSlots, getSlotMatrix } from '../../../lib/booking/availability'
 import { parseList } from '../../../lib/time'
 
 const toLegacyDate = (dateISO) => {
@@ -135,8 +135,9 @@ export async function GET(request) {
     }
 
     const staffAvailability = {}
+    const staffSlotMatrix = {}
     for (const staff of eligibleStaffList) {
-      const slots = getAvailableSlots({
+      const params = {
         staff,
         shift: byStaffShift.get(staff.id) || null,
         dateISO,
@@ -148,12 +149,21 @@ export async function GET(request) {
         breaks: breaksByStaff.get(staff.id) || [],
         timeOffs: timeOffByStaff.get(staff.id) || [],
         blockedSlots: blockedByStaff.get(staff.id) || [],
-      })
+      }
+      const slots = getAvailableSlots(params)
+      const slotMatrix = getSlotMatrix(params)
       staffAvailability[staff.id] = slots
+      staffSlotMatrix[staff.id] = slotMatrix
     }
 
     if (staffId) {
-      return NextResponse.json({ slots: staffAvailability[staffId] || [] }, { status: 200 })
+      return NextResponse.json(
+        {
+          slots: staffAvailability[staffId] || [],
+          slotMatrix: staffSlotMatrix[staffId] || [],
+        },
+        { status: 200 }
+      )
     }
 
     const allSlots = new Set()
@@ -161,7 +171,25 @@ export async function GET(request) {
       for (const slot of slots) allSlots.add(slot)
     }
 
-    return NextResponse.json({ slots: Array.from(allSlots).sort(), staffAvailability }, { status: 200 })
+    const mergedSlotMatrixMap = new Map()
+    for (const matrix of Object.values(staffSlotMatrix)) {
+      for (const entry of matrix) {
+        const current = mergedSlotMatrixMap.get(entry.time)
+        mergedSlotMatrixMap.set(entry.time, {
+          time: entry.time,
+          available: Boolean(current?.available || entry.available),
+        })
+      }
+    }
+
+    return NextResponse.json(
+      {
+        slots: Array.from(allSlots).sort(),
+        slotMatrix: Array.from(mergedSlotMatrixMap.values()).sort((a, b) => a.time.localeCompare(b.time)),
+        staffAvailability,
+      },
+      { status: 200 }
+    )
   } catch (error) {
     return NextResponse.json({ error: error?.message || 'Unknown error' }, { status: 500 })
   }
