@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { ChipRow, StatusPill } from './AdminConfigKit'
 
 const DAYS = [
   ['0', 'Sun'],
@@ -99,6 +100,22 @@ const localDate = () => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
+const toChipList = (value, prefix) => {
+  if (!value) return []
+  const items = Array.isArray(value) ? value : [value]
+  return items
+    .map((item, index) => {
+      if (item == null) return null
+      if (typeof item === 'string' || typeof item === 'number') {
+        return { key: `${prefix}-${index}`, label: String(item) }
+      }
+      const label = item.name || item.title || item.label || item.code || item.full_name || item.location_name
+      if (!label) return null
+      return { key: item.id != null ? `${prefix}-${item.id}` : `${prefix}-${index}`, label }
+    })
+    .filter(Boolean)
+}
+
 export default function StaffTab({
   staff = [],
   services = [],
@@ -157,6 +174,13 @@ export default function StaffTab({
   const selectedBreaks = localBreaks.filter((item) => item.staff_id === selectedStaffId)
   const selectedTimeOff = localTimeOff.filter((item) => item.staff_id === selectedStaffId)
   const selectedBlocked = localBlocked.filter((item) => item.staff_id === selectedStaffId)
+  const providerScopeChips = useMemo(() => {
+    const source = selectedStaff || {}
+    const directGroups = toChipList(source.provider_groups || source.providerGroups || source.provider_group_names || source.providerGroupNames, 'group')
+    const linkedGroups = toChipList(source.provider_group_ids || source.providerGroupIds, 'group-id')
+    const directLocations = toChipList(source.locations || source.location_names || source.locationIds || source.location_ids || source.locationNames, 'location')
+    return [...directGroups, ...linkedGroups, ...directLocations]
+  }, [selectedStaff])
 
   const updateShift = (date, field, value) => {
     setLocalShifts((current) => {
@@ -304,13 +328,11 @@ export default function StaffTab({
             Select a staff member on the left, then edit the profile, weekly baseline, date overrides, and manual blocks in one flow.
           </div>
         </div>
-        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
-          <span className="badge badge-outline" style={{ background: '#fff', borderColor: 'rgba(166, 139, 106, 0.35)' }}>
-            {staff.length} staff
-          </span>
-          <button type="button" onClick={onAddStaff} className="btn btn-small btn-interactive">
-            + Add staff
-          </button>
+          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+            <StatusPill tone="accent">{staff.length} staff</StatusPill>
+            <button type="button" onClick={onAddStaff} className="btn btn-small btn-interactive">
+              + Add staff
+            </button>
           <button type="button" onClick={saveAll} disabled={saving} className="btn btn-small btn-interactive" style={{ minWidth: '140px' }}>
             {saving && <span className="spinner"></span>}
             {saving ? 'Saving...' : 'Save scheduling'}
@@ -376,8 +398,8 @@ export default function StaffTab({
           {selectedStaff ? (
             <div style={{ display: 'grid', gap: '20px' }}>
               <Panel
-                title="Profile"
-                subtitle="Basic details and the staff member's recurring break window."
+                title="Provider profile"
+                subtitle="Basic details, public visibility, and the recurring break window."
                 actions={
                   <button
                     type="button"
@@ -442,6 +464,14 @@ export default function StaffTab({
                       <span className="badge badge-outline" style={{ background: '#fff' }}>{selectedBlocked.length} blocks</span>
                     </div>
 
+                    <div style={{ display: 'grid', gap: '8px' }}>
+                      <div style={{ fontSize: '12px', fontWeight: 800, color: '#A68B6A', letterSpacing: '0.06em' }}>Provider scope</div>
+                      <ChipRow
+                        items={providerScopeChips}
+                        emptyLabel="No provider groups or locations wired yet"
+                      />
+                    </div>
+
                     <Label>
                       Daily break window
                       <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
@@ -454,7 +484,7 @@ export default function StaffTab({
                 </div>
               </Panel>
 
-              <Panel title="Services" subtitle="Toggle what this staff member can handle." soft>
+              <Panel title="Services" subtitle="Toggle the services this provider can handle." soft>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
                   {services.map((service) => {
                     const active = selectedStaff.services?.includes(service.id)
@@ -468,7 +498,7 @@ export default function StaffTab({
                 </div>
               </Panel>
 
-              <Panel title="Weekly baseline" subtitle="Set default working hours for each weekday.">
+              <Panel title="Weekly timetable" subtitle="Set the recurring baseline hours for each weekday.">
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: '10px' }}>
                   {DAYS.map(([key, label]) => {
                     const schedule = selectedStaff.schedule?.[key]
@@ -519,8 +549,8 @@ export default function StaffTab({
               </Panel>
 
               <Panel
-                title="Monthly overrides"
-                subtitle="Use a calendar to switch a single date on or off."
+                title="Date overrides"
+                subtitle="Use a calendar to flip a single date on or off without changing the weekly baseline."
                 soft
                 actions={
                   <div style={{ display: 'flex', gap: '8px' }}>
@@ -547,7 +577,7 @@ export default function StaffTab({
               </Panel>
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
-                <Panel title="Breaks" subtitle="Recurring break windows that always block availability." actions={<button type="button" onClick={() => setLocalBreaks((current) => [...current, { id: tempId(), staff_id: selectedStaffId, day_of_week: '1', start_time: '12:00', end_time: '13:00', label: 'Break', enabled: true }])} className="btn btn-small btn-interactive">+ Add</button>}>
+              <Panel title="Recurring breaks" subtitle="Weekly break windows that always block availability." actions={<button type="button" onClick={() => setLocalBreaks((current) => [...current, { id: tempId(), staff_id: selectedStaffId, day_of_week: '1', start_time: '12:00', end_time: '13:00', label: 'Break', enabled: true }])} className="btn btn-small btn-interactive">+ Add</button>}>
                   <div style={{ display: 'grid', gap: '12px' }}>
                     {selectedBreaks.length === 0 ? (
                       <div style={{ padding: '18px', textAlign: 'center', color: 'var(--text-light)', background: '#FAF8F5', borderRadius: '12px' }}>No recurring breaks yet.</div>
@@ -579,7 +609,7 @@ export default function StaffTab({
                   </div>
                 </Panel>
 
-                <Panel title="Time off" subtitle="Leave or one-off schedule gaps." actions={<button type="button" onClick={() => setLocalTimeOff((current) => [...current, { id: tempId(), staff_id: selectedStaffId, date: previewDate, start_time: '', end_time: '', is_all_day: true, reason: '' }])} className="btn btn-small btn-interactive">+ Add</button>}>
+              <Panel title="Time off" subtitle="Leave or one-off schedule gaps that override the timetable." actions={<button type="button" onClick={() => setLocalTimeOff((current) => [...current, { id: tempId(), staff_id: selectedStaffId, date: previewDate, start_time: '', end_time: '', is_all_day: true, reason: '' }])} className="btn btn-small btn-interactive">+ Add</button>}>
                   <div style={{ display: 'grid', gap: '12px' }}>
                     {selectedTimeOff.length === 0 ? (
                       <div style={{ padding: '18px', textAlign: 'center', color: 'var(--text-light)', background: '#FAF8F5', borderRadius: '12px' }}>No time-off entries yet.</div>
@@ -639,7 +669,7 @@ export default function StaffTab({
                 </div>
               </Panel>
 
-              <Panel title="Availability check" subtitle="Confirm that the frontend slots reflect the current schedule." soft actions={<button type="button" onClick={loadAvailability} className="btn btn-small btn-interactive">Check availability</button>}>
+              <Panel title="Live slot preview" subtitle="Confirm that the frontend slots reflect the current schedule." soft actions={<button type="button" onClick={loadAvailability} className="btn btn-small btn-interactive">Check availability</button>}>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px', marginBottom: '16px' }}>
                   <Label>
                     Date
