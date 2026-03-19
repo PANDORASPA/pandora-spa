@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import toast from 'react-hot-toast'
 import { AdminActionBar, ChipRow, EmptyState, StatusPill } from './AdminConfigKit'
 
 const DAYS = [
@@ -275,25 +276,30 @@ export default function StaffTab({
   const saveAll = async () => {
     if (!selectedStaff) return
     const scopedStaffId = selectedStaff.id
-    await onSave?.(selectedStaff.id)
-    if (onSaveShifts) await onSaveShifts(localShifts.filter((row) => Number(row.staff_id) === Number(scopedStaffId)))
-    if (onSaveBreaks) {
-      await onSaveBreaks({
-        rows: localBreaks.filter((row) => Number(row.staff_id) === Number(scopedStaffId)),
-        deletedIds: deletedBreakIds,
-      })
-    }
-    if (onSaveTimeOff) {
-      await onSaveTimeOff({
-        rows: localTimeOff.filter((row) => Number(row.staff_id) === Number(scopedStaffId)),
-        deletedIds: deletedTimeOffIds,
-      })
-    }
-    if (onSaveBlockedSlots) {
-      await onSaveBlockedSlots({
-        rows: localBlocked.filter((row) => Number(row.staff_id) === Number(scopedStaffId)),
-        deletedIds: deletedBlockedIds,
-      })
+    try {
+      await onSave?.(selectedStaff.id, { silentSuccess: true })
+      if (onSaveShifts) await onSaveShifts(localShifts.filter((row) => Number(row.staff_id) === Number(scopedStaffId)), { silentSuccess: true })
+      if (onSaveBreaks) {
+        await onSaveBreaks({
+          rows: localBreaks.filter((row) => Number(row.staff_id) === Number(scopedStaffId)),
+          deletedIds: deletedBreakIds,
+        }, { silentSuccess: true })
+      }
+      if (onSaveTimeOff) {
+        await onSaveTimeOff({
+          rows: localTimeOff.filter((row) => Number(row.staff_id) === Number(scopedStaffId)),
+          deletedIds: deletedTimeOffIds,
+        }, { silentSuccess: true })
+      }
+      if (onSaveBlockedSlots) {
+        await onSaveBlockedSlots({
+          rows: localBlocked.filter((row) => Number(row.staff_id) === Number(scopedStaffId)),
+          deletedIds: deletedBlockedIds,
+        }, { silentSuccess: true })
+      }
+      toast.success('??????????')
+    } catch (error) {
+      console.error(error)
     }
   }
 
