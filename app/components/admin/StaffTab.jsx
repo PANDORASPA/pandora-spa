@@ -569,14 +569,20 @@ export default function StaffTab({
                         : 'Scope lookups are not available yet, so the profile falls back to staff record fields for backward compatibility.'}
                     </div>
 
-                    <Label>
-                      Daily break window
-                      <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-                        <input type="time" value={selectedStaff.break_start || '15:00'} onChange={(e) => onUpdateField(selectedStaff.id, 'break_start', e.target.value)} style={{ ...fieldStyle, width: '130px', padding: '8px 10px' }} />
-                        <span style={{ fontWeight: 800, color: 'var(--text-light)' }}>to</span>
-                        <input type="time" value={selectedStaff.break_end || '16:00'} onChange={(e) => onUpdateField(selectedStaff.id, 'break_end', e.target.value)} style={{ ...fieldStyle, width: '130px', padding: '8px 10px' }} />
-                      </div>
-                    </Label>
+                    <div
+                      style={{
+                        padding: '12px 14px',
+                        borderRadius: '12px',
+                        background: '#FFF7ED',
+                        border: '1px solid #FED7AA',
+                        color: '#9A3412',
+                        fontSize: '13px',
+                        lineHeight: 1.6,
+                      }}
+                    >
+                      Daily breaks now use the normalized recurring breaks list below. Add or edit break windows in the
+                      <strong> Recurring breaks</strong> panel so staff saves stay aligned with the live schema.
+                    </div>
                   </div>
                 </div>
               </Panel>
