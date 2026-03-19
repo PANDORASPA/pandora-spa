@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { EmptyState, Pill, RecordFilterBar, SectionHeader, fieldStyle, formatMoney, smallFieldStyle } from './opsUi'
 
-const getCustomerName = (user) => user?.name || user?.full_name || user?.display_name || 'Member'
+const getCustomerName = (user) => user?.name || user?.full_name || user?.display_name || '會員'
 const getCustomerPhone = (user) => user?.phone || user?.mobile || user?.customer_phone || '-'
 const getBookingPhone = (booking) => booking?.phone || booking?.customer_phone || ''
 const getBookingDate = (booking) => booking?.appointment_date || booking?.date || ''
@@ -19,7 +19,7 @@ const getTicketLabel = (ticket, servicePackages = []) => {
     ticket?.service_package_name ||
     servicePackages.find((item) => String(item?.id) === String(ticket?.service_package_id || ticket?.package_id))?.name ||
     ''
-  return ticket?.name || ticket?.ticket_name || ticket?.title || packageName || `Ticket #${ticket?.id || '-'}`
+  return ticket?.name || ticket?.ticket_name || ticket?.title || packageName || `票券 #${ticket?.id || '-'}`
 }
 
 const toSortTimestamp = (value) => {
@@ -38,13 +38,13 @@ const formatActivityWhen = (value) => {
 const getActivityKindLabel = (kind) => {
   switch (kind) {
     case 'booking':
-      return 'Booking'
+      return '預約'
     case 'order':
-      return 'Order'
+      return '訂單'
     case 'transaction':
-      return 'Transaction'
+      return '交易'
     default:
-      return 'Activity'
+      return '紀錄'
   }
 }
 
@@ -54,6 +54,14 @@ const deriveTier = (spend) => {
   if (spend >= 2000) return 'Silver'
   return 'Regular'
 }
+
+const getTierLabel = (tier) =>
+  ({
+    VIP: 'VIP',
+    Gold: '金級',
+    Silver: '銀級',
+    Regular: '一般',
+  })[tier] || tier || '一般'
 
 export default function CustomersTab({ users = [], bookings = [], orders = [], transactions = [], userTickets = [], servicePackages = [], onUpdateCustomer }) {
   const [selectedCustomerId, setSelectedCustomerId] = useState(null)
@@ -108,7 +116,7 @@ export default function CustomersTab({ users = [], bookings = [], orders = [], t
           kind: 'order',
           when: getOrderDate(order),
           title: getOrderLabel(order),
-          detail: order?.status || order?.payment_status || 'Order',
+          detail: order?.status || order?.payment_status || '訂單',
           reference: order?.ref || order?.order_no || order?.order_number || order?.id || '',
           amount: order?.total || 0,
           status: order?.status || order?.payment_status || 'pending',
@@ -117,7 +125,7 @@ export default function CustomersTab({ users = [], bookings = [], orders = [], t
           kind: 'transaction',
           when: getTransactionDate(transaction),
           title: getTransactionLabel(transaction),
-          detail: transaction?.payment_method || transaction?.kind || 'Transaction',
+          detail: transaction?.payment_method || transaction?.kind || '交易',
           reference: transaction?.payment_ref || transaction?.ref || transaction?.id || '',
           amount: transaction?.amount || 0,
           status: transaction?.status || 'completed',
@@ -181,17 +189,17 @@ export default function CustomersTab({ users = [], bookings = [], orders = [], t
   const updateCustomer = (id, patch) => {
     if (!onUpdateCustomer) return
     setSavingNotesId(id)
-    setNotesStatus((current) => ({ ...current, [id]: { state: 'saving', message: 'Saving notes...' } }))
+    setNotesStatus((current) => ({ ...current, [id]: { state: 'saving', message: '正在儲存備註...' } }))
     Promise.resolve(onUpdateCustomer(id, patch))
       .then(() => {
         const nextNotes = patch?.notes
         if (typeof nextNotes === 'string') {
           setNotesDraft((current) => ({ ...current, [id]: nextNotes }))
         }
-        setNotesStatus((current) => ({ ...current, [id]: { state: 'saved', message: 'Notes saved' } }))
+        setNotesStatus((current) => ({ ...current, [id]: { state: 'saved', message: '備註已儲存' } }))
       })
       .catch((error) => {
-        setNotesStatus((current) => ({ ...current, [id]: { state: 'error', message: error?.message || 'Failed to save notes' } }))
+        setNotesStatus((current) => ({ ...current, [id]: { state: 'error', message: error?.message || '備註儲存失敗' } }))
       })
       .finally(() => {
         setSavingNotesId((current) => (current === id ? null : current))
@@ -199,7 +207,6 @@ export default function CustomersTab({ users = [], bookings = [], orders = [], t
   }
 
   const getNotesDraft = (customer) => notesDraft[customer.id] ?? customer.notes ?? ''
-  const isNotesDirty = (customer) => getNotesDraft(customer) !== (customer?.notes ?? '')
   const setNotesDraftForCustomer = (customerId, value) => {
     setNotesDraft((current) => ({ ...current, [customerId]: value }))
   }
@@ -207,46 +214,46 @@ export default function CustomersTab({ users = [], bookings = [], orders = [], t
   return (
     <div style={{ display: 'grid', gap: '20px' }}>
       <SectionHeader
-        eyebrow="CUSTOMERS"
-        title="Customer profiles"
-        description="Review spend, bookings, tier, and notes from a CRM-style member view."
-        actions={<Pill>{filteredCustomers.length} visible</Pill>}
+        eyebrow="顧客"
+        title="顧客檔案"
+        description="從營運角度查看消費、預約、等級與備註。"
+        actions={<Pill>{filteredCustomers.length} 可見</Pill>}
       />
 
       <RecordFilterBar columns="1.2fr repeat(2, minmax(160px, 220px))">
         <input
           type="text"
-          placeholder="Search by name, phone, tier, notes, or spend..."
+          placeholder="搜尋姓名、電話、等級、備註或消費..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           style={fieldStyle}
         />
         <select value={tierFilter} onChange={(e) => setTierFilter(e.target.value)} style={fieldStyle}>
-          <option value="all">All tiers</option>
-          <option value="Regular">Regular</option>
-          <option value="Silver">Silver</option>
-          <option value="Gold">Gold</option>
-          <option value="VIP">VIP</option>
+          <option value="all">全部等級</option>
+                          <option value="Regular">一般</option>
+                          <option value="Silver">銀級</option>
+                          <option value="Gold">金級</option>
+                          <option value="VIP">VIP</option>
         </select>
         <select value={activityFilter} onChange={(e) => setActivityFilter(e.target.value)} style={fieldStyle}>
-          <option value="all">All activity</option>
-          <option value="bookings">Has bookings</option>
-          <option value="orders">Has orders</option>
-          <option value="transactions">Has transactions</option>
-          <option value="tickets">Has tickets</option>
+          <option value="all">全部紀錄</option>
+          <option value="bookings">有預約</option>
+          <option value="orders">有訂單</option>
+          <option value="transactions">有交易</option>
+          <option value="tickets">有票券</option>
         </select>
       </RecordFilterBar>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
-        <SummaryCard label="Visible customers" value={filteredCustomers.length} />
-        <SummaryCard label="Visible spend" value={formatMoney(filteredCustomers.reduce((sum, user) => sum + Number(user.__spend || 0), 0), '')} />
-        <SummaryCard label="Bookings" value={filteredCustomers.reduce((sum, user) => sum + (user.__bookings?.length || 0), 0)} />
-        <SummaryCard label="Orders" value={filteredCustomers.reduce((sum, user) => sum + (user.__orders?.length || 0), 0)} />
-        <SummaryCard label="Transactions" value={filteredCustomers.reduce((sum, user) => sum + (user.__transactions?.length || 0), 0)} />
-        <SummaryCard label="Tickets / packages" value={filteredCustomers.reduce((sum, user) => sum + (user.__tickets?.length || 0), 0)} />
+        <SummaryCard label="可見顧客" value={filteredCustomers.length} />
+        <SummaryCard label="可見消費" value={formatMoney(filteredCustomers.reduce((sum, user) => sum + Number(user.__spend || 0), 0), '')} />
+        <SummaryCard label="預約" value={filteredCustomers.reduce((sum, user) => sum + (user.__bookings?.length || 0), 0)} />
+        <SummaryCard label="訂單" value={filteredCustomers.reduce((sum, user) => sum + (user.__orders?.length || 0), 0)} />
+        <SummaryCard label="交易" value={filteredCustomers.reduce((sum, user) => sum + (user.__transactions?.length || 0), 0)} />
+        <SummaryCard label="票券 / 套餐" value={filteredCustomers.reduce((sum, user) => sum + (user.__tickets?.length || 0), 0)} />
       </div>
       <div style={{ marginTop: '-4px', fontSize: '12px', color: 'var(--text-light)' }}>
-        Visible spend currently reflects booking + order totals only, so it stays aligned with the revenue figures used on this screen.
+        可見消費目前只計算預約與訂單總額，方便同此頁營運數字保持一致。
       </div>
 
       <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
@@ -255,19 +262,19 @@ export default function CustomersTab({ users = [], bookings = [], orders = [], t
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', minWidth: '760px' }}>
               <thead>
                 <tr style={{ background: '#FAF8F5', borderBottom: '1px solid var(--gray)' }}>
-                  <th style={{ padding: '16px 12px', textAlign: 'left', color: 'var(--text-light)' }}>Customer</th>
-                  <th style={{ padding: '16px 12px', textAlign: 'left', color: 'var(--text-light)' }}>Tier</th>
-                  <th style={{ padding: '16px 12px', textAlign: 'left', color: 'var(--text-light)' }}>Spend</th>
-                  <th style={{ padding: '16px 12px', textAlign: 'left', color: 'var(--text-light)' }}>Bookings</th>
-                  <th style={{ padding: '16px 12px', textAlign: 'left', color: 'var(--text-light)' }}>Transactions</th>
-                  {!selectedCustomer && <th style={{ padding: '16px 12px', textAlign: 'left', color: 'var(--text-light)' }}>Notes</th>}
+                  <th style={{ padding: '16px 12px', textAlign: 'left', color: 'var(--text-light)' }}>顧客</th>
+                  <th style={{ padding: '16px 12px', textAlign: 'left', color: 'var(--text-light)' }}>等級</th>
+                  <th style={{ padding: '16px 12px', textAlign: 'left', color: 'var(--text-light)' }}>消費</th>
+                  <th style={{ padding: '16px 12px', textAlign: 'left', color: 'var(--text-light)' }}>預約</th>
+                  <th style={{ padding: '16px 12px', textAlign: 'left', color: 'var(--text-light)' }}>交易</th>
+                  {!selectedCustomer && <th style={{ padding: '16px 12px', textAlign: 'left', color: 'var(--text-light)' }}>備註</th>}
                 </tr>
               </thead>
               <tbody>
                 {filteredCustomers.length === 0 ? (
                   <tr>
                     <td colSpan={selectedCustomer ? 5 : 6}>
-                      <EmptyState title="No customers found" description="Try another search term or clear filters." />
+                      <EmptyState title="未找到顧客" description="可嘗試更改搜尋字詞或清除篩選。" />
                     </td>
                   </tr>
                 ) : (
@@ -295,66 +302,47 @@ export default function CustomersTab({ users = [], bookings = [], orders = [], t
                             onClick={(event) => event.stopPropagation()}
                             style={smallFieldStyle}
                           >
-                            <option value="Regular">Regular</option>
-                            <option value="Silver">Silver</option>
-                            <option value="Gold">Gold</option>
+                            <option value="Regular">一般</option>
+                            <option value="Silver">銀級</option>
+                            <option value="Gold">金級</option>
                             <option value="VIP">VIP</option>
                           </select>
                         </td>
                         <td style={{ padding: '14px 12px' }}>
                           <div style={{ fontWeight: 800, color: 'var(--primary)' }}>{formatMoney(user.__spend, '')}</div>
-                          <div style={{ fontSize: '11px', color: 'var(--text-light)', marginTop: '3px' }}>{(user.__orders?.length || 0) + (user.__bookings?.length || 0)} total records</div>
+                          <div style={{ fontSize: '11px', color: 'var(--text-light)', marginTop: '3px' }}>{(user.__orders?.length || 0) + (user.__bookings?.length || 0)} 筆總紀錄</div>
                         </td>
                         <td style={{ padding: '14px 12px' }}>
                           <div style={{ fontWeight: 800 }}>{user.__bookings?.length || 0}</div>
-                          <div style={{ fontSize: '11px', color: 'var(--text-light)', marginTop: '3px' }}>Linked bookings</div>
+                          <div style={{ fontSize: '11px', color: 'var(--text-light)', marginTop: '3px' }}>已連結預約</div>
                         </td>
                         <td style={{ padding: '14px 12px' }}>
                           <div style={{ fontWeight: 800 }}>{user.__transactions?.length || 0}</div>
-                          <div style={{ fontSize: '11px', color: 'var(--text-light)', marginTop: '3px' }}>Ledger entries</div>
+                          <div style={{ fontSize: '11px', color: 'var(--text-light)', marginTop: '3px' }}>帳目紀錄</div>
                         </td>
                         {!selectedCustomer && (
-                      <td style={{ padding: '14px 12px' }}>
-                        <div style={{ display: 'grid', gap: '6px' }}>
-                          <input
-                            type="text"
-                            value={getNotesDraft(user)}
-                            placeholder="Internal notes"
-                            onChange={(event) => setNotesDraftForCustomer(user.id, event.target.value)}
-                            onClick={(event) => event.stopPropagation()}
-                            style={{ ...smallFieldStyle, background: '#f9fafb' }}
-                          />
-                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', alignItems: 'center' }}>
-                            <div
-                              style={{
-                                fontSize: '11px',
-                                color:
-                                  notesStatus[user.id]?.state === 'error'
-                                    ? '#DC2626'
-                                    : notesStatus[user.id]?.state === 'saved'
-                                      ? '#047857'
-                                      : isNotesDirty(user)
-                                        ? '#B45309'
-                                        : 'var(--text-light)',
-                              }}
-                            >
-                              {savingNotesId === user.id
-                                ? 'Saving notes...'
-                                : notesStatus[user.id]?.message || (isNotesDirty(user) ? 'Draft not yet saved' : 'Notes synced')}
+                          <td style={{ padding: '14px 12px' }}>
+                            <div style={{ display: 'grid', gap: '6px' }}>
+                              <input
+                                type="text"
+                                value={getNotesDraft(user)}
+                                placeholder="內部備註"
+                                onChange={(event) => setNotesDraftForCustomer(user.id, event.target.value)}
+                                onBlur={(event) => updateCustomer(user.id, { notes: event.target.value })}
+                                onClick={(event) => event.stopPropagation()}
+                                style={{ ...smallFieldStyle, background: '#f9fafb' }}
+                              />
+                              {notesStatus[user.id]?.message && (
+                                <div
+                                  style={{
+                                    fontSize: '11px',
+                                    color: notesStatus[user.id]?.state === 'error' ? '#DC2626' : notesStatus[user.id]?.state === 'saved' ? '#047857' : 'var(--text-light)',
+                                  }}
+                                >
+                                  {savingNotesId === user.id ? '正在儲存備註...' : notesStatus[user.id].message}
+                                </div>
+                              )}
                             </div>
-                            <button
-                              type="button"
-                              className="btn btn-small btn-interactive"
-                              disabled={savingNotesId === user.id || !isNotesDirty(user)}
-                              onClick={(event) => {
-                                event.stopPropagation()
-                                updateCustomer(user.id, { notes: getNotesDraft(user) })
-                              }}
-                            >
-                              {savingNotesId === user.id ? 'Saving...' : 'Save'}
-                            </button>
-                          </div>
-                        </div>
                           </td>
                         )}
                       </tr>
@@ -370,7 +358,7 @@ export default function CustomersTab({ users = [], bookings = [], orders = [], t
           <div className="admin-card" style={{ flex: '1 1 360px', minWidth: '340px', padding: '24px', position: 'sticky', top: '20px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
               <div>
-                <div style={{ fontSize: '12px', fontWeight: 800, color: '#A68B6A', letterSpacing: '0.08em' }}>CUSTOMER PROFILE</div>
+                <div style={{ fontSize: '12px', fontWeight: 800, color: '#A68B6A', letterSpacing: '0.08em' }}>顧客檔案</div>
                 <h3 style={{ fontSize: '18px', fontWeight: 800, margin: '6px 0 0' }}>{getCustomerName(selectedCustomer)}</h3>
               </div>
               <button type="button" onClick={() => setSelectedCustomerId(null)} style={{ background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer', color: '#999' }}>
@@ -387,52 +375,52 @@ export default function CustomersTab({ users = [], bookings = [], orders = [], t
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '12px', marginBottom: '18px' }}>
               <div className="admin-card" style={{ padding: '12px', border: '1px solid var(--gray)', textAlign: 'center' }}>
-                <div style={{ fontSize: '12px', color: 'var(--text-light)' }}>Tier</div>
-                <div style={{ fontSize: '18px', fontWeight: 800 }}>{selectedCustomer.__tier}</div>
+                <div style={{ fontSize: '12px', color: 'var(--text-light)' }}>等級</div>
+                <div style={{ fontSize: '18px', fontWeight: 800 }}>{getTierLabel(selectedCustomer.__tier)}</div>
               </div>
               <div className="admin-card" style={{ padding: '12px', border: '1px solid var(--gray)', textAlign: 'center' }}>
-                <div style={{ fontSize: '12px', color: 'var(--text-light)' }}>Spend</div>
+                <div style={{ fontSize: '12px', color: 'var(--text-light)' }}>消費</div>
                 <div style={{ fontSize: '18px', fontWeight: 800, color: 'var(--primary)' }}>{formatMoney(selectedCustomer.__spend, '')}</div>
               </div>
               <div className="admin-card" style={{ padding: '12px', border: '1px solid var(--gray)', textAlign: 'center' }}>
-                <div style={{ fontSize: '12px', color: 'var(--text-light)' }}>Bookings</div>
+                <div style={{ fontSize: '12px', color: 'var(--text-light)' }}>預約</div>
                 <div style={{ fontSize: '18px', fontWeight: 800 }}>{selectedCustomer.__bookings?.length || 0}</div>
               </div>
               <div className="admin-card" style={{ padding: '12px', border: '1px solid var(--gray)', textAlign: 'center' }}>
-                <div style={{ fontSize: '12px', color: 'var(--text-light)' }}>Transactions</div>
+                <div style={{ fontSize: '12px', color: 'var(--text-light)' }}>交易</div>
                 <div style={{ fontSize: '18px', fontWeight: 800 }}>{selectedCustomer.__transactions?.length || 0}</div>
               </div>
               <div className="admin-card" style={{ padding: '12px', border: '1px solid var(--gray)', textAlign: 'center' }}>
-                <div style={{ fontSize: '12px', color: 'var(--text-light)' }}>Joined</div>
+                <div style={{ fontSize: '12px', color: 'var(--text-light)' }}>加入日期</div>
                 <div style={{ fontSize: '14px', fontWeight: 700 }}>{selectedCustomer.created_at ? new Date(selectedCustomer.created_at).toLocaleDateString() : '-'}</div>
               </div>
             </div>
 
             <div style={{ marginBottom: '18px' }}>
-              <label style={{ fontSize: '13px', fontWeight: 800, marginBottom: '8px', display: 'block' }}>Tier</label>
+              <label style={{ fontSize: '13px', fontWeight: 800, marginBottom: '8px', display: 'block' }}>等級</label>
               <select
                 value={selectedCustomer.__tier}
                 onChange={(event) => updateCustomer(selectedCustomer.id, { membership_level: event.target.value })}
                 style={fieldStyle}
               >
-                <option value="Regular">Regular</option>
-                <option value="Silver">Silver</option>
-                <option value="Gold">Gold</option>
+                <option value="Regular">一般</option>
+                <option value="Silver">銀級</option>
+                <option value="Gold">金級</option>
                 <option value="VIP">VIP</option>
               </select>
             </div>
 
             <div style={{ marginBottom: '18px' }}>
-              <label style={{ fontSize: '13px', fontWeight: 800, marginBottom: '8px', display: 'block' }}>Staff notes</label>
+              <label style={{ fontSize: '13px', fontWeight: 800, marginBottom: '8px', display: 'block' }}>員工備註</label>
               <textarea
                 value={getNotesDraft(selectedCustomer)}
                 onChange={(event) => setNotesDraftForCustomer(selectedCustomer.id, event.target.value)}
-                placeholder="Write internal notes"
+                placeholder="輸入內部備註"
                 style={{ ...fieldStyle, minHeight: '92px', resize: 'vertical' }}
               />
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', marginTop: '8px', alignItems: 'center' }}>
                 <div style={{ fontSize: '12px', color: notesStatus[selectedCustomer.id]?.state === 'error' ? '#DC2626' : notesStatus[selectedCustomer.id]?.state === 'saved' ? '#047857' : 'var(--text-light)' }}>
-                  {notesStatus[selectedCustomer.id]?.message || 'Draft edits stay local until you click Save notes.'}
+                  {notesStatus[selectedCustomer.id]?.message || '草稿只會先保留在畫面，請按「儲存備註」。'}
                 </div>
                 <button
                   type="button"
@@ -441,13 +429,13 @@ export default function CustomersTab({ users = [], bookings = [], orders = [], t
                   disabled={savingNotesId === selectedCustomer.id}
                   style={{ minWidth: '120px' }}
                 >
-                  {savingNotesId === selectedCustomer.id ? 'Saving...' : 'Save notes'}
+                  {savingNotesId === selectedCustomer.id ? '儲存中...' : '儲存備註'}
                 </button>
               </div>
             </div>
 
             <div>
-              <h4 style={{ fontSize: '14px', fontWeight: 800, marginBottom: '12px' }}>Recent activity</h4>
+              <h4 style={{ fontSize: '14px', fontWeight: 800, marginBottom: '12px' }}>最近活動</h4>
               <div style={{ maxHeight: '280px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }} className="hide-scrollbar">
                 {selectedCustomer.__recent.length ? (
                   selectedCustomer.__recent.map((entry, index) => (
@@ -465,7 +453,7 @@ export default function CustomersTab({ users = [], bookings = [], orders = [], t
                         <span style={{ display: 'grid', gap: '2px' }}>
                           <span>{entry.detail || '-'}</span>
                           <span>{formatActivityWhen(entry.when)}</span>
-                          {entry.reference && <span style={{ fontSize: '11px' }}>Ref: {entry.reference}</span>}
+                          {entry.reference && <span style={{ fontSize: '11px' }}>參考編號：{entry.reference}</span>}
                         </span>
                         <span className="badge badge-outline" style={{ fontSize: '10px', padding: '2px 6px' }}>
                           {entry.status || 'pending'}
@@ -474,13 +462,13 @@ export default function CustomersTab({ users = [], bookings = [], orders = [], t
                     </div>
                   ))
                 ) : (
-                  <EmptyState title="No recent activity" description="This customer has not booked yet." />
+                  <EmptyState title="沒有最近活動" description="此顧客暫時未有預約、訂單或交易紀錄。" />
                 )}
               </div>
             </div>
 
             <div style={{ marginTop: '18px' }}>
-              <h4 style={{ fontSize: '14px', fontWeight: 800, marginBottom: '12px' }}>Tickets / packages</h4>
+              <h4 style={{ fontSize: '14px', fontWeight: 800, marginBottom: '12px' }}>票券 / 套餐</h4>
               <div style={{ display: 'grid', gap: '8px' }}>
                 {selectedCustomer.__tickets.length ? (
                   selectedCustomer.__tickets.slice(0, 4).map((ticket) => (
@@ -489,27 +477,27 @@ export default function CustomersTab({ users = [], bookings = [], orders = [], t
                         <div style={{ minWidth: 0 }}>
                           <div style={{ fontWeight: 800, lineHeight: 1.35 }}>{getTicketLabel(ticket, servicePackages)}</div>
                           <div style={{ fontSize: '11px', color: 'var(--text-light)', marginTop: '3px' }}>
-                            {ticket.code || ticket.ref || ticket.ticket_code || ticket.id ? `#${ticket.code || ticket.ref || ticket.ticket_code || ticket.id}` : 'Member entitlement'}
+                            {ticket.code || ticket.ref || ticket.ticket_code || ticket.id ? `#${ticket.code || ticket.ref || ticket.ticket_code || ticket.id}` : '會員權益'}
                           </div>
                         </div>
                         <span style={{ color: 'var(--primary)', fontWeight: 800, whiteSpace: 'nowrap' }}>{formatMoney(ticket.price || ticket.amount || 0, '')}</span>
                       </div>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
                         <span className="badge badge-outline" style={{ fontSize: '10px', padding: '2px 6px' }}>
-                          {ticket.status || ticket.state || 'Active'}
+                          {ticket.status || ticket.state || '啟用中'}
                         </span>
-                        {ticket.remaining_uses != null && <span style={{ fontSize: '11px', color: 'var(--text-light)' }}>{ticket.remaining_uses} uses left</span>}
-                        {ticket.used_count != null && <span style={{ fontSize: '11px', color: 'var(--text-light)' }}>{ticket.used_count} used</span>}
+                        {ticket.remaining_uses != null && <span style={{ fontSize: '11px', color: 'var(--text-light)' }}>尚餘 {ticket.remaining_uses} 次</span>}
+                        {ticket.used_count != null && <span style={{ fontSize: '11px', color: 'var(--text-light)' }}>已使用 {ticket.used_count} 次</span>}
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', color: 'var(--text-light)', fontSize: '12px' }}>
-                        <span>{ticket.expires_at ? `Expires ${new Date(ticket.expires_at).toLocaleDateString()}` : ticket.valid_until ? `Valid until ${new Date(ticket.valid_until).toLocaleDateString()}` : 'No expiry set'}</span>
-                        <span>{ticket.issued_at ? `Issued ${new Date(ticket.issued_at).toLocaleDateString()}` : ticket.created_at ? `Created ${new Date(ticket.created_at).toLocaleDateString()}` : ''}</span>
+                        <span>{ticket.expires_at ? `到期日 ${new Date(ticket.expires_at).toLocaleDateString()}` : ticket.valid_until ? `有效至 ${new Date(ticket.valid_until).toLocaleDateString()}` : '未設定到期日'}</span>
+                        <span>{ticket.issued_at ? `發出日期 ${new Date(ticket.issued_at).toLocaleDateString()}` : ticket.created_at ? `建立日期 ${new Date(ticket.created_at).toLocaleDateString()}` : ''}</span>
                       </div>
                     </div>
                   ))
                 ) : (
                   <div className="admin-card" style={{ padding: '12px', border: '1px solid var(--gray)', color: 'var(--text-light)' }}>
-                    No ticket or package record linked to this member.
+                    此會員未連結任何票券或套餐紀錄。
                   </div>
                 )}
               </div>
