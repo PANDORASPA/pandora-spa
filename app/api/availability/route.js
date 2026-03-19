@@ -35,21 +35,23 @@ export async function GET(request) {
           slotMatrix: evaluation.staffSlotMatrix[staffId] || [],
           locationId: evaluation.locationId,
           locationSelectionRequired: evaluation.locationSelectionRequired,
+          dateSummary: evaluation.dateSummary,
         },
         { status: 200 }
       )
     }
 
     return NextResponse.json(
-      {
-        slots: evaluation.slots,
-        slotMatrix: evaluation.slotMatrix,
-        staffAvailability: evaluation.staffAvailability,
-        locationId: evaluation.locationId,
-        locationSelectionRequired: evaluation.locationSelectionRequired,
-      },
-      { status: 200 }
-    )
+        {
+          slots: evaluation.slots,
+          slotMatrix: evaluation.slotMatrix,
+          staffAvailability: evaluation.staffAvailability,
+          locationId: evaluation.locationId,
+          locationSelectionRequired: evaluation.locationSelectionRequired,
+          dateSummary: evaluation.dateSummary,
+        },
+        { status: 200 }
+      )
   } catch (error) {
     if (error instanceof Phase2Error) {
       return NextResponse.json({ error: error.message, code: error.code, details: error.details }, { status: error.status })
