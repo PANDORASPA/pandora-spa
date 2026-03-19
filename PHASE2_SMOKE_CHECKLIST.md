@@ -12,6 +12,8 @@
 | Booking detail context | Open booking detail in admin | Location, provider group, and resource allocation context are visible | Detail only shows legacy staff/service data |
 | Orders / transactions consistency | Inspect matching order and transaction records for one booking | Booking, order, and transaction references line up and totals stay server-derived | Broken linkage, mismatched totals, or missing payment context |
 | Customers operational view | Open a customer row with booking/order history | Recent booking, order, and ticket context are visible enough for ops follow-up | Customer view lacks operational history or shows stale linkage |
+| Transaction edit/save roundtrip | Edit one transaction row, save, then refresh admin | Linked booking/order/customer context still resolves after save and refresh | Save succeeds but linkage or totals drift after refresh |
+| Staff scope mapping | Open a staff row after refresh | Assignable locations and provider groups still resolve to human-readable labels | Scope chips disappear, regress to raw ids, or mismatch staff rules |
 | Build regression | Run `npm run build` | Build passes end to end | Build fails or route/component compile errors appear |
 
 ## Preconditions
@@ -20,6 +22,39 @@
   - `supabase/migrations/20260319000400_phase2_booking_rules_foundation.sql`
 - Confirm admin can open `/admin` and the Services tab loads without unavailable-state blockers for required tables.
 - Confirm `npm run build` passes.
+
+## Daily Merge Gate
+- Treat this checklist as the required closeout gate before every daily merge.
+- Minimum required run:
+  - Bookings filters
+  - Booking detail context
+  - Orders / transactions consistency
+  - Customers operational view
+  - Holiday scope
+  - Transaction edit/save roundtrip
+  - Staff scope mapping
+  - Build regression
+- Classify findings before merging:
+  - `P0` security or data loss
+  - `P1` booking logic drift
+  - `P2` operational inconsistency
+  - `P3` UI polish
+- Do not merge a change that introduces a new `P0` or `P1` issue.
+
+## Execution Log
+Use this compact log for each merge window.
+
+| Date | Owner | Scope | Checks run | Result | Notes / follow-up |
+| --- | --- | --- | --- | --- | --- |
+| 2026-03-19 |  |  |  |  |  |
+| 2026-03-19 |  |  |  |  |  |
+| 2026-03-19 |  |  |  |  |  |
+
+Log format:
+- `Scope`: the feature area or agent slice you touched
+- `Checks run`: short list of smoke items executed
+- `Result`: `pass`, `pass with note`, or `fail`
+- `Notes / follow-up`: one line on blockers, rollbacks, or next fix
 
 ## Service Relation Save Flow
 - Open one service in [app/components/admin/ServicesTab.jsx](/C:/Users/Administrator/Desktop/viva/Hair-salon/app/components/admin/ServicesTab.jsx).
@@ -75,6 +110,9 @@
 - Confirm non-admin users still cannot access `/admin`.
 - Confirm bookings list filters still work after opening and closing booking detail.
 - Confirm bookings detail still shows operational context after filtering by location/provider group/service.
+- Edit one transaction row, save, refresh, and confirm booking/order/customer linkage still resolves.
+- Confirm customer recent activity remains correctly ordered after refresh and still includes transaction context when present.
+- Confirm staff scope chips still display readable location/provider-group labels after refresh.
 
 ## Known High-Risk Gaps
 - Booking detail should be checked manually for provider-group and resource allocation visibility, because this slice reads operational context from joined admin props rather than a dedicated detail endpoint.
