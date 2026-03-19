@@ -400,7 +400,8 @@ export default function Admin() {
     }
   }
 
-  const saveShifts = async (shifts) => {
+  const saveShifts = async (shifts, options = {}) => {
+    const silentSuccess = Boolean(options?.silentSuccess)
     try {
       const existingIds = (staffShifts || []).map((s) => Number(s.id)).filter((n) => Number.isFinite(n))
       let nextId = (existingIds.length ? Math.max(...existingIds) : 0) + 1
@@ -442,7 +443,8 @@ export default function Admin() {
     }
   }
 
-  const saveScheduleTable = async ({ table, rows = [], deletedIds = [], onConflict }) => {
+  const saveScheduleTable = async ({ table, rows = [], deletedIds = [], onConflict }, options = {}) => {
+    const silentSuccess = Boolean(options?.silentSuccess)
     try {
       const normalizedRows = (rows || [])
         .filter((row) => !row?.__deleted)
@@ -494,22 +496,22 @@ export default function Admin() {
     }
   }
 
-  const saveStaffBreaks = async (payloadOrRows) => {
+  const saveStaffBreaks = async (payloadOrRows, options = {}) => {
     const rows = Array.isArray(payloadOrRows) ? payloadOrRows : payloadOrRows?.rows || []
     const deletedIds = Array.isArray(payloadOrRows?.deletedIds) ? payloadOrRows.deletedIds : []
-    await saveScheduleTable({ table: 'staff_breaks', rows, deletedIds })
+    await saveScheduleTable({ table: 'staff_breaks', rows, deletedIds }, options)
   }
 
-  const saveStaffTimeOff = async (payloadOrRows) => {
+  const saveStaffTimeOff = async (payloadOrRows, options = {}) => {
     const rows = Array.isArray(payloadOrRows) ? payloadOrRows : payloadOrRows?.rows || []
     const deletedIds = Array.isArray(payloadOrRows?.deletedIds) ? payloadOrRows.deletedIds : []
-    await saveScheduleTable({ table: 'staff_time_off', rows, deletedIds })
+    await saveScheduleTable({ table: 'staff_time_off', rows, deletedIds }, options)
   }
 
-  const saveBlockedSlots = async (payloadOrRows) => {
+  const saveBlockedSlots = async (payloadOrRows, options = {}) => {
     const rows = Array.isArray(payloadOrRows) ? payloadOrRows : payloadOrRows?.rows || []
     const deletedIds = Array.isArray(payloadOrRows?.deletedIds) ? payloadOrRows.deletedIds : []
-    await saveScheduleTable({ table: 'blocked_slots', rows, deletedIds })
+    await saveScheduleTable({ table: 'blocked_slots', rows, deletedIds }, options)
   }
 
   const saveLocations = async (payloadOrRows) => {
@@ -580,7 +582,8 @@ export default function Admin() {
     }
   }
 
-  const saveStaff = async (targetStaffId = null) => {
+  const saveStaff = async (targetStaffId = null, options = {}) => {
+    const silentSuccess = Boolean(options?.silentSuccess)
     setSaving(true)
     try {
       const businessHours = parseBusinessHours(settings?.business_hours)
@@ -609,7 +612,6 @@ export default function Admin() {
           daysoff: Array.isArray(item.daysOff) ? item.daysOff : [],
           location_id: normalizeNullableNumber(item.location_id),
           provider_group_id: normalizeNullableNumber(item.provider_group_id),
-          booking_mode: item.booking_mode ? String(item.booking_mode) : 'staff',
         }
         if (typeof payload.id === 'number' && payload.id > 2147483647) delete payload.id
         const { error } = await supabase.from('staff').upsert(payload)
