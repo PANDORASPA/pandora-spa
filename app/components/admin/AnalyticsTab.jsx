@@ -41,25 +41,36 @@ const getServiceName = (booking) => booking?.service_name || booking?.service ||
 
 const cardStyle = { padding: '24px', minHeight: '380px' }
 
-export default function AnalyticsTab({ bookings, orders, reviews = [] }) {
+export default function AnalyticsTab({ bookings = [], orders = [], transactions = [], users = [], userTickets = [], reviews = [] }) {
   const analytics = useMemo(() => {
     const avgRating = reviews.length > 0
       ? (reviews.reduce((sum, review) => sum + Number(review.rating || 0), 0) / reviews.length).toFixed(1)
       : '0.0'
 
+    const totalBookings = (bookings || []).length
+    const totalTransactions = (transactions || []).length
     const monthlyRevenueMap = {}
     const serviceStats = {}
     const stylistRevenue = {}
     const statusStats = { pending: 0, confirmed: 0, completed: 0, cancelled: 0 }
+    const bookingRevenue = { total: 0, completed: 0, confirmed: 0, cancelled: 0 }
+    const salesTotals = { orderRevenue: 0, transactionRevenue: 0, settledOrders: 0 }
 
     ;(bookings || []).forEach((booking) => {
       const normalizedStatus = booking.status || 'pending'
       if (statusStats[normalizedStatus] != null) statusStats[normalizedStatus] += 1
-      if (normalizedStatus === 'cancelled') return
+      const bookingAmount = Number(booking.final_price || booking.service_price || 0)
+      bookingRevenue.total += bookingAmount
+      if (normalizedStatus === 'completed') bookingRevenue.completed += bookingAmount
+      if (normalizedStatus === 'confirmed') bookingRevenue.confirmed += bookingAmount
+      if (normalizedStatus === 'cancelled') {
+        bookingRevenue.cancelled += bookingAmount
+        return
+      }
 
       const monthKey = getBookingMonthKey(booking)
       if (monthKey) {
-        monthlyRevenueMap[monthKey] = (monthlyRevenueMap[monthKey] || 0) + Number(booking.final_price || booking.service_price || 0)
+        monthlyRevenueMap[monthKey] = (monthlyRevenueMap[monthKey] || 0) + bookingAmount
       }
 
       const serviceName = getServiceName(booking)
@@ -67,14 +78,61 @@ export default function AnalyticsTab({ bookings, orders, reviews = [] }) {
 
       if (normalizedStatus === 'completed' || normalizedStatus === 'confirmed') {
         const stylistName = booking.staff_name || 'Unassigned'
-        stylistRevenue[stylistName] = (stylistRevenue[stylistName] || 0) + Number(booking.final_price || booking.service_price || 0)
+        stylistRevenue[stylistName] = (stylistRevenue[stylistName] || 0) + bookingAmount
       }
     })
+
+    ;(orders || []).forEach((order) => {
+      const amount = Number(order?.total || 0)
+      salesTotals.orderRevenue += amount
+      const status = String(order?.status || order?.payment_status || '').toLowerCase()
+      if (['paid', 'completed', 'reconciled'].includes(status)) salesTotals.settledOrders += 1
+    })
+
+    ;(transactions || []).forEach((transaction) => {
+      salesTotals.transactionRevenue += Number(transaction?.amount || 0)
+    })
+
+    const activeCustomerSignals = new Set()
+    ;(bookings || []).forEach((booking) => {
+      if (booking?.user_id != null && booking?.user_id !== '') activeCustomerSignals.add(`user:${booking.user_id}`)
+      if ((booking?.customer_phone || booking?.phone) != null && (booking?.customer_phone || booking?.phone) !== '') {
+        activeCustomerSignals.add(`phone:${booking.customer_phone || booking.phone}`)
+      }
+    })
+    ;(orders || []).forEach((order) => {
+      if (order?.member_user_id != null && order?.member_user_id !== '') activeCustomerSignals.add(`user:${order.member_user_id}`)
+      if ((order?.phone || order?.user_phone || order?.customer_phone) != null && (order?.phone || order?.user_phone || order?.customer_phone) !== '') {
+        activeCustomerSignals.add(`phone:${order.phone || order.user_phone || order.customer_phone}`)
+      }
+    })
+    ;(transactions || []).forEach((transaction) => {
+      if (transaction?.member_user_id != null && transaction?.member_user_id !== '') activeCustomerSignals.add(`user:${transaction.member_user_id}`)
+      if (transaction?.customer_id != null && transaction?.customer_id !== '') activeCustomerSignals.add(`customer:${transaction.customer_id}`)
+    })
+
+    const ticketStats = (userTickets || []).reduce(
+      (acc, ticket) => {
+        acc.issued += 1
+        const remaining = Number(ticket?.remaining_count || 0)
+        if (remaining > 0) acc.active += 1
+        if (remaining <= 1) acc.lowBalance += 1
+        return acc
+      },
+      { issued: 0, active: 0, lowBalance: 0 },
+    )
 
     return {
       avgRating,
       totalReviews: reviews.length,
+      totalBookings,
       totalOrders: orders?.length || 0,
+      totalTransactions,
+      totalUsers: users?.length || 0,
+      bookingRevenue,
+      salesTotals,
+      activeCustomers: activeCustomerSignals.size,
+      ticketStats,
       monthlyTrend: Object.entries(monthlyRevenueMap).sort().slice(-12).map(([name, revenue]) => ({ name, revenue })),
       servicePopularity: Object.entries(serviceStats).sort(([, a], [, b]) => b - a).slice(0, 5).map(([name, count]) => ({ name, count })),
       stylistPerformance: Object.entries(stylistRevenue).sort(([, a], [, b]) => b - a).map(([name, revenue]) => ({ name, revenue })),
@@ -86,10 +144,84 @@ export default function AnalyticsTab({ bookings, orders, reviews = [] }) {
       ].filter((item) => item.value > 0),
       recentReviews: (reviews || []).slice(0, 5),
     }
-  }, [bookings, orders, reviews])
+  }, [bookings, orders, transactions, users, userTickets, reviews])
 
   return (
     <div>
+      <div className="admin-card" style={{ padding: '20px 22px', marginBottom: '20px', border: '1px solid rgba(166, 139, 106, 0.2)', background: 'linear-gradient(135deg, #fff, #FBF8F4)' }}>
+        <div style={{ fontSize: '12px', fontWeight: 800, letterSpacing: '0.08em', color: '#A68B6A' }}>ANALYTICS OVERVIEW</div>
+        <div style={{ marginTop: '6px', fontSize: '22px', fontWeight: 800, color: 'var(--text)' }}>Server-truth performance summary</div>
+        <div style={{ marginTop: '6px', fontSize: '13px', lineHeight: 1.6, color: 'var(--text-light)' }}>
+          Review bookings, revenue, and rating signals using data already loaded in the admin shell.
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gap: '12px', marginBottom: '20px' }}>
+        <div style={{ fontSize: '12px', fontWeight: 800, color: '#A68B6A', letterSpacing: '0.08em' }}>BOOKINGS</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '20px' }}>
+          <div className="admin-card" style={{ padding: '24px', borderLeft: '5px solid #34D399' }}>
+            <div style={{ fontSize: '12px', color: 'var(--text-light)', fontWeight: 700, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '1px' }}>Bookings tracked</div>
+            <div style={{ fontSize: '32px', fontWeight: 800, color: '#34D399' }}>{analytics.totalBookings}</div>
+          </div>
+          <div className="admin-card" style={{ padding: '24px', borderLeft: '5px solid #A68B6A' }}>
+            <div style={{ fontSize: '12px', color: 'var(--text-light)', fontWeight: 700, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '1px' }}>Booking revenue</div>
+            <div style={{ fontSize: '32px', fontWeight: 800, color: '#A68B6A' }}>{`$${Number(analytics.bookingRevenue.total || 0).toLocaleString()}`}</div>
+          </div>
+          <div className="admin-card" style={{ padding: '24px', borderLeft: '5px solid #3B82F6' }}>
+            <div style={{ fontSize: '12px', color: 'var(--text-light)', fontWeight: 700, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '1px' }}>Completed value</div>
+            <div style={{ fontSize: '32px', fontWeight: 800, color: '#3B82F6' }}>{`$${Number(analytics.bookingRevenue.completed || 0).toLocaleString()}`}</div>
+          </div>
+          <div className="admin-card" style={{ padding: '24px', borderLeft: '5px solid #F59E0B' }}>
+            <div style={{ fontSize: '12px', color: 'var(--text-light)', fontWeight: 700, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '1px' }}>Confirmed pipeline</div>
+            <div style={{ fontSize: '32px', fontWeight: 800, color: '#F59E0B' }}>{`$${Number(analytics.bookingRevenue.confirmed || 0).toLocaleString()}`}</div>
+          </div>
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gap: '12px', marginBottom: '20px' }}>
+        <div style={{ fontSize: '12px', fontWeight: 800, color: '#A68B6A', letterSpacing: '0.08em' }}>SALES</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '20px' }}>
+          <div className="admin-card" style={{ padding: '24px', borderLeft: '5px solid #10B981' }}>
+            <div style={{ fontSize: '12px', color: 'var(--text-light)', fontWeight: 700, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '1px' }}>Order revenue</div>
+            <div style={{ fontSize: '32px', fontWeight: 800, color: '#10B981' }}>{`$${Number(analytics.salesTotals.orderRevenue || 0).toLocaleString()}`}</div>
+          </div>
+          <div className="admin-card" style={{ padding: '24px', borderLeft: '5px solid #6366F1' }}>
+            <div style={{ fontSize: '12px', color: 'var(--text-light)', fontWeight: 700, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '1px' }}>Transactions tracked</div>
+            <div style={{ fontSize: '32px', fontWeight: 800, color: '#6366F1' }}>{analytics.totalTransactions}</div>
+          </div>
+          <div className="admin-card" style={{ padding: '24px', borderLeft: '5px solid #111827' }}>
+            <div style={{ fontSize: '12px', color: 'var(--text-light)', fontWeight: 700, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '1px' }}>Ledger total</div>
+            <div style={{ fontSize: '32px', fontWeight: 800, color: '#111827' }}>{`$${Number(analytics.salesTotals.transactionRevenue || 0).toLocaleString()}`}</div>
+          </div>
+          <div className="admin-card" style={{ padding: '24px', borderLeft: '5px solid #059669' }}>
+            <div style={{ fontSize: '12px', color: 'var(--text-light)', fontWeight: 700, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '1px' }}>Settled orders</div>
+            <div style={{ fontSize: '32px', fontWeight: 800, color: '#059669' }}>{analytics.salesTotals.settledOrders}</div>
+          </div>
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gap: '12px', marginBottom: '30px' }}>
+        <div style={{ fontSize: '12px', fontWeight: 800, color: '#A68B6A', letterSpacing: '0.08em' }}>CUSTOMERS & TICKETS</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '20px' }}>
+          <div className="admin-card" style={{ padding: '24px', borderLeft: '5px solid #8B5CF6' }}>
+            <div style={{ fontSize: '12px', color: 'var(--text-light)', fontWeight: 700, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '1px' }}>Active customers</div>
+            <div style={{ fontSize: '32px', fontWeight: 800, color: '#8B5CF6' }}>{analytics.activeCustomers || analytics.totalUsers}</div>
+          </div>
+          <div className="admin-card" style={{ padding: '24px', borderLeft: '5px solid #0EA5E9' }}>
+            <div style={{ fontSize: '12px', color: 'var(--text-light)', fontWeight: 700, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '1px' }}>Ticket rows</div>
+            <div style={{ fontSize: '32px', fontWeight: 800, color: '#0EA5E9' }}>{analytics.ticketStats.issued}</div>
+          </div>
+          <div className="admin-card" style={{ padding: '24px', borderLeft: '5px solid #14B8A6' }}>
+            <div style={{ fontSize: '12px', color: 'var(--text-light)', fontWeight: 700, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '1px' }}>Tickets in use</div>
+            <div style={{ fontSize: '32px', fontWeight: 800, color: '#14B8A6' }}>{analytics.ticketStats.active}</div>
+          </div>
+          <div className="admin-card" style={{ padding: '24px', borderLeft: '5px solid #F97316' }}>
+            <div style={{ fontSize: '12px', color: 'var(--text-light)', fontWeight: 700, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '1px' }}>Low balance signal</div>
+            <div style={{ fontSize: '32px', fontWeight: 800, color: '#F97316' }}>{analytics.ticketStats.lowBalance}</div>
+          </div>
+        </div>
+      </div>
+
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '20px', marginBottom: '30px' }}>
         <div className="admin-card" style={{ padding: '24px', borderLeft: '5px solid #F59E0B' }}>
           <div style={{ fontSize: '12px', color: 'var(--text-light)', fontWeight: 700, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '1px' }}>Average rating</div>
@@ -110,7 +242,7 @@ export default function AnalyticsTab({ bookings, orders, reviews = [] }) {
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(480px, 1fr))', gap: '24px' }}>
         <div className="admin-card" style={cardStyle}>
-          <h3 style={{ marginBottom: '24px', fontSize: '16px', fontWeight: 700 }}>Monthly revenue</h3>
+          <h3 style={{ marginBottom: '24px', fontSize: '16px', fontWeight: 700 }}>Monthly booking revenue</h3>
           <div style={{ width: '100%', height: 280 }}>
             <ResponsiveContainer>
               <AreaChart data={analytics.monthlyTrend}>
@@ -131,7 +263,7 @@ export default function AnalyticsTab({ bookings, orders, reviews = [] }) {
         </div>
 
         <div className="admin-card" style={cardStyle}>
-          <h3 style={{ marginBottom: '24px', fontSize: '16px', fontWeight: 700 }}>Top services</h3>
+          <h3 style={{ marginBottom: '24px', fontSize: '16px', fontWeight: 700 }}>Top services by booking count</h3>
           <div style={{ width: '100%', height: 280 }}>
             <ResponsiveContainer>
               <BarChart layout="vertical" data={analytics.servicePopularity} margin={{ left: 40 }}>
@@ -148,7 +280,7 @@ export default function AnalyticsTab({ bookings, orders, reviews = [] }) {
         </div>
 
         <div className="admin-card" style={cardStyle}>
-          <h3 style={{ marginBottom: '24px', fontSize: '16px', fontWeight: 700 }}>Stylist performance</h3>
+          <h3 style={{ marginBottom: '24px', fontSize: '16px', fontWeight: 700 }}>Stylist performance by completed value</h3>
           <div style={{ width: '100%', height: 280 }}>
             <ResponsiveContainer>
               <BarChart data={analytics.stylistPerformance}>
