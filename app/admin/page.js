@@ -22,11 +22,12 @@ import TransactionsTab from '../components/admin/TransactionsTab'
 import { analyzeScheduleRows } from '../../lib/booking/admin-schedule'
 
 const tabGroups = [
-  { name: 'Overview', tabs: [{ id: 'dashboard', name: 'Dashboard' }, { id: 'analytics', name: 'Analytics' }, { id: 'bookings', name: 'Bookings' }, { id: 'orders', name: 'Orders' }] },
-  { name: 'Services', tabs: [{ id: 'staff', name: 'Staff' }, { id: 'services', name: 'Services' }, { id: 'inventory', name: 'Inventory' }] },
-  { name: 'Operations', tabs: [{ id: 'locations', name: 'Locations' }, { id: 'holidays', name: 'Holidays' }, { id: 'resources', name: 'Resources' }, { id: 'transactions', name: 'Transactions' }] },
-  { name: 'Content', tabs: [{ id: 'coupons', name: 'Coupons' }, { id: 'articles', name: 'Articles' }, { id: 'faqs', name: 'FAQs' }] },
-  { name: 'Members', tabs: [{ id: 'customers', name: 'Customers' }] },
+  { name: 'Overview', tabs: [{ id: 'dashboard', name: 'Dashboard' }, { id: 'analytics', name: 'Analytics' }] },
+  { name: 'Bookings', tabs: [{ id: 'bookings', name: 'Bookings' }, { id: 'staff', name: 'Scheduling' }, { id: 'holidays', name: 'Holidays' }, { id: 'locations', name: 'Locations' }, { id: 'resources', name: 'Resources' }] },
+  { name: 'Commerce', tabs: [{ id: 'orders', name: 'Orders' }, { id: 'transactions', name: 'Transactions' }, { id: 'inventory', name: 'Inventory' }, { id: 'coupons', name: 'Coupons' }] },
+  { name: 'Catalog', tabs: [{ id: 'services', name: 'Services' }] },
+  { name: 'Customers', tabs: [{ id: 'customers', name: 'Customers' }] },
+  { name: 'Content', tabs: [{ id: 'articles', name: 'Articles' }, { id: 'faqs', name: 'FAQs' }] },
   { name: 'System', tabs: [{ id: 'settings', name: 'Settings' }] },
 ]
 
@@ -170,9 +171,9 @@ const parseBusinessHours = (value) => {
 
 const formatScheduleIssues = (issues = []) => {
   return issues
-    .map((issue) => issue?.message || '資料驗證失敗')
+    .map((issue) => issue?.message || 'Invalid schedule data')
     .filter(Boolean)
-    .join('；')
+    .join('; ')
 }
 
 const safeTableResult = async (promise) => {
@@ -222,6 +223,7 @@ export default function Admin() {
   const [holidays, setHolidays] = useState([])
   const [resources, setResources] = useState([])
   const [transactions, setTransactions] = useState([])
+  const [bookingResourceAllocations, setBookingResourceAllocations] = useState([])
   const [serviceLocations, setServiceLocations] = useState([])
   const [serviceProviderGroups, setServiceProviderGroups] = useState([])
   const [serviceResources, setServiceResources] = useState([])
@@ -233,6 +235,7 @@ export default function Admin() {
       holidays: false,
       resources: false,
       transactions: false,
+      bookingResourceAllocations: false,
       serviceLocations: false,
       serviceProviderGroups: false,
       serviceResources: false,
@@ -290,7 +293,7 @@ export default function Admin() {
 
   const fetchData = async () => {
     setLoading(true)
-    const [b, o, s, sp, p, t, c, cust, st, setRows, art, f, sh, br, to, bs, r, loc, providerGroupRows, hol, res, tx, serviceLocationRows, serviceProviderGroupRows, serviceResourceRows] = await Promise.all([
+    const [b, o, s, sp, p, t, c, cust, st, setRows, art, f, sh, br, to, bs, r, loc, providerGroupRows, hol, res, tx, bookingResourceAllocationRows, serviceLocationRows, serviceProviderGroupRows, serviceResourceRows] = await Promise.all([
       supabase.from('bookings').select('*').order('created_at', { ascending: false }),
       supabase.from('orders').select('*').order('created_at', { ascending: false }),
       supabase.from('services').select('*').order('sort_order'),
@@ -313,6 +316,7 @@ export default function Admin() {
       safeTableResult(supabase.from('holidays').select('*').order('holiday_date')),
       safeTableResult(supabase.from('resources').select('*').order('sort_order').order('name')),
       safeTableResult(supabase.from('transactions').select('*').order('created_at', { ascending: false })),
+      safeTableResult(supabase.from('booking_resource_allocations').select('*').order('booking_id').order('resource_id')),
       safeTableResult(supabase.from('service_locations').select('*').order('service_id').order('location_id')),
       safeTableResult(supabase.from('service_provider_groups').select('*').order('service_id').order('provider_group_id')),
       safeTableResult(supabase.from('service_resources').select('*').order('service_id').order('resource_id')),
@@ -339,6 +343,7 @@ export default function Admin() {
     setHolidays(hol.data || [])
     setResources(res.data || [])
     setTransactions(tx.data || [])
+    setBookingResourceAllocations(bookingResourceAllocationRows.data || [])
     setServiceLocations(serviceLocationRows.data || [])
     setServiceProviderGroups(serviceProviderGroupRows.data || [])
     setServiceResources(serviceResourceRows.data || [])
@@ -348,6 +353,7 @@ export default function Admin() {
       holidays: Boolean(hol.available),
       resources: Boolean(res.available),
       transactions: Boolean(tx.available),
+      bookingResourceAllocations: Boolean(bookingResourceAllocationRows.available),
       serviceLocations: Boolean(serviceLocationRows.available),
       serviceProviderGroups: Boolean(serviceProviderGroupRows.available),
       serviceResources: Boolean(serviceResourceRows.available),
@@ -368,6 +374,12 @@ export default function Admin() {
     delete payload.__isNew
     delete payload.__deleted
     return payload
+  }
+
+  const normalizeNullableNumber = (value) => {
+    if (value === '' || value == null) return null
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : null
   }
 
   const saveCollection = async (table, rows = [], deletedIds = []) => {
@@ -529,6 +541,7 @@ export default function Admin() {
           holiday_date: String(row.holiday_date).substring(0, 10),
           end_date: row.end_date ? String(row.end_date).substring(0, 10) : null,
           location_id: row.location_id === '' ? null : row.location_id,
+          provider_group_id: row.provider_group_id === '' ? null : row.provider_group_id,
           staff_id: row.staff_id === '' ? null : row.staff_id,
           is_closed: row.is_closed !== false,
         }))
@@ -601,7 +614,99 @@ export default function Admin() {
     try {
       const rows = Array.isArray(payloadOrRows) ? payloadOrRows : payloadOrRows?.services || []
       const deletedIds = Array.isArray(payloadOrRows?.deletedIds) ? payloadOrRows.deletedIds : []
-      await saveCollection('services', rows, deletedIds)
+      const serviceLocationsPayload = Array.isArray(payloadOrRows?.serviceLocations) ? payloadOrRows.serviceLocations : []
+      const serviceProviderGroupsPayload = Array.isArray(payloadOrRows?.serviceProviderGroups) ? payloadOrRows.serviceProviderGroups : []
+      const serviceResourcesPayload = Array.isArray(payloadOrRows?.serviceResources) ? payloadOrRows.serviceResources : []
+      const deletedServiceLocationIds = Array.isArray(payloadOrRows?.deletedServiceLocationIds) ? payloadOrRows.deletedServiceLocationIds : []
+      const deletedServiceProviderGroupIds = Array.isArray(payloadOrRows?.deletedServiceProviderGroupIds) ? payloadOrRows.deletedServiceProviderGroupIds : []
+      const deletedServiceResourceIds = Array.isArray(payloadOrRows?.deletedServiceResourceIds) ? payloadOrRows.deletedServiceResourceIds : []
+
+      const serviceIdMap = new Map()
+      const activeRows = rows.filter((row) => !row?.__deleted)
+
+      for (const row of activeRows) {
+        const payload = stripTransientFields(row)
+        const originalId = payload.id
+
+        payload.price = Number(payload.price || 0)
+        payload.time = Number(payload.time || 60)
+        payload.buffer_min = Number(payload.buffer_min || 0)
+        payload.sort_order = Number(payload.sort_order || 0)
+        payload.default_location_id = normalizeNullableNumber(payload.default_location_id)
+        payload.default_provider_group_id = normalizeNullableNumber(payload.default_provider_group_id)
+        payload.slot_step_min = normalizeNullableNumber(payload.slot_step_min)
+        payload.min_booking_qty = Math.max(1, Number(payload.min_booking_qty || 1))
+        payload.max_booking_qty = Math.max(payload.min_booking_qty, Number(payload.max_booking_qty || payload.min_booking_qty || 1))
+        payload.booking_mode = String(payload.booking_mode || 'staff')
+        payload.enabled = payload.enabled !== false
+
+        if (typeof payload.id === 'number' && payload.id > 2147483647) delete payload.id
+
+        const { data, error } = await supabase.from('services').upsert(payload).select('id').single()
+        if (error) throw error
+        serviceIdMap.set(String(originalId), data.id)
+      }
+
+      const persistRelations = async ({ table, rows: relationRows, deletedIds: relationDeletedIds, mapper }) => {
+        const normalizedRows = (relationRows || [])
+          .filter((row) => !row?.__deleted)
+          .map((row) => mapper({ ...stripTransientFields(row), service_id: serviceIdMap.get(String(row.service_id)) || normalizeNullableNumber(row.service_id) }))
+          .filter((row) => row.service_id && Object.entries(row).every(([key, value]) => !key.endsWith('_id') || key === 'service_id' || value != null))
+
+        if (normalizedRows.length > 0) {
+          const { error } = await supabase.from(table).upsert(normalizedRows)
+          if (error) throw error
+        }
+
+        if (relationDeletedIds.length > 0) {
+          const { error } = await supabase.from(table).delete().in('id', relationDeletedIds)
+          if (error) throw error
+        }
+      }
+
+      await persistRelations({
+        table: 'service_locations',
+        rows: serviceLocationsPayload,
+        deletedIds: deletedServiceLocationIds,
+        mapper: (row) => ({
+          id: typeof row.id === 'number' && row.id < 2147483647 ? row.id : undefined,
+          service_id: row.service_id,
+          location_id: normalizeNullableNumber(row.location_id),
+          extra_price: Number(row.extra_price || 0),
+          enabled: row.enabled !== false,
+        }),
+      })
+
+      await persistRelations({
+        table: 'service_provider_groups',
+        rows: serviceProviderGroupsPayload,
+        deletedIds: deletedServiceProviderGroupIds,
+        mapper: (row) => ({
+          id: typeof row.id === 'number' && row.id < 2147483647 ? row.id : undefined,
+          service_id: row.service_id,
+          provider_group_id: normalizeNullableNumber(row.provider_group_id),
+          assignment_mode: String(row.assignment_mode || 'any'),
+        }),
+      })
+
+      await persistRelations({
+        table: 'service_resources',
+        rows: serviceResourcesPayload,
+        deletedIds: deletedServiceResourceIds,
+        mapper: (row) => ({
+          id: typeof row.id === 'number' && row.id < 2147483647 ? row.id : undefined,
+          service_id: row.service_id,
+          resource_id: normalizeNullableNumber(row.resource_id),
+          quantity: Math.max(1, Number(row.quantity || 1)),
+          required: row.required !== false,
+        }),
+      })
+
+      if (deletedIds.length > 0) {
+        const { error } = await supabase.from('services').delete().in('id', deletedIds)
+        if (error) throw error
+      }
+
       await fetchData()
       toast.success('Saved')
     } catch (error) {
@@ -622,6 +727,33 @@ export default function Admin() {
       toast.success('Saved')
     } catch (error) {
       toast.error('Inventory save failed: ' + (error?.message || 'Unknown error'))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const saveTransactions = async (payloadOrRows) => {
+    setSaving(true)
+    try {
+      const rows = Array.isArray(payloadOrRows) ? payloadOrRows : payloadOrRows?.transactions || []
+      const deletedIds = Array.isArray(payloadOrRows?.deletedIds) ? payloadOrRows.deletedIds : []
+      const normalizedRows = rows.map((row) => ({
+        ...row,
+        amount: Number(row.amount || 0),
+        occurred_at: row.occurred_at ? String(row.occurred_at) : new Date().toISOString(),
+        status: String(row.status || 'pending'),
+        kind: String(row.kind || 'sale'),
+        currency: String(row.currency || 'HKD'),
+        booking_id: row.booking_id === '' ? null : normalizeNullableNumber(row.booking_id),
+        order_id: row.order_id === '' ? null : normalizeNullableNumber(row.order_id),
+        customer_id: row.customer_id === '' ? null : normalizeNullableNumber(row.customer_id),
+        member_user_id: row.member_user_id || null,
+      }))
+      await saveCollection('transactions', normalizedRows, deletedIds)
+      await fetchData()
+      toast.success('Saved')
+    } catch (error) {
+      toast.error('Transaction save failed: ' + (error?.message || 'Unknown error'))
     } finally {
       setSaving(false)
     }
@@ -933,13 +1065,14 @@ export default function Admin() {
   const renderActiveContent = () => {
     if (activeTab === 'dashboard') return renderDashboard()
     if (activeTab === 'analytics') return <AnalyticsTab bookings={bookings} orders={orders} reviews={reviews} />
-    if (activeTab === 'orders') return <OrdersTab orders={orders} />
-    if (activeTab === 'bookings') return <BookingsTab bookings={bookings} staff={staff} onUpdateStatus={updateStatus} onUpdateBookingStaff={updateBookingStaff} onViewDetail={(booking) => setSelectedBooking(booking)} />
+    if (activeTab === 'orders') return <OrdersTab orders={orders} bookings={bookings} customers={users} transactions={transactions} locations={locations} providerGroups={providerGroups} saving={saving} />
+    if (activeTab === 'bookings') return <BookingsTab bookings={bookings} staff={staff} services={services} locations={locations} providerGroups={providerGroups} resources={resources} transactions={transactions} orders={orders} bookingResourceAllocations={bookingResourceAllocations} onUpdateStatus={updateStatus} onUpdateBookingStaff={updateBookingStaff} />
     if (activeTab === 'staff') {
       return (
         <StaffTab
           staff={staff}
           services={services}
+          operationalContext={{ locations, providerGroups, availableTables }}
           staffShifts={staffShifts}
           staffBreaks={staffBreaks}
           staffTimeOff={staffTimeOff}
@@ -970,18 +1103,19 @@ export default function Admin() {
           serviceLocations={serviceLocations}
           serviceProviderGroups={serviceProviderGroups}
           serviceResources={serviceResources}
+          availableTables={availableTables}
         />
       )
     }
     if (activeTab === 'inventory') return <InventoryTab products={products} packages={servicePackages} tickets={tickets} services={services} fetchData={fetchData} saveInventory={saveInventory} />
     if (activeTab === 'locations') return <LocationsTab locations={locations} saveLocations={saveLocations} saving={saving} available={availableTables.locations} />
-    if (activeTab === 'holidays') return <HolidaysTab holidays={holidays} locations={locations} staff={staff} saveHolidays={saveHolidays} saving={saving} available={availableTables.holidays} />
+    if (activeTab === 'holidays') return <HolidaysTab holidays={holidays} locations={locations} providerGroups={providerGroups} providerGroupsAvailable={availableTables.providerGroups} staff={staff} saveHolidays={saveHolidays} saving={saving} available={availableTables.holidays} />
     if (activeTab === 'resources') return <ResourcesTab resources={resources} locations={locations} saveResources={saveResources} saving={saving} available={availableTables.resources} />
-    if (activeTab === 'transactions') return <TransactionsTab transactions={transactions} available={availableTables.transactions} />
+    if (activeTab === 'transactions') return <TransactionsTab transactions={transactions} bookings={bookings} orders={orders} customers={users} locations={locations} providerGroups={providerGroups} available={availableTables.transactions} saveTransactions={saveTransactions} saving={saving} />
     if (activeTab === 'coupons') return <CouponsTab coupons={coupons} saveCoupons={saveCoupons} />
     if (activeTab === 'articles') return <ArticlesTab articles={articles} />
     if (activeTab === 'faqs') return <FaqsTab faqs={faqs} />
-    if (activeTab === 'customers') return <CustomersTab users={users} bookings={bookings} orders={orders} onUpdateCustomer={updateCustomer} />
+    if (activeTab === 'customers') return <CustomersTab users={users} bookings={bookings} orders={orders} transactions={transactions} tickets={tickets} servicePackages={servicePackages} onUpdateCustomer={updateCustomer} />
     if (activeTab === 'settings') return <SettingsTab settings={settings} saveSettings={saveSettings} saving={saving} />
     return null
   }
