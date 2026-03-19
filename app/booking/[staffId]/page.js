@@ -56,8 +56,8 @@ const T = {
   title: '線上預約',
   intro: '先選擇日期，再從下拉選單選擇可預約的時段。',
   loadingStaff: '載入服務供應者中...',
-  loadingDates: '載入月曆中',
-  loadingSlots: '載入可預約時段中',
+  loadingDates: '載入月曆中...',
+  loadingSlots: '載入可預約時段中...',
   chooseDateFirst: '請先選擇日期',
   chooseTimeFirst: '請先選擇時段',
   noAvailability: '暫時沒有可預約時段',
@@ -67,10 +67,13 @@ const T = {
   full: '已滿',
   available: '可預約',
   fullNote: '有上班，但今天已滿',
+  configLimitedNote: '已設定上班，但此服務目前未形成可預約時段',
+  offNote: '今天休息，未有可預約時段',
 }
 
 const monthKeyFromDate = (value) => String(value || '').slice(0, 7)
 const todayISO = () => new Date().toISOString().slice(0, 10)
+
 const addMonths = (monthKey, delta) => {
   const date = new Date(`${monthKey}-01T12:00:00Z`)
   date.setUTCMonth(date.getUTCMonth() + delta, 1)
@@ -91,6 +94,24 @@ const buildMonthGrid = (monthKey) => {
     const dateISO = current.toISOString().slice(0, 10)
     return { dateISO, inMonth: dateISO.startsWith(monthKey), dayLabel: dateISO.slice(8, 10) }
   })
+}
+
+const getFullReasonLabel = (summary) => {
+  if (!summary) return T.fullNote
+  if (summary.reason === 'location_required') return '已設定上班，但此服務需要先確認地點才可形成可預約時段'
+  if (summary.reason === 'provider_mismatch') return '已設定上班，但此服務與服務供應者設定未形成可預約時段'
+  if (summary.reason === 'no_bookable_slots') return '今天有上班，但可預約時段已被休息、休假或封鎖時段扣減'
+  return T.fullNote
+}
+
+const getCalendarStatusLabel = (summary) => {
+  if (!summary) return T.unavailable
+  if (summary.status === 'available') return T.available
+  if (summary.status === 'off') return T.unavailable
+  if (summary.reason === 'provider_mismatch' || summary.reason === 'location_required' || summary.reason === 'no_bookable_slots') {
+    return '未成時段'
+  }
+  return T.full
 }
 
 export default function BookingStaffPage() {
@@ -181,8 +202,7 @@ export default function BookingStaffPage() {
     if (!selectedDate || !selectedDate.startsWith(monthKey)) {
       const firstAvailable = monthSummary.find((entry) => entry?.status === 'available')
       const firstFull = monthSummary.find((entry) => entry?.status === 'full')
-      const fallbackDate = firstAvailable?.date || firstFull?.date || ''
-      setSelectedDate(fallbackDate)
+      setSelectedDate(firstAvailable?.date || firstFull?.date || '')
       return
     }
 
@@ -344,6 +364,7 @@ export default function BookingStaffPage() {
                 </button>
               </div>
             </div>
+
             {loadingSummary ? <div style={{ color: '#6B7280' }}>{T.loadingDates}</div> : null}
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: '10px' }}>
@@ -380,7 +401,7 @@ export default function BookingStaffPage() {
                     <div style={{ fontWeight: 900, fontSize: '18px' }}>{cell.dayLabel}</div>
                     {cell.inMonth ? (
                       <div style={{ marginTop: '8px', fontSize: '12px', color: status === 'off' ? '#9CA3AF' : '#6B7280', fontWeight: 700 }}>
-                        {status === 'available' ? T.available : status === 'full' ? T.full : T.unavailable}
+                        {getCalendarStatusLabel(summary)}
                       </div>
                     ) : null}
                   </button>
@@ -397,8 +418,10 @@ export default function BookingStaffPage() {
               </div>
               <div style={{ color: '#6B7280', fontSize: '13px' }}>{selectedDate || T.chooseDateFirst}</div>
             </div>
-            {selectedDate && selectedSummary?.status === 'full' ? <div style={{ color: '#8B5E34' }}>{T.fullNote}</div> : null}
-            {selectedDate && selectedSummary?.status === 'off' ? <div style={{ color: '#6B7280' }}>{T.unavailable}</div> : null}
+
+            {selectedDate && selectedSummary?.status === 'full' ? <div style={{ color: '#8B5E34' }}>{getFullReasonLabel(selectedSummary)}</div> : null}
+            {selectedDate && selectedSummary?.status === 'off' ? <div style={{ color: '#6B7280' }}>{T.offNote}</div> : null}
+
             <label style={{ display: 'grid', gap: '8px' }}>
               <span style={{ fontSize: '13px', fontWeight: 800 }}>時段下拉選單</span>
               <select
@@ -419,6 +442,7 @@ export default function BookingStaffPage() {
                 })}
               </select>
             </label>
+
             {selectedDate && !loadingSlots && slots.length === 0 && selectedSummary?.status === 'available' ? <div style={{ color: '#6B7280' }}>{T.noAvailability}</div> : null}
             <button type="button" className="btn btn-interactive" onClick={handleSubmit} disabled={!selectedDate || !selectedTime} style={{ minHeight: '48px' }}>
               {T.submit}
