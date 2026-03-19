@@ -540,7 +540,7 @@ export default function StaffTab({
                       </div>
                       <ChipRow
                         items={providerScopeChips}
-                        emptyLabel="No location or provider group links wired yet"
+                        emptyLabel="No location or provider-group links wired yet"
                       />
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '10px' }}>
@@ -551,7 +551,7 @@ export default function StaffTab({
                             {scopeSummary(selectedStaffLocationChips.length, 'location')}
                           </span>
                         </div>
-                        <ChipRow items={selectedStaffLocationChips} emptyLabel={locations.length ? 'No location links selected' : 'Location lookup not provided'} />
+                        <ChipRow items={selectedStaffLocationChips} emptyLabel={locations.length ? 'No location links selected' : 'Location lookup unavailable'} />
                       </div>
                       <div style={{ display: 'grid', gap: '8px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
@@ -560,7 +560,7 @@ export default function StaffTab({
                             {scopeSummary(selectedStaffGroupChips.length, 'group')}
                           </span>
                         </div>
-                        <ChipRow items={selectedStaffGroupChips} emptyLabel={providerGroups.length ? 'No provider group links selected' : 'Provider group lookup not provided'} />
+                        <ChipRow items={selectedStaffGroupChips} emptyLabel={providerGroups.length ? 'No provider-group links selected' : 'Provider group lookup unavailable'} />
                       </div>
                     </div>
                     <div style={{ fontSize: '12px', lineHeight: 1.6, color: 'var(--text-light)' }}>
