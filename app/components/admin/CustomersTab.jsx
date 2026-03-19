@@ -28,6 +28,26 @@ const toSortTimestamp = (value) => {
   return Number.isFinite(timestamp) ? timestamp : 0
 }
 
+const formatActivityWhen = (value) => {
+  if (!value) return '-'
+  const timestamp = Date.parse(value)
+  if (!Number.isFinite(timestamp)) return String(value)
+  return new Date(timestamp).toLocaleString()
+}
+
+const getActivityKindLabel = (kind) => {
+  switch (kind) {
+    case 'booking':
+      return 'Booking'
+    case 'order':
+      return 'Order'
+    case 'transaction':
+      return 'Transaction'
+    default:
+      return 'Activity'
+  }
+}
+
 const deriveTier = (spend) => {
   if (spend >= 10000) return 'VIP'
   if (spend >= 5000) return 'Gold'
@@ -179,6 +199,7 @@ export default function CustomersTab({ users = [], bookings = [], orders = [], t
   }
 
   const getNotesDraft = (customer) => notesDraft[customer.id] ?? customer.notes ?? ''
+  const isNotesDirty = (customer) => getNotesDraft(customer) !== (customer?.notes ?? '')
   const setNotesDraftForCustomer = (customerId, value) => {
     setNotesDraft((current) => ({ ...current, [customerId]: value }))
   }
@@ -216,7 +237,7 @@ export default function CustomersTab({ users = [], bookings = [], orders = [], t
         </select>
       </RecordFilterBar>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
         <SummaryCard label="Visible customers" value={filteredCustomers.length} />
         <SummaryCard label="Visible spend" value={formatMoney(filteredCustomers.reduce((sum, user) => sum + Number(user.__spend || 0), 0), '')} />
         <SummaryCard label="Bookings" value={filteredCustomers.reduce((sum, user) => sum + (user.__bookings?.length || 0), 0)} />
@@ -225,7 +246,7 @@ export default function CustomersTab({ users = [], bookings = [], orders = [], t
         <SummaryCard label="Tickets / packages" value={filteredCustomers.reduce((sum, user) => sum + (user.__tickets?.length || 0), 0)} />
       </div>
       <div style={{ marginTop: '-4px', fontSize: '12px', color: 'var(--text-light)' }}>
-        Visible spend currently reflects booking + order totals only, so it stays aligned with the revenue figures already used in this screen.
+        Visible spend currently reflects booking + order totals only, so it stays aligned with the revenue figures used on this screen.
       </div>
 
       <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
@@ -300,20 +321,39 @@ export default function CustomersTab({ users = [], bookings = [], orders = [], t
                             value={getNotesDraft(user)}
                             placeholder="Internal notes"
                             onChange={(event) => setNotesDraftForCustomer(user.id, event.target.value)}
-                            onBlur={(event) => updateCustomer(user.id, { notes: event.target.value })}
                             onClick={(event) => event.stopPropagation()}
                             style={{ ...smallFieldStyle, background: '#f9fafb' }}
                           />
-                          {notesStatus[user.id]?.message && (
+                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', alignItems: 'center' }}>
                             <div
                               style={{
                                 fontSize: '11px',
-                                color: notesStatus[user.id]?.state === 'error' ? '#DC2626' : notesStatus[user.id]?.state === 'saved' ? '#047857' : 'var(--text-light)',
+                                color:
+                                  notesStatus[user.id]?.state === 'error'
+                                    ? '#DC2626'
+                                    : notesStatus[user.id]?.state === 'saved'
+                                      ? '#047857'
+                                      : isNotesDirty(user)
+                                        ? '#B45309'
+                                        : 'var(--text-light)',
                               }}
                             >
-                              {savingNotesId === user.id ? 'Saving notes...' : notesStatus[user.id].message}
+                              {savingNotesId === user.id
+                                ? 'Saving notes...'
+                                : notesStatus[user.id]?.message || (isNotesDirty(user) ? 'Draft not yet saved' : 'Notes synced')}
                             </div>
-                          )}
+                            <button
+                              type="button"
+                              className="btn btn-small btn-interactive"
+                              disabled={savingNotesId === user.id || !isNotesDirty(user)}
+                              onClick={(event) => {
+                                event.stopPropagation()
+                                updateCustomer(user.id, { notes: getNotesDraft(user) })
+                              }}
+                            >
+                              {savingNotesId === user.id ? 'Saving...' : 'Save'}
+                            </button>
+                          </div>
                         </div>
                           </td>
                         )}
@@ -392,7 +432,7 @@ export default function CustomersTab({ users = [], bookings = [], orders = [], t
               />
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', marginTop: '8px', alignItems: 'center' }}>
                 <div style={{ fontSize: '12px', color: notesStatus[selectedCustomer.id]?.state === 'error' ? '#DC2626' : notesStatus[selectedCustomer.id]?.state === 'saved' ? '#047857' : 'var(--text-light)' }}>
-                  {notesStatus[selectedCustomer.id]?.message || 'Changes are saved with the Save notes button.'}
+                  {notesStatus[selectedCustomer.id]?.message || 'Draft edits stay local until you click Save notes.'}
                 </div>
                 <button
                   type="button"
@@ -415,7 +455,7 @@ export default function CustomersTab({ users = [], bookings = [], orders = [], t
                       <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', marginBottom: '4px' }}>
                         <span style={{ fontWeight: 700 }}>
                           <span className="badge badge-outline" style={{ marginRight: '8px', fontSize: '10px', padding: '2px 6px' }}>
-                            {entry.kind}
+                            {getActivityKindLabel(entry.kind)}
                           </span>
                           {entry.title}
                         </span>
@@ -423,7 +463,8 @@ export default function CustomersTab({ users = [], bookings = [], orders = [], t
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', color: 'var(--text-light)' }}>
                         <span style={{ display: 'grid', gap: '2px' }}>
-                          <span>{entry.detail || (entry.when ? new Date(entry.when).toLocaleString() : '-')}</span>
+                          <span>{entry.detail || '-'}</span>
+                          <span>{formatActivityWhen(entry.when)}</span>
                           {entry.reference && <span style={{ fontSize: '11px' }}>Ref: {entry.reference}</span>}
                         </span>
                         <span className="badge badge-outline" style={{ fontSize: '10px', padding: '2px 6px' }}>
