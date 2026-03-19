@@ -556,6 +556,6 @@ label {
   
   /* Add padding to main content to account for bottom nav */
   main {
-    padding-bottom: 70px;
+    padding-bottom: calc(112px + env(safe-area-inset-bottom, 0));
   }
 }
