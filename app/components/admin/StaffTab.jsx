@@ -131,7 +131,7 @@ export default function StaffTab({
   const [deletedBlockedIds, setDeletedBlockedIds] = useState([])
   const [previewDate, setPreviewDate] = useState(localDate())
   const [previewServiceId, setPreviewServiceId] = useState('')
-  const [previewSlots, setPreviewSlots] = useState([])
+  const [previewSlotMatrix, setPreviewSlotMatrix] = useState([])
   const [previewLoading, setPreviewLoading] = useState(false)
   const [previewError, setPreviewError] = useState('')
 
@@ -198,9 +198,9 @@ export default function StaffTab({
       const res = await fetch(`/api/availability?${params.toString()}`)
       const data = await res.json()
       if (!res.ok) throw new Error(data?.error || 'Unable to load availability')
-      setPreviewSlots(Array.isArray(data?.slots) ? data.slots : [])
+      setPreviewSlotMatrix(Array.isArray(data?.slotMatrix) ? data.slotMatrix : [])
     } catch (error) {
-      setPreviewSlots([])
+      setPreviewSlotMatrix([])
       setPreviewError(error?.message || 'Unable to load availability')
     } finally {
       setPreviewLoading(false)
@@ -639,7 +639,7 @@ export default function StaffTab({
                 </div>
               </Panel>
 
-              <Panel title="Availability check" subtitle="Confirm that the frontend slots reflect the current schedule." soft actions={<button type="button" onClick={async () => { if (!selectedStaffId || !previewServiceId || !previewDate) return; try { setPreviewLoading(true); setPreviewError(''); const params = new URLSearchParams({ date: previewDate, serviceId: String(previewServiceId), staffId: String(selectedStaffId) }); const res = await fetch(`/api/availability?${params.toString()}`); const data = await res.json(); if (!res.ok) throw new Error(data?.error || 'Unable to load availability'); setPreviewSlots(Array.isArray(data?.slots) ? data.slots : []); } catch (error) { setPreviewSlots([]); setPreviewError(error?.message || 'Unable to load availability'); } finally { setPreviewLoading(false); } }} className="btn btn-small btn-interactive">Check availability</button>}>
+              <Panel title="Availability check" subtitle="Confirm that the frontend slots reflect the current schedule." soft actions={<button type="button" onClick={loadAvailability} className="btn btn-small btn-interactive">Check availability</button>}>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px', marginBottom: '16px' }}>
                   <Label>
                     Date
@@ -672,13 +672,31 @@ export default function StaffTab({
                     <div style={{ color: 'var(--text-light)' }}>Loading availability...</div>
                   ) : previewError ? (
                     <div style={{ color: '#DC2626' }}>{previewError}</div>
-                  ) : previewSlots.length ? (
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                      {previewSlots.map((slot) => (
-                        <span key={slot} className="badge badge-outline" style={{ background: '#ECFDF5', borderColor: '#A7F3D0', color: '#047857' }}>
-                          {slot}
-                        </span>
-                      ))}
+                  ) : previewSlotMatrix.length ? (
+                    <div style={{ display: 'grid', gap: '12px' }}>
+                      <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                        <span className="badge badge-outline" style={{ background: '#ECFDF5', borderColor: '#A7F3D0', color: '#047857' }}>Available</span>
+                        <span className="badge badge-outline" style={{ background: '#F3F4F6', borderColor: '#E5E7EB', color: '#6B7280' }}>Unavailable</span>
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(88px, 1fr))', gap: '8px' }}>
+                        {previewSlotMatrix.map((slot) => (
+                          <div
+                            key={slot.time}
+                            style={{
+                              padding: '10px 8px',
+                              borderRadius: '10px',
+                              textAlign: 'center',
+                              fontWeight: 700,
+                              fontSize: '13px',
+                              background: slot.available ? '#ECFDF5' : '#F3F4F6',
+                              border: `1px solid ${slot.available ? '#A7F3D0' : '#E5E7EB'}`,
+                              color: slot.available ? '#047857' : '#6B7280',
+                            }}
+                          >
+                            {slot.time}
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   ) : (
                     <div style={{ color: 'var(--text-light)' }}>Choose a date, service, and staff, then click Check availability.</div>
