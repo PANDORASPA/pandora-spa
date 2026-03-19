@@ -1,6 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { createClient } from '@supabase/supabase-js'
+import { createChunks } from '@supabase/ssr'
 
 const root = process.cwd()
 const envPath = path.join(root, '.env.local')
@@ -18,6 +19,9 @@ const env = Object.fromEntries(
 const supabase = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
   auth: { persistSession: false, autoRefreshToken: false },
 })
+const anonSupabase = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_ANON_KEY, {
+  auth: { persistSession: false, autoRefreshToken: false },
+})
 
 const baseUrlArg = process.argv.find((arg) => arg.startsWith('--base-url='))
 const baseUrl = baseUrlArg ? baseUrlArg.slice('--base-url='.length).replace(/\/$/, '') : ''
@@ -28,11 +32,15 @@ const smokeConfig = {
   customerId: 3,
   ticketId: 1,
   resourceDate: '2026-03-26',
+  controlledCreateDate: '2026-03-27',
+  controlledRescheduleDate: '2026-03-28',
   holidayDate: '2026-03-25',
   locationCode: `SMOKE-LOC-${smokeDate}`,
   locationName: `SMOKE Location ${smokeDate}`,
   groupName: `SMOKE Provider Group ${smokeDate}`,
   resourceName: `SMOKE Resource ${smokeDate}`,
+  memberEmail: `codex.phase2.member.${smokeDate.replaceAll('-', '')}@example.com`,
+  memberPassword: 'Phase2Smoke123!',
   bookingRef: `SMOKE-BKG-${smokeDate.replaceAll('-', '')}`,
   orderRef: `SMOKE-ORD-${smokeDate.replaceAll('-', '')}`,
   transactionRef: `SMOKE-TX-${smokeDate.replaceAll('-', '')}`,
@@ -68,16 +76,137 @@ const addMinutes = (time, amount) => {
 
 const ok = (status, details = {}) => ({ status, ...details })
 
-async function fetchJson(url) {
-  const response = await fetch(url)
-  const body = await response.json().catch(() => ({}))
-  return { status: response.status, ok: response.ok, body }
+async function fetchJson(url, { method = 'GET', headers = {}, body } = {}) {
+  const response = await fetch(url, {
+    method,
+    headers,
+    body,
+    redirect: 'manual',
+  })
+  const parsed = await response.json().catch(() => ({}))
+  return {
+    status: response.status,
+    ok: response.ok,
+    body: parsed,
+    headers: Object.fromEntries(response.headers.entries()),
+  }
 }
 
 async function maybeSingle(query) {
   const { data, error } = await query.maybeSingle()
   if (error) throw error
   return data
+}
+
+async function ensureSmokeUser() {
+  const list = await supabase.auth.admin.listUsers()
+  if (list.error) throw list.error
+  const existing = (list.data?.users || []).find((user) => user.email === smokeConfig.memberEmail)
+  let user = existing
+  if (!user) {
+    const created = await supabase.auth.admin.createUser({
+      email: smokeConfig.memberEmail,
+      password: smokeConfig.memberPassword,
+      email_confirm: true,
+    })
+    if (created.error) throw created.error
+    user = created.data.user
+  } else {
+    const updated = await supabase.auth.admin.updateUserById(user.id, {
+      password: smokeConfig.memberPassword,
+      email_confirm: true,
+    })
+    if (updated.error) throw updated.error
+    user = updated.data.user
+  }
+
+  const { error } = await supabase.from('member_profiles').upsert({ id: user.id, is_admin: false }, { onConflict: 'id' })
+  if (error) throw error
+  return user
+}
+
+async function buildCookieHeader(email) {
+  const login = await anonSupabase.auth.signInWithPassword({
+    email,
+    password: smokeConfig.memberPassword,
+  })
+  if (login.error) throw login.error
+  const chunks = createChunks(anonSupabase.auth.storageKey, JSON.stringify(login.data.session))
+  return chunks.map((chunk) => `${chunk.name}=${encodeURIComponent(chunk.value)}`).join('; ')
+}
+
+async function cleanupControlledBookings(userId) {
+  const existing = await supabase.from('bookings').select('id').eq('user_id', userId)
+  if (existing.error) throw existing.error
+  const bookingIds = (existing.data || []).map((row) => row.id).filter(Boolean)
+  if (!bookingIds.length) return
+  const { error: allocError } = await supabase.from('booking_resource_allocations').delete().in('booking_id', bookingIds)
+  if (allocError) throw allocError
+  const { error: bookingError } = await supabase.from('bookings').delete().in('id', bookingIds)
+  if (bookingError) throw bookingError
+}
+
+async function fetchBookingSnapshot(bookingId) {
+  const [booking, allocations] = await Promise.all([
+    maybeSingle(supabase.from('bookings').select('*').eq('id', bookingId)),
+    supabase.from('booking_resource_allocations').select('*').eq('booking_id', bookingId),
+  ])
+  return {
+    booking,
+    allocations: allocations.data || [],
+  }
+}
+
+async function createBookingRequest({ cookieHeader, dateISO, startTime, locationId, staffId, userTicketId, customerName, customerPhone }) {
+  return fetchJson(`${baseUrl}/api/bookings/create`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      cookie: cookieHeader,
+    },
+    body: JSON.stringify({
+      date: dateISO,
+      serviceId: smokeConfig.serviceId,
+      staffId,
+      locationId,
+      startTime,
+      customerName,
+      customerPhone,
+      userTicketId,
+    }),
+  })
+}
+
+async function rescheduleBookingRequest({ cookieHeader, bookingId, dateISO, startTime, locationId, staffId, customerName, customerPhone, userTicketId }) {
+  return fetchJson(`${baseUrl}/api/account/bookings/${bookingId}`, {
+    method: 'PATCH',
+    headers: {
+      'content-type': 'application/json',
+      cookie: cookieHeader,
+    },
+    body: JSON.stringify({
+      action: 'reschedule',
+      date: dateISO,
+      serviceId: smokeConfig.serviceId,
+      staffId,
+      locationId,
+      startTime,
+      customerName,
+      customerPhone,
+      userTicketId,
+    }),
+  })
+}
+
+async function cancelBookingRequest({ cookieHeader, bookingId }) {
+  return fetchJson(`${baseUrl}/api/account/bookings/${bookingId}`, {
+    method: 'PATCH',
+    headers: {
+      'content-type': 'application/json',
+      cookie: cookieHeader,
+    },
+    body: JSON.stringify({ action: 'cancel' }),
+  })
 }
 
 async function ensureLocation() {
@@ -334,6 +463,8 @@ async function main() {
   const resource = await ensureResource(location.id)
   await ensureServiceRelations(location.id, providerGroup.id, resource.id)
   await ensureShift(smokeConfig.resourceDate)
+  await ensureShift(smokeConfig.controlledCreateDate)
+  await ensureShift(smokeConfig.controlledRescheduleDate)
   await ensureShift(smokeConfig.holidayDate)
   await resetSmokeBooking()
 
@@ -374,9 +505,231 @@ async function main() {
 
   const customer = await maybeSingle(supabase.from('customers').select('*').eq('id', smokeConfig.customerId))
 
+  let controlledBookingFlow = {
+    status: 'blocked',
+    reason: 'missing baseUrl',
+  }
+  let controlledBookingEvidence = {
+    create: null,
+    reschedule: null,
+    cancel: null,
+  }
+
+  if (baseUrl) {
+    const smokeUser = await ensureSmokeUser()
+    const smokeCookie = await buildCookieHeader(smokeConfig.memberEmail)
+    await cleanupControlledBookings(smokeUser.id)
+
+    const smokeTicket = await maybeSingle(
+      supabase.from('user_tickets').select('*').eq('member_user_id', smokeUser.id).eq('ticket_id', smokeConfig.ticketId),
+    )
+    const userTicket =
+      smokeTicket ||
+      (await (async () => {
+        const { data, error } = await supabase
+          .from('user_tickets')
+          .insert({
+            member_user_id: smokeUser.id,
+            customer_id: null,
+            ticket_id: smokeConfig.ticketId,
+            ticket_name: 'Basic Ticket',
+            remaining_count: 2,
+            expiry_date: '2026-12-31T00:00:00+00:00',
+          })
+          .select('*')
+          .single()
+        if (error) throw error
+        return data
+      })())
+
+    const createAvailability = await runAvailability(smokeConfig.controlledCreateDate, location.id)
+    const createSlots = uniqueSlots(createAvailability.body?.slots)
+    const createStart = createSlots[0] || '09:00'
+    const createResponse = await createBookingRequest({
+      cookieHeader: smokeCookie,
+      dateISO: smokeConfig.controlledCreateDate,
+      startTime: createStart,
+      locationId: location.id,
+      staffId: smokeConfig.staffId,
+      userTicketId: userTicket.id,
+      customerName: 'Controlled Smoke Customer',
+      customerPhone: '12345678',
+    })
+
+    const createdBookingId = createResponse.body?.booking?.id || null
+    const createSnapshot = createdBookingId ? await fetchBookingSnapshot(createdBookingId) : { booking: null, allocations: [] }
+    const createTicketSnapshot = await maybeSingle(supabase.from('user_tickets').select('*').eq('id', userTicket.id))
+
+    const rescheduleAvailability = await runAvailability(smokeConfig.controlledRescheduleDate, location.id)
+    const rescheduleSlots = uniqueSlots(rescheduleAvailability.body?.slots)
+    const rescheduleStart = rescheduleSlots.find((slot) => slot !== createStart) || rescheduleSlots[0] || createStart
+    const rescheduleBefore = createdBookingId ? await fetchBookingSnapshot(createdBookingId) : { booking: null, allocations: [] }
+    const rescheduleResponse = createdBookingId
+      ? await rescheduleBookingRequest({
+          cookieHeader: smokeCookie,
+          bookingId: createdBookingId,
+          dateISO: smokeConfig.controlledRescheduleDate,
+          startTime: rescheduleStart,
+          locationId: location.id,
+          staffId: smokeConfig.staffId,
+          customerName: 'Controlled Smoke Customer',
+          customerPhone: '12345678',
+          userTicketId: userTicket.id,
+        })
+      : { status: 500, ok: false, body: { error: 'Missing booking id' } }
+    const rescheduleAfter = createdBookingId ? await fetchBookingSnapshot(createdBookingId) : { booking: null, allocations: [] }
+
+    const cancelBefore = createdBookingId ? await fetchBookingSnapshot(createdBookingId) : { booking: null, allocations: [] }
+    const cancelResponse = createdBookingId
+      ? await cancelBookingRequest({
+          cookieHeader: smokeCookie,
+          bookingId: createdBookingId,
+        })
+      : { status: 500, ok: false, body: { error: 'Missing booking id' } }
+    const cancelAfter = createdBookingId ? await fetchBookingSnapshot(createdBookingId) : { booking: null, allocations: [] }
+    const ticketBeforeCancel = createTicketSnapshot
+    const ticketAfterCancel = await maybeSingle(supabase.from('user_tickets').select('*').eq('id', userTicket.id))
+
+    controlledBookingEvidence = {
+      create: {
+        request: {
+          date: smokeConfig.controlledCreateDate,
+          start_time: createStart,
+          location_id: location.id,
+          provider_group_id: providerGroup.id,
+          staff_id: smokeConfig.staffId,
+          user_ticket_id: userTicket.id,
+        },
+        response_status: createResponse.status,
+        response_code: createResponse.body?.code || null,
+        booking_id: createdBookingId,
+        before_snapshot: null,
+        after_snapshot: createSnapshot.booking
+          ? {
+              appointment_date: createSnapshot.booking.appointment_date || null,
+              start_time: createSnapshot.booking.start_time || null,
+              end_time: createSnapshot.booking.end_time || null,
+              buffer_end_time: createSnapshot.booking.buffer_end_time || null,
+              location_id: createSnapshot.booking.location_id || null,
+              provider_group_id: createSnapshot.booking.provider_group_id || null,
+              allocation_count: createSnapshot.allocations.length,
+            }
+          : null,
+      },
+      reschedule: {
+        request: {
+          date: smokeConfig.controlledRescheduleDate,
+          start_time: rescheduleStart,
+          location_id: location.id,
+          provider_group_id: providerGroup.id,
+          staff_id: smokeConfig.staffId,
+          user_ticket_id: userTicket.id,
+        },
+        response_status: rescheduleResponse.status,
+        response_code: rescheduleResponse.body?.code || null,
+        booking_id: createdBookingId,
+        before_snapshot: rescheduleBefore.booking
+          ? {
+              appointment_date: rescheduleBefore.booking.appointment_date || null,
+              start_time: rescheduleBefore.booking.start_time || null,
+              allocation_count: rescheduleBefore.allocations.length,
+            }
+          : null,
+        after_snapshot: rescheduleAfter.booking
+          ? {
+              appointment_date: rescheduleAfter.booking.appointment_date || null,
+              start_time: rescheduleAfter.booking.start_time || null,
+              allocation_count: rescheduleAfter.allocations.length,
+            }
+          : null,
+      },
+      cancel: {
+        request: {
+          booking_id: createdBookingId,
+        },
+        response_status: cancelResponse.status,
+        response_code: cancelResponse.body?.code || null,
+        booking_id: createdBookingId,
+        before_snapshot: cancelBefore.booking
+          ? {
+              appointment_date: cancelBefore.booking.appointment_date || null,
+              start_time: cancelBefore.booking.start_time || null,
+              status: cancelBefore.booking.status || null,
+              allocation_count: cancelBefore.allocations.length,
+            }
+          : null,
+        after_snapshot: cancelAfter.booking
+          ? {
+              appointment_date: cancelAfter.booking.appointment_date || null,
+              start_time: cancelAfter.booking.start_time || null,
+              status: cancelAfter.booking.status || null,
+              allocation_count: cancelAfter.allocations.length,
+            }
+          : null,
+        ticket_before_cancel: ticketBeforeCancel
+          ? { remaining_count: ticketBeforeCancel.remaining_count ?? null }
+          : null,
+        ticket_after_cancel: ticketAfterCancel
+          ? { remaining_count: ticketAfterCancel.remaining_count ?? null }
+          : null,
+      },
+    }
+
+    const createPass =
+      createResponse.ok &&
+      createSnapshot.booking?.appointment_date === smokeConfig.controlledCreateDate &&
+      String(createSnapshot.booking?.location_id) === String(location.id) &&
+      String(createSnapshot.booking?.provider_group_id) === String(providerGroup.id) &&
+      createSnapshot.allocations.length > 0
+
+    const reschedulePass =
+      rescheduleResponse.ok &&
+      rescheduleAfter.booking?.appointment_date === smokeConfig.controlledRescheduleDate &&
+      String(rescheduleAfter.booking?.start_time || '').slice(0, 5) === String(rescheduleStart).slice(0, 5) &&
+      rescheduleBefore.allocations.length > 0 &&
+      rescheduleAfter.allocations.length > 0
+
+    const cancelPass =
+      cancelResponse.ok &&
+      cancelAfter.booking?.status === 'cancelled' &&
+      ticketBeforeCancel &&
+      ticketAfterCancel &&
+      Number(ticketAfterCancel.remaining_count || 0) === Number(ticketBeforeCancel.remaining_count || 0) + 1
+
+    controlledBookingFlow = {
+      status: createPass && reschedulePass && cancelPass ? 'pass' : 'fail',
+      booking_id: createdBookingId,
+      create_date: smokeConfig.controlledCreateDate,
+      reschedule_date: smokeConfig.controlledRescheduleDate,
+      create_slot: createStart,
+      reschedule_slot: rescheduleStart,
+      ticket_id: userTicket.id,
+      create_pass: createPass,
+      reschedule_pass: reschedulePass,
+      cancel_pass: cancelPass,
+    }
+
+    controlledBookingEvidence = {
+      ...controlledBookingEvidence,
+      create: {
+        ...controlledBookingEvidence.create,
+        status: createPass ? 'pass' : 'fail',
+      },
+      reschedule: {
+        ...controlledBookingEvidence.reschedule,
+        status: reschedulePass ? 'pass' : 'fail',
+      },
+      cancel: {
+        ...controlledBookingEvidence.cancel,
+        status: cancelPass ? 'pass' : 'fail',
+      },
+    }
+  }
+
   const report = {
     generatedAt: new Date().toISOString(),
     baseUrl: baseUrl || null,
+    report_version: 2,
     seeds: {
       location_id: location.id,
       provider_group_id: providerGroup.id,
@@ -389,7 +742,21 @@ async function main() {
       user_ticket_id: userTicket.id,
       staff_id: smokeConfig.staffId,
     },
+    controlled_booking_flow: controlledBookingFlow,
+    controlled_booking_evidence: controlledBookingEvidence,
     checks: {
+      controlled_booking_create: ok(
+        controlledBookingEvidence.create?.status || controlledBookingFlow.status,
+        controlledBookingEvidence.create || {},
+      ),
+      controlled_booking_reschedule: ok(
+        controlledBookingEvidence.reschedule?.status || controlledBookingFlow.status,
+        controlledBookingEvidence.reschedule || {},
+      ),
+      controlled_booking_cancel: ok(
+        controlledBookingEvidence.cancel?.status || controlledBookingFlow.status,
+        controlledBookingEvidence.cancel || {},
+      ),
       bookings_detail_seed_ready: ok(
         booking.location_id &&
           booking.provider_group_id &&
@@ -458,6 +825,11 @@ async function main() {
           )
         : ok('blocked', { reason: 'Run with --base-url=http://localhost:3000 to validate holiday blocking.' }),
     },
+    evidence_checked: [
+      { name: 'controlled_booking_create', status: controlledBookingEvidence.create?.status || controlledBookingFlow.status, response_status: controlledBookingEvidence.create?.response_status ?? null },
+      { name: 'controlled_booking_reschedule', status: controlledBookingEvidence.reschedule?.status || controlledBookingFlow.status, response_status: controlledBookingEvidence.reschedule?.response_status ?? null },
+      { name: 'controlled_booking_cancel', status: controlledBookingEvidence.cancel?.status || controlledBookingFlow.status, response_status: controlledBookingEvidence.cancel?.response_status ?? null },
+    ],
   }
 
   const reportPath = path.join(root, `LIVE_SMOKE_REPORT_${smokeDate}.json`)
