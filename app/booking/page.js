@@ -4,17 +4,18 @@ import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { toast } from 'react-hot-toast'
+import { bookingOpsCopy } from '../components/admin/opsUi'
 
 const T = {
   title: '\u9078\u64c7\u8a2d\u8a08\u5e2b',
   intro: '\u5148\u9078\u64c7\u8a2d\u8a08\u5e2b\uff0c\u518d\u9032\u5165\u9810\u7d04\u9801\u9762\u9078\u64c7\u670d\u52d9\u3001\u65e5\u671f\u8207\u6642\u9593\u3002',
-  loading: '\u8f09\u5165\u53ef\u9810\u7d04\u8a2d\u8a08\u5e2b\u4e2d...',
-  redirecting: '\u6b63\u5728\u8f09\u5165\u9810\u7d04\u8cc7\u6599...',
-  loadFailed: '\u7121\u6cd5\u8f09\u5165\u9810\u7d04\u5165\u53e3',
-  noStaff: '\u76ee\u524d\u6c92\u6709\u53ef\u9810\u7d04\u7684\u8a2d\u8a08\u5e2b',
-  roleFallback: 'Stylist',
-  cta: '\u9810\u7d04',
-  editFallback: '\u7121\u6cd5\u8f09\u5165\u539f\u9810\u7d04\uff0c\u8acb\u5f9e\u300c\u6211\u7684\u9810\u7d04\u300d\u91cd\u65b0\u9032\u5165\u3002',
+  loading: bookingOpsCopy.loading,
+  redirecting: '正在載入預約資料...',
+  loadFailed: '無法載入預約入口',
+  noStaff: '目前未有可預約的設計師',
+  roleFallback: '髮型師',
+  cta: '立即預約',
+  editFallback: '無法載入原預約，請從「我的預約」重新進入。',
 }
 
 export default function BookingPage() {
@@ -153,7 +154,7 @@ export default function BookingPage() {
                       {member.photoUrl ? (
                         <img src={member.photoUrl} alt={member.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                       ) : (
-                        <div style={{ fontSize: '56px' }}>✂</div>
+                        <div style={{ fontSize: '56px' }}>✦</div>
                       )}
                     </div>
                     <div style={{ padding: '18px' }}>
