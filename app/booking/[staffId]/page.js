@@ -16,6 +16,7 @@ const T = {
   requiredFields: '\u8acb\u586b\u5beb\u6240\u6709\u5fc5\u586b\u6b04\u4f4d',
   loginFirst: '\u8acb\u5148\u767b\u5165\u5f8c\u518d\u9810\u7d04',
   bookingFailed: '\u9810\u7d04\u5931\u6557',
+  bookingTimeout: '\u63d0\u4ea4\u8d85\u6642\uff0c\u8acb\u518d\u8a66\u4e00\u6b21',
   loadingSlots: '\u8f09\u5165\u53ef\u7528\u6642\u6bb5\u4e2d...',
   chooseServiceAndDate: '\u8acb\u5148\u9078\u64c7\u670d\u52d9\u8207\u65e5\u671f',
   noSlots: '\u9019\u500b\u65e5\u671f\u76ee\u524d\u6c92\u6709\u53ef\u7528\u6642\u6bb5\uff0c\u8acb\u6539\u9078\u5176\u4ed6\u65e5\u671f\u3002',
@@ -62,6 +63,8 @@ const T = {
   legendAvailable: '\u53ef\u9810\u7d04',
   legendUnavailable: '\u5df2\u88ab\u4f54\u7528 / \u4e0d\u53ef\u7528',
   legendSelected: '\u5df2\u9078\u64c7',
+  completeRequired: '\u8acb\u5148\u5b8c\u6210\u670d\u52d9\u3001\u65e5\u671f\u3001\u6642\u9593\u3001\u59d3\u540d\u8207\u96fb\u8a71',
+  ctaHelp: '\u63d0\u4ea4\u5f8c\u6703\u986f\u793a\u9810\u7d04\u7de8\u865f\u8207 WhatsApp \u78ba\u8a8d\u906e\u7f69',
 }
 
 const box = { width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #ddd' }
@@ -103,6 +106,7 @@ export default function BookingStaffDetailPage({ params }) {
   const [showModal, setShowModal] = useState(false)
   const [bookingRef, setBookingRef] = useState('')
   const [waUrl, setWaUrl] = useState('')
+  const [submitError, setSubmitError] = useState('')
   const isEditing = Boolean(editId)
 
   const selectedService = useMemo(() => services.find((service) => String(service.id) === String(selectedServiceId)) || null, [services, selectedServiceId])
@@ -117,6 +121,7 @@ export default function BookingStaffDetailPage({ params }) {
   const availableSlots = useMemo(() => slotMatrix.filter((slot) => slot.available).map((slot) => slot.time), [slotMatrix])
   const canLoadSlots = Boolean(selectedServiceId && selectedDate)
   const slotStepMin = getStep(shopSettings)
+  const canSubmit = Boolean(selectedService && selectedDate && selectedTime && formData.name.trim() && formData.phone.trim() && !loadingSlots && !submitting)
   const finalPrice = useMemo(() => {
     if (!selectedService) return 0
     if (selectedTicket) return 0
@@ -238,6 +243,10 @@ export default function BookingStaffDetailPage({ params }) {
   }, [filteredTickets, selectedTicketId])
 
   useEffect(() => {
+    setSubmitError('')
+  }, [selectedServiceId, selectedDate, selectedTime, formData.name, formData.phone, formData.coupon, selectedTicketId])
+
+  useEffect(() => {
     if (availabilityControllerRef.current) {
       availabilityControllerRef.current.abort()
       availabilityControllerRef.current = null
@@ -267,6 +276,7 @@ export default function BookingStaffDetailPage({ params }) {
         if (error?.name === 'AbortError') return
         setSlotMatrix([])
         setSelectedTime('')
+        setSubmitError('')
         toast.error(error?.message || T.slotsError)
       })
       .finally(() => {
@@ -282,9 +292,15 @@ export default function BookingStaffDetailPage({ params }) {
   }, [canLoadSlots, selectedDate, selectedServiceId, staffId])
 
   const handleSubmit = async () => {
-    if (!selectedService || !selectedDate || !selectedTime || !formData.name || !formData.phone) return toast.error(T.requiredFields)
+    setSubmitError('')
+
+    if (!selectedService || !selectedDate || !selectedTime || !formData.name.trim() || !formData.phone.trim()) {
+      toast.error(T.requiredFields)
+      return
+    }
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
+      setSubmitError(T.loginFirst)
       toast.error(T.loginFirst)
       const returnTo = typeof window !== 'undefined' ? window.location.pathname + window.location.search : `/booking/${staffId}`
       router.push(`/login?redirectTo=${encodeURIComponent(returnTo)}`)
@@ -294,22 +310,35 @@ export default function BookingStaffDetailPage({ params }) {
     try {
       await supabase.from('member_profiles').upsert({ id: user.id, email: user.email, full_name: formData.name, phone: formData.phone })
       const payload = { date: selectedDate, serviceId: selectedService.id, staffId: Number(staffId), startTime: selectedTime, customerName: formData.name, customerPhone: formData.phone, couponCode: formData.coupon || null, userTicketId: selectedTicket?.id || null }
-      const response = await fetch(editId ? `/api/account/bookings/${editId}` : '/api/bookings/create', { method: editId ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+      const submitController = new AbortController()
+      const timeoutId = setTimeout(() => submitController.abort('timeout'), 15000)
+      const response = await fetch(editId ? `/api/account/bookings/${editId}` : '/api/bookings/create', { method: editId ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), signal: submitController.signal }).finally(() => clearTimeout(timeoutId))
       const result = await response.json().catch(() => ({}))
-      if (!response.ok) throw new Error(result?.error || T.bookingFailed)
+      if (!response.ok) {
+        const message =
+          response.status === 409
+            ? '\u6b64\u6642\u6bb5\u5df2\u88ab\u9810\u7d04\uff0c\u8acb\u6539\u9078\u5176\u4ed6\u6642\u9593'
+            : response.status === 401
+              ? T.loginFirst
+              : result?.error || T.bookingFailed
+        throw new Error(message)
+      }
       const ref = result?.booking?.ref || ''
       const shopPhone = String(shopSettings.phone || '').replace(/\D/g, '')
       const message = [T.whatsappIntro, `${T.ref}: ${ref}`, `${T.service}: ${selectedService.name}`, `${T.date}: ${selectedDate}`, `${T.time}: ${selectedTime}`, `${T.name}: ${formData.name}`].join('\n')
       setBookingRef(ref)
       setWaUrl(shopPhone ? `https://wa.me/${shopPhone}?text=${encodeURIComponent(message)}` : '')
       setShowModal(true)
+      setSubmitError('')
       toast.success(editId ? T.updated : T.success)
       if (selectedTicket) {
         setSelectedTicketId('')
         await loadMemberContext(user)
       }
     } catch (error) {
-      toast.error(error?.message || T.bookingFailed)
+      const message = error?.name === 'AbortError' ? T.bookingTimeout : error?.message || T.bookingFailed
+      setSubmitError(message)
+      toast.error(message)
     } finally {
       setSubmitting(false)
     }
@@ -355,7 +384,7 @@ export default function BookingStaffDetailPage({ params }) {
               </div>
             )}
 
-            <div style={{ background: '#fff', borderRadius: '18px', padding: '24px', boxShadow: '0 4px 18px rgba(0,0,0,0.05)' }}>
+            <div style={{ background: '#fff', borderRadius: '18px', padding: '24px', paddingBottom: 'calc(24px + 72px)', boxShadow: '0 4px 18px rgba(0,0,0,0.05)' }}>
               <div style={{ display: 'grid', gap: '16px', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
                 <div>
                   <label style={{ display: 'block', fontWeight: 600, marginBottom: '8px' }}>{T.service}</label>
@@ -416,7 +445,10 @@ export default function BookingStaffDetailPage({ params }) {
                   <div style={{ fontSize: '28px', fontWeight: 800, color: '#A68B6A' }}>{formatCurrency(finalPrice)}</div>
                 </div>
               </div>
-              <button type="button" onClick={handleSubmit} disabled={submitting} className="btn-interactive" style={{ width: '100%', marginTop: '18px', padding: '16px', borderRadius: '14px', border: 'none', background: 'linear-gradient(135deg, #A68B6A, #8B7355)', color: '#fff', fontWeight: 800, cursor: 'pointer' }}>{submitting ? T.submitting : isEditing ? T.update : T.submit}</button>
+              <button type="button" onClick={handleSubmit} disabled={!canSubmit} className="btn-interactive" style={{ width: '100%', marginTop: '18px', padding: '16px', borderRadius: '14px', border: 'none', background: canSubmit ? 'linear-gradient(135deg, #A68B6A, #8B7355)' : '#D1D5DB', color: '#fff', fontWeight: 800, cursor: canSubmit ? 'pointer' : 'not-allowed', opacity: canSubmit ? 1 : 0.9 }}>{submitting ? T.submitting : isEditing ? T.update : T.submit}</button>
+              <div style={{ marginTop: '12px', minHeight: '22px', color: submitError ? '#B91C1C' : '#6B7280', fontSize: '13px', lineHeight: 1.6 }}>
+                {submitError || (!canSubmit ? T.completeRequired : T.ctaHelp)}
+              </div>
             </div>
           </div>
         </div>
