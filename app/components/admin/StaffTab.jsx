@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { ChipRow, StatusPill } from './AdminConfigKit'
+import { AdminActionBar, ChipRow, EmptyState, StatusPill } from './AdminConfigKit'
 
 const DAYS = [
   ['0', 'Sun'],
@@ -100,20 +100,53 @@ const localDate = () => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-const toChipList = (value, prefix) => {
+const toChipList = (value, prefix, lookup = {}) => {
   if (!value) return []
   const items = Array.isArray(value) ? value : [value]
   return items
     .map((item, index) => {
       if (item == null) return null
-      if (typeof item === 'string' || typeof item === 'number') {
-        return { key: `${prefix}-${index}`, label: String(item) }
+      if (typeof item === 'object') {
+        const id = item.id != null ? Number(item.id) : null
+        const label =
+          item.name ||
+          item.title ||
+          item.label ||
+          item.code ||
+          item.full_name ||
+          item.location_name ||
+          item.display_name ||
+          item.group_name ||
+          item.provider_group_name ||
+          item.service_name ||
+          (id != null && lookup[id] ? lookup[id].name || lookup[id].title || lookup[id].label || lookup[id].location_name || lookup[id].group_name : '')
+        if (!label) return null
+        return { key: id != null ? `${prefix}-${id}` : `${prefix}-${index}`, label }
       }
-      const label = item.name || item.title || item.label || item.code || item.full_name || item.location_name
-      if (!label) return null
-      return { key: item.id != null ? `${prefix}-${item.id}` : `${prefix}-${index}`, label }
+      if (typeof item === 'string' || typeof item === 'number') {
+        const id = Number(item)
+        const lookupItem = Number.isFinite(id) && lookup[id] ? lookup[id] : null
+        const label = lookupItem?.name || lookupItem?.title || lookupItem?.label || lookupItem?.location_name || lookupItem?.group_name || String(item)
+        return { key: Number.isFinite(id) ? `${prefix}-${id}` : `${prefix}-${index}`, label }
+      }
+      return null
     })
     .filter(Boolean)
+}
+
+const dedupeChips = (items = []) => {
+  const seen = new Set()
+  return items.filter((item) => {
+    const key = item?.key || item?.label
+    if (!key || seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
+
+const scopeSummary = (count, singular, plural = `${singular}s`) => {
+  if (!count) return `No ${plural}`
+  return `${count} ${count === 1 ? singular : plural}`
 }
 
 export default function StaffTab({
@@ -123,6 +156,9 @@ export default function StaffTab({
   staffBreaks = [],
   staffTimeOff = [],
   blockedSlots = [],
+  locations: directLocations = [],
+  providerGroups: directProviderGroups = [],
+  operationalContext = {},
   onAddStaff,
   onDeleteStaff,
   onUpdateField,
@@ -163,6 +199,10 @@ export default function StaffTab({
     if (!previewServiceId && services.length) setPreviewServiceId(services[0].id)
   }, [services, previewServiceId])
 
+  const locations = Array.isArray(directLocations) && directLocations.length ? directLocations : Array.isArray(operationalContext?.locations) ? operationalContext.locations : []
+  const providerGroups = Array.isArray(directProviderGroups) && directProviderGroups.length ? directProviderGroups : Array.isArray(operationalContext?.providerGroups) ? operationalContext.providerGroups : []
+  const lookupFlags = operationalContext?.availableTables || {}
+
   const selectedStaff = staff.find((item) => item.id === selectedStaffId)
   const daysOff = Array.isArray(selectedStaff?.daysOff)
     ? selectedStaff.daysOff
@@ -170,17 +210,44 @@ export default function StaffTab({
       ? selectedStaff.daysoff
       : []
 
+  const locationLookup = useMemo(
+    () => Object.fromEntries(locations.map((item) => [Number(item.id), item])),
+    [locations]
+  )
+  const providerGroupLookup = useMemo(
+    () => Object.fromEntries(providerGroups.map((item) => [Number(item.id), item])),
+    [providerGroups]
+  )
+  const selectedStaffLocationChips = useMemo(() => {
+    const source = selectedStaff || {}
+    return dedupeChips(
+      [
+        ...toChipList(source.location_ids || source.locationIds || source.location_id || source.locationId, 'location-id', locationLookup),
+        ...toChipList(source.locations || source.location_names || source.locationNames || source.location_name, 'location', locationLookup),
+      ].filter(Boolean)
+    )
+  }, [locationLookup, selectedStaff])
+  const selectedStaffGroupChips = useMemo(() => {
+    const source = selectedStaff || {}
+    return dedupeChips(
+      [
+        ...toChipList(source.provider_group_ids || source.providerGroupIds || source.provider_group_id || source.providerGroupId, 'group-id', providerGroupLookup),
+        ...toChipList(source.provider_groups || source.providerGroups || source.provider_group_names || source.providerGroupNames || source.provider_group_name, 'group', providerGroupLookup),
+      ].filter(Boolean)
+    )
+  }, [providerGroupLookup, selectedStaff])
+
   const selectedShifts = localShifts.filter((item) => item.staff_id === selectedStaffId)
   const selectedBreaks = localBreaks.filter((item) => item.staff_id === selectedStaffId)
   const selectedTimeOff = localTimeOff.filter((item) => item.staff_id === selectedStaffId)
   const selectedBlocked = localBlocked.filter((item) => item.staff_id === selectedStaffId)
   const providerScopeChips = useMemo(() => {
     const source = selectedStaff || {}
-    const directGroups = toChipList(source.provider_groups || source.providerGroups || source.provider_group_names || source.providerGroupNames, 'group')
-    const linkedGroups = toChipList(source.provider_group_ids || source.providerGroupIds, 'group-id')
-    const directLocations = toChipList(source.locations || source.location_names || source.locationIds || source.location_ids || source.locationNames, 'location')
-    return [...directGroups, ...linkedGroups, ...directLocations]
-  }, [selectedStaff])
+    const directGroups = toChipList(source.provider_groups || source.providerGroups || source.provider_group_names || source.providerGroupNames || source.provider_group_name, 'group', providerGroupLookup)
+    const linkedGroups = toChipList(source.provider_group_ids || source.providerGroupIds || source.provider_group_id || source.providerGroupId, 'group-id', providerGroupLookup)
+    const directLocations = toChipList(source.locations || source.location_names || source.locationIds || source.location_ids || source.locationNames || source.location_name || source.locationId, 'location', locationLookup)
+    return dedupeChips([...directGroups, ...linkedGroups, ...directLocations])
+  }, [locationLookup, providerGroupLookup, selectedStaff])
 
   const updateShift = (date, field, value) => {
     setLocalShifts((current) => {
@@ -465,11 +532,41 @@ export default function StaffTab({
                     </div>
 
                     <div style={{ display: 'grid', gap: '8px' }}>
-                      <div style={{ fontSize: '12px', fontWeight: 800, color: '#A68B6A', letterSpacing: '0.06em' }}>Provider scope</div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+                        <div style={{ fontSize: '12px', fontWeight: 800, color: '#A68B6A', letterSpacing: '0.06em' }}>Operational scope</div>
+                        <span className="badge badge-outline" style={{ background: '#fff' }}>
+                          {scopeSummary(providerScopeChips.length, 'link')}
+                        </span>
+                      </div>
                       <ChipRow
                         items={providerScopeChips}
-                        emptyLabel="No provider groups or locations wired yet"
+                        emptyLabel="No location or provider group links wired yet"
                       />
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '10px' }}>
+                      <div style={{ display: 'grid', gap: '8px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+                          <div style={{ fontSize: '12px', fontWeight: 800, color: '#A68B6A', letterSpacing: '0.06em' }}>Assignable locations</div>
+                          <span className="badge badge-outline" style={{ background: '#fff' }}>
+                            {scopeSummary(selectedStaffLocationChips.length, 'location')}
+                          </span>
+                        </div>
+                        <ChipRow items={selectedStaffLocationChips} emptyLabel={locations.length ? 'No location links selected' : 'Location lookup not provided'} />
+                      </div>
+                      <div style={{ display: 'grid', gap: '8px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+                          <div style={{ fontSize: '12px', fontWeight: 800, color: '#A68B6A', letterSpacing: '0.06em' }}>Allowed provider groups</div>
+                          <span className="badge badge-outline" style={{ background: '#fff' }}>
+                            {scopeSummary(selectedStaffGroupChips.length, 'group')}
+                          </span>
+                        </div>
+                        <ChipRow items={selectedStaffGroupChips} emptyLabel={providerGroups.length ? 'No provider group links selected' : 'Provider group lookup not provided'} />
+                      </div>
+                    </div>
+                    <div style={{ fontSize: '12px', lineHeight: 1.6, color: 'var(--text-light)' }}>
+                      {locations.length || providerGroups.length
+                        ? 'This profile reads live admin lookup props first, so availability and operator context stay aligned with the configured locations and provider groups.'
+                        : 'Scope lookups are not available yet, so the profile falls back to staff record fields for backward compatibility.'}
                     </div>
 
                     <Label>
