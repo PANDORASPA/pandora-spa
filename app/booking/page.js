@@ -6,18 +6,104 @@ import { useRouter } from 'next/navigation'
 import { toast } from 'react-hot-toast'
 import { supabase } from '../../lib/supabase'
 
+const DEFAULT_SETTINGS = {
+  phone: '',
+  business_hours: '11:00 - 20:00',
+  days_off: [],
+}
+
+const T = {
+  minutes: '\u5206\u9418',
+  slotsError: '\u7121\u6cd5\u53d6\u5f97\u53ef\u7528\u6642\u6bb5',
+  settingsError: '\u7121\u6cd5\u8f09\u5165\u5e97\u8216\u8a2d\u5b9a',
+  partialLoad: '\u90e8\u5206\u8cc7\u6599\u8f09\u5165\u5931\u6557\uff1a',
+  pageLoadError: '\u8f09\u5165\u9810\u7d04\u9801\u9762\u5931\u6557',
+  bookingLoadError: '\u7121\u6cd5\u8f09\u5165\u9810\u7d04\u8cc7\u6599',
+  requiredFields: '\u8acb\u586b\u5beb\u6240\u6709\u5fc5\u586b\u6b04\u4f4d',
+  loginFirst: '\u8acb\u5148\u767b\u5165\u5f8c\u518d\u9810\u7d04',
+  bookingFailed: '\u9810\u7d04\u5931\u6557',
+  whatsappIntro: '\u4f60\u597d\uff0c\u6211\u60f3\u78ba\u8a8d\u4ee5\u4e0b\u9810\u7d04\u8cc7\u6599\uff1a',
+  ref: '\u7de8\u865f',
+  service: '\u670d\u52d9',
+  date: '\u65e5\u671f',
+  time: '\u6642\u9593',
+  name: '\u59d3\u540d',
+  updated: '\u9810\u7d04\u5df2\u66f4\u65b0',
+  success: '\u9810\u7d04\u6210\u529f',
+  loading: '\u8f09\u5165\u4e2d...',
+  editTitle: '\u4fee\u6539\u9810\u7d04',
+  editLocked: '\u6539\u671f\u53ea\u6703\u8abf\u6574\u65e5\u671f\u3001\u6642\u6bb5\u8207\u8a2d\u8a08\u5e2b\uff0c\u670d\u52d9\u3001\u512a\u60e0\u5238\u53ca\u5957\u7968\u6703\u4fdd\u7559\u539f\u9810\u7d04\u8a2d\u5b9a\u3002',
+  title: '\u7dda\u4e0a\u9810\u7d04',
+  intro:
+    '\u5efa\u8b70\u5148\u767b\u5165\u6703\u54e1\uff0c\u518d\u4f7f\u7528\u6703\u54e1\u8cc7\u6599\u548c\u5957\u7968\u5b8c\u6210\u9810\u7d04\u6d41\u7a0b\uff0c\u907f\u514d\u8cc7\u6599\u4e0d\u4e00\u81f4\u3002',
+  memberTitle: '\u8acb\u5148\u767b\u5165\u6703\u54e1',
+  memberIntro:
+    '\u767b\u5165\u5f8c\u53ef\u81ea\u52d5\u5e36\u5165\u6703\u54e1\u8cc7\u6599\uff0c\u4e5f\u53ef\u4ee5\u4f7f\u7528\u5957\u7968\u5b8c\u6210\u9810\u7d04\u3002',
+  login: '\u767b\u5165',
+  register: '\u8a3b\u518a',
+  section1: '1. \u9078\u64c7\u670d\u52d9\u8207\u8a2d\u8a08\u5e2b',
+  chooseService: '\u8acb\u9078\u64c7\u670d\u52d9',
+  stylist: '\u8a2d\u8a08\u5e2b',
+  randomStaff: '\u7cfb\u7d71\u5206\u914d',
+  section2: '2. \u9078\u64c7\u65e5\u671f\u8207\u6642\u6bb5',
+  businessHours: '\u71df\u696d\u6642\u9593',
+  loadingSlots: '\u8f09\u5165\u53ef\u7528\u6642\u6bb5\u4e2d...',
+  noSlots:
+    '\u9019\u500b\u65e5\u671f\u76ee\u524d\u6c92\u6709\u53ef\u7528\u6642\u6bb5\uff0c\u8acb\u6539\u9078\u5176\u4ed6\u65e5\u671f\u6216\u8a2d\u8a08\u5e2b\u3002',
+  section3: '3. \u806f\u7d61\u8cc7\u6599\u8207\u512a\u60e0',
+  phone: '\u96fb\u8a71',
+  coupon: '\u512a\u60e0\u5238',
+  noCoupon: '\u4e0d\u4f7f\u7528\u512a\u60e0\u5238',
+  ticket: '\u6703\u54e1\u5957\u7968',
+  noTicket: '\u4e0d\u4f7f\u7528\u5957\u7968',
+  loginForTicket: '\u767b\u5165\u5f8c\u53ef\u4f7f\u7528\u5957\u7968',
+  remaining: '\u5269\u9918',
+  times: '\u6b21',
+  amount: '\u61c9\u4ed8\u91d1\u984d',
+  ticketUse: '\u672c\u6b21\u5c07\u6263\u9664 1 \u6b21\u5957\u7968\u4f7f\u7528\u6b21\u6578',
+  couponApply: '\u512a\u60e0\u91d1\u984d\u5c07\u65bc\u78ba\u8a8d\u5f8c\u5957\u7528',
+  submitting: '\u63d0\u4ea4\u4e2d...',
+  submit: '\u63d0\u4ea4\u9810\u7d04',
+  update: '\u66f4\u65b0\u9810\u7d04',
+  refLabel: '\u9810\u7d04\u7de8\u865f\uff1a',
+  whatsappConfirm: 'WhatsApp \u78ba\u8a8d',
+  whatsappUnavailable: '\u672a\u8a2d\u5b9a WhatsApp \u806f\u7d61\u865f\u78bc',
+  whatsappUnavailableHelp: '\u8acb\u5148\u806f\u7d61\u5e97\u8216\u66f4\u65b0\u96fb\u8a71\u8a2d\u5b9a\u3002',
+  viewBookings: '\u67e5\u770b\u6211\u7684\u9810\u7d04',
+  close: '\u95dc\u9589',
+}
+
 const formatCurrency = (value) => `$${Math.round(Number(value || 0))}`
 
 const formatServiceDuration = (service) => {
   const duration = Number(service?.time || 60)
-  return `${duration} 分鐘`
+  return `${duration} ${T.minutes}`
 }
 
-const buildSettingsMap = (rows) =>
-  (rows || []).reduce((acc, row) => {
-    acc[row.key] = row.value
-    return acc
-  }, {})
+const normalizeDaysOff = (value) => {
+  if (!value) return []
+  if (Array.isArray(value)) return value.map((item) => String(item).trim()).filter(Boolean)
+
+  const text = String(value).trim()
+  if (!text) return []
+
+  if (text.startsWith('[')) {
+    try {
+      const parsed = JSON.parse(text)
+      return Array.isArray(parsed) ? parsed.map((item) => String(item).trim()).filter(Boolean) : []
+    } catch {
+      return []
+    }
+  }
+
+  return text.split(',').map((item) => item.trim()).filter(Boolean)
+}
+
+const normalizePublicSettings = (payload) => ({
+  ...DEFAULT_SETTINGS,
+  ...(payload?.settings || {}),
+  days_off: normalizeDaysOff(payload?.settings?.days_off),
+})
 
 const getTicketServiceId = (ticket) => {
   const raw = ticket?.tickets?.service_id ?? ticket?.service_id ?? null
@@ -32,7 +118,7 @@ export default function BookingPage() {
   const [bootstrapError, setBootstrapError] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [authUser, setAuthUser] = useState(null)
-  const [shopSettings, setShopSettings] = useState({})
+  const [shopSettings, setShopSettings] = useState(DEFAULT_SETTINGS)
   const [services, setServices] = useState([])
   const [staffList, setStaffList] = useState([])
   const [coupons, setCoupons] = useState([])
@@ -49,6 +135,7 @@ export default function BookingPage() {
   const [showModal, setShowModal] = useState(false)
   const [bookingRef, setBookingRef] = useState('')
   const [waUrl, setWaUrl] = useState('')
+  const isEditing = Boolean(editId)
 
   const refreshAvailability = async () => {
     if (!selectedServiceId || !selectedDate) {
@@ -69,7 +156,7 @@ export default function BookingPage() {
 
       const response = await fetch(`/api/availability?${params.toString()}`)
       const result = await response.json()
-      if (!response.ok) throw new Error(result?.error || 'Failed to fetch available slots')
+      if (!response.ok) throw new Error(result?.error || T.slotsError)
 
       const nextSlots = result.slots || []
       setAvailableSlots(nextSlots)
@@ -77,7 +164,7 @@ export default function BookingPage() {
     } catch (error) {
       setAvailableSlots([])
       setSelectedTime('')
-      toast.error(error?.message || '鐒℃硶璁€鍙栧彲闋愮磩鏅傛')
+      toast.error(error?.message || T.slotsError)
     } finally {
       setLoadingSlots(false)
     }
@@ -123,21 +210,25 @@ export default function BookingPage() {
           supabase.from('services').select('*').eq('enabled', true).order('sort_order'),
           supabase.from('staff').select('*').eq('enabled', true).order('name'),
           supabase.from('coupons').select('*').eq('enabled', true),
-          supabase.from('settings').select('*'),
+          fetch('/api/public/settings').then(async (response) => {
+            const payload = await response.json().catch(() => ({}))
+            if (!response.ok) throw new Error(payload?.error || T.settingsError)
+            return payload
+          }),
         ])
 
         const auth = authResult.status === 'fulfilled' ? authResult.value?.data : null
         const servicesRes = servicesResult.status === 'fulfilled' ? servicesResult.value : { data: [] }
         const staffRes = staffResult.status === 'fulfilled' ? staffResult.value : { data: [] }
         const couponsRes = couponsResult.status === 'fulfilled' ? couponsResult.value : { data: [] }
-        const settingsRes = settingsResult.status === 'fulfilled' ? settingsResult.value : { data: [] }
+        const settingsRes = settingsResult.status === 'fulfilled' ? settingsResult.value : { settings: DEFAULT_SETTINGS }
 
         const user = auth?.session?.user || null
         setAuthUser(user)
         setServices(servicesRes.data || [])
         setStaffList(staffRes.data || [])
         setCoupons(couponsRes.data || [])
-        setShopSettings(buildSettingsMap(settingsRes.data || []))
+        setShopSettings(normalizePublicSettings(settingsRes))
 
         if (user) {
           try {
@@ -159,11 +250,11 @@ export default function BookingPage() {
         }
 
         if (failures.length > 0) {
-          setBootstrapError(`載入部分資料失敗：${failures.join(', ')}`)
+          setBootstrapError(`${T.partialLoad}${failures.join(', ')}`)
         }
       } catch (error) {
         console.error('Failed to bootstrap booking page', error)
-        setBootstrapError(error?.message || '載入預約頁失敗')
+        setBootstrapError(error?.message || T.pageLoadError)
       } finally {
         setLoading(false)
       }
@@ -199,7 +290,7 @@ export default function BookingPage() {
 
         const response = await fetch(`/api/account/bookings/${nextEditId}`)
         const result = await response.json()
-        if (!response.ok) throw new Error(result?.error || 'Failed to load booking')
+        if (!response.ok) throw new Error(result?.error || T.bookingLoadError)
 
         const booking = result.booking
         setSelectedServiceId(String(booking.service_id || ''))
@@ -213,7 +304,7 @@ export default function BookingPage() {
           coupon: booking.coupon || '',
         }))
       } catch (error) {
-        toast.error(error?.message || 'Failed to load booking')
+        toast.error(error?.message || T.bookingLoadError)
       }
     }
 
@@ -251,7 +342,7 @@ export default function BookingPage() {
 
   const handleSubmit = async () => {
     if (!selectedService || !selectedDate || !selectedTime || !formData.name || !formData.phone) {
-      toast.error('請填寫所有必填欄位')
+      toast.error(T.requiredFields)
       return
     }
 
@@ -260,7 +351,7 @@ export default function BookingPage() {
     } = await supabase.auth.getUser()
 
     if (!user) {
-      toast.error('請先登入會員後再預約')
+      toast.error(T.loginFirst)
       const returnTo = typeof window !== 'undefined' ? window.location.pathname + window.location.search : '/booking'
       router.push(`/login?redirectTo=${encodeURIComponent(returnTo)}`)
       return
@@ -294,33 +385,33 @@ export default function BookingPage() {
         body: JSON.stringify(payload),
       })
       const result = await response.json()
-      if (!response.ok) throw new Error(result?.error || '預約失敗')
+      if (!response.ok) throw new Error(result?.error || T.bookingFailed)
 
       const savedBooking = result.booking
       const ref = savedBooking?.ref || ''
-      const shopPhone = String(shopSettings.phone || '85212345678').replace(/\D/g, '')
+      const shopPhone = String(shopSettings.phone || '').replace(/\D/g, '')
       const message = [
-        '你好，我想確認預約資料：',
-        `編號：${ref}`,
-        `服務：${selectedService.name}`,
-        `日期：${selectedDate}`,
-        `時間：${selectedTime}`,
-        `姓名：${formData.name}`,
+        T.whatsappIntro,
+        `${T.ref}\uff1a${ref}`,
+        `${T.service}\uff1a${selectedService.name}`,
+        `${T.date}\uff1a${selectedDate}`,
+        `${T.time}\uff1a${selectedTime}`,
+        `${T.name}\uff1a${formData.name}`,
       ].join('\n')
 
       setBookingRef(ref)
-      setWaUrl(`https://wa.me/${shopPhone}?text=${encodeURIComponent(message)}`)
+      setWaUrl(shopPhone ? `https://wa.me/${shopPhone}?text=${encodeURIComponent(message)}` : '')
       setShowModal(true)
       setSelectedTime('')
       await refreshAvailability()
-      toast.success(editId ? '預約已更新' : '預約成功')
+      toast.success(editId ? T.updated : T.success)
 
       if (selectedTicket) {
         setSelectedTicketId('')
         await loadMemberContext(user)
       }
     } catch (error) {
-      toast.error(error?.message || '預約失敗')
+      toast.error(error?.message || T.bookingFailed)
     } finally {
       setSubmitting(false)
     }
@@ -329,7 +420,7 @@ export default function BookingPage() {
   if (loading) {
     return (
       <div style={{ padding: '48px 16px', textAlign: 'center' }}>
-        <p>載入中...</p>
+        <p>{T.loading}</p>
       </div>
     )
   }
@@ -337,8 +428,9 @@ export default function BookingPage() {
   return (
     <>
       <section style={{ padding: '32px 16px', background: '#FAF8F5', textAlign: 'center' }}>
-        <h1 style={{ fontSize: '30px', marginBottom: '8px' }}>{editId ? '更改預約' : '線上預約'}</h1>
-        <p style={{ color: '#666' }}>統一使用會員登入與伺服器預約流程，避免時段衝突與資料不一致。</p>
+        <h1 style={{ fontSize: '30px', marginBottom: '8px' }}>{editId ? T.editTitle : T.title}</h1>
+        <p style={{ color: '#666' }}>{T.intro}</p>
+        {isEditing && <p style={{ color: '#8B7355', fontSize: '14px', marginTop: '10px' }}>{T.editLocked}</p>}
       </section>
 
       <section style={{ padding: '24px 16px 40px' }}>
@@ -351,26 +443,31 @@ export default function BookingPage() {
 
           {!authUser && (
             <div style={{ background: '#fff', borderRadius: '18px', padding: '20px', border: '1px dashed #d1d5db' }}>
-              <div style={{ fontWeight: 800, marginBottom: '8px', color: '#A68B6A' }}>請先登入會員</div>
-              <p style={{ color: '#666', fontSize: '14px', marginBottom: '14px' }}>登入後先會顯示你的會員資料、可用套票與私人預約記錄。</p>
+              <div style={{ fontWeight: 800, marginBottom: '8px', color: '#A68B6A' }}>{T.memberTitle}</div>
+              <p style={{ color: '#666', fontSize: '14px', marginBottom: '14px' }}>{T.memberIntro}</p>
               <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                 <Link href={`/login?redirectTo=${encodeURIComponent('/booking')}`} style={{ padding: '10px 16px', background: '#A68B6A', color: '#fff', borderRadius: '10px', textDecoration: 'none', fontWeight: 700 }}>
-                  登入
+                  {T.login}
                 </Link>
                 <Link href={`/register?redirectTo=${encodeURIComponent('/booking')}`} style={{ padding: '10px 16px', background: '#fff', color: '#A68B6A', borderRadius: '10px', textDecoration: 'none', border: '1px solid #A68B6A', fontWeight: 700 }}>
-                  註冊
+                  {T.register}
                 </Link>
               </div>
             </div>
           )}
 
           <div style={{ background: '#fff', borderRadius: '18px', padding: '24px', boxShadow: '0 4px 18px rgba(0,0,0,0.05)' }}>
-            <h2 style={{ fontSize: '18px', marginBottom: '18px' }}>1. 選擇服務與髮型師</h2>
+            <h2 style={{ fontSize: '18px', marginBottom: '18px' }}>{T.section1}</h2>
             <div style={{ display: 'grid', gap: '16px', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
               <div>
-                <label style={{ display: 'block', fontWeight: 600, marginBottom: '8px' }}>服務</label>
-                <select value={selectedServiceId} onChange={(event) => setSelectedServiceId(event.target.value)} style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #ddd' }}>
-                  <option value="">請選擇服務</option>
+                <label style={{ display: 'block', fontWeight: 600, marginBottom: '8px' }}>{T.service}</label>
+                <select
+                  value={selectedServiceId}
+                  onChange={(event) => setSelectedServiceId(event.target.value)}
+                  disabled={isEditing}
+                  style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #ddd', background: isEditing ? '#f9fafb' : '#fff' }}
+                >
+                  <option value="">{T.chooseService}</option>
                   {services.map((service) => (
                     <option key={service.id} value={service.id}>
                       {service.name} - {formatCurrency(service.price)}
@@ -380,9 +477,9 @@ export default function BookingPage() {
               </div>
 
               <div>
-                <label style={{ display: 'block', fontWeight: 600, marginBottom: '8px' }}>髮型師</label>
+                <label style={{ display: 'block', fontWeight: 600, marginBottom: '8px' }}>{T.stylist}</label>
                 <select value={selectedStaffId} onChange={(event) => setSelectedStaffId(event.target.value)} style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #ddd' }}>
-                  <option value="random">系統分配</option>
+                  <option value="random">{T.randomStaff}</option>
                   {staffList.map((staff) => (
                     <option key={staff.id} value={staff.id}>
                       {staff.name}
@@ -396,7 +493,7 @@ export default function BookingPage() {
               <div style={{ marginTop: '16px', padding: '16px', background: '#FAF8F5', borderRadius: '14px' }}>
                 <div style={{ fontWeight: 800, marginBottom: '4px' }}>{selectedService.name}</div>
                 <div style={{ color: '#666', fontSize: '14px' }}>
-                  {formatServiceDuration(selectedService)} · {formatCurrency(selectedService.price)}
+                  {formatServiceDuration(selectedService)} / {formatCurrency(selectedService.price)}
                 </div>
                 {selectedService.description && <div style={{ color: '#777', fontSize: '14px', marginTop: '8px' }}>{selectedService.description}</div>}
               </div>
@@ -404,20 +501,20 @@ export default function BookingPage() {
           </div>
 
           <div style={{ background: '#fff', borderRadius: '18px', padding: '24px', boxShadow: '0 4px 18px rgba(0,0,0,0.05)' }}>
-            <h2 style={{ fontSize: '18px', marginBottom: '18px' }}>2. 選擇日期與時段</h2>
+            <h2 style={{ fontSize: '18px', marginBottom: '18px' }}>{T.section2}</h2>
             <div style={{ display: 'grid', gap: '16px', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', marginBottom: '18px' }}>
               <div>
-                <label style={{ display: 'block', fontWeight: 600, marginBottom: '8px' }}>日期</label>
+                <label style={{ display: 'block', fontWeight: 600, marginBottom: '8px' }}>{T.date}</label>
                 <input type="date" value={selectedDate} onChange={(event) => setSelectedDate(event.target.value)} style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #ddd' }} />
               </div>
               <div>
-                <label style={{ display: 'block', fontWeight: 600, marginBottom: '8px' }}>營業時間</label>
-                <input value={shopSettings.business_hours || '11:00 - 20:00'} readOnly style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #eee', background: '#f9fafb' }} />
+                <label style={{ display: 'block', fontWeight: 600, marginBottom: '8px' }}>{T.businessHours}</label>
+                <input value={shopSettings.business_hours || DEFAULT_SETTINGS.business_hours} readOnly style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #eee', background: '#f9fafb' }} />
               </div>
             </div>
 
             {loadingSlots ? (
-              <p style={{ color: '#666' }}>載入可用時段中...</p>
+              <p style={{ color: '#666' }}>{T.loadingSlots}</p>
             ) : (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: '12px' }}>
                 {availableSlots.map((slot) => (
@@ -442,35 +539,33 @@ export default function BookingPage() {
               </div>
             )}
 
-            {!loadingSlots && selectedDate && availableSlots.length === 0 && (
-              <p style={{ color: '#777', marginTop: '12px' }}>該日期暫無可用時段，請改選其他日期或髮型師。</p>
-            )}
+            {!loadingSlots && selectedDate && availableSlots.length === 0 && <p style={{ color: '#777', marginTop: '12px' }}>{T.noSlots}</p>}
           </div>
 
           <div style={{ background: '#fff', borderRadius: '18px', padding: '24px', boxShadow: '0 4px 18px rgba(0,0,0,0.05)' }}>
-            <h2 style={{ fontSize: '18px', marginBottom: '18px' }}>3. 聯絡資料與優惠</h2>
+            <h2 style={{ fontSize: '18px', marginBottom: '18px' }}>{T.section3}</h2>
 
             <div style={{ display: 'grid', gap: '16px', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
               <div>
-                <label style={{ display: 'block', fontWeight: 600, marginBottom: '8px' }}>姓名</label>
+                <label style={{ display: 'block', fontWeight: 600, marginBottom: '8px' }}>{T.name}</label>
                 <input value={formData.name} onChange={(event) => setFormData((current) => ({ ...current, name: event.target.value }))} style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #ddd' }} />
               </div>
               <div>
-                <label style={{ display: 'block', fontWeight: 600, marginBottom: '8px' }}>電話</label>
+                <label style={{ display: 'block', fontWeight: 600, marginBottom: '8px' }}>{T.phone}</label>
                 <input value={formData.phone} onChange={(event) => setFormData((current) => ({ ...current, phone: event.target.value }))} style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #ddd' }} />
               </div>
             </div>
 
             <div style={{ display: 'grid', gap: '16px', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', marginTop: '16px' }}>
               <div>
-                <label style={{ display: 'block', fontWeight: 600, marginBottom: '8px' }}>優惠碼</label>
+                <label style={{ display: 'block', fontWeight: 600, marginBottom: '8px' }}>{T.coupon}</label>
                 <select
                   value={formData.coupon}
                   onChange={(event) => setFormData((current) => ({ ...current, coupon: event.target.value }))}
-                  disabled={Boolean(selectedTicket)}
-                  style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #ddd' }}
+                  disabled={Boolean(selectedTicket) || isEditing}
+                  style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #ddd', background: isEditing ? '#f9fafb' : '#fff' }}
                 >
-                  <option value="">不使用優惠碼</option>
+                  <option value="">{T.noCoupon}</option>
                   {coupons.map((coupon) => (
                     <option key={coupon.id} value={coupon.code}>
                       {coupon.name}
@@ -480,7 +575,7 @@ export default function BookingPage() {
               </div>
 
               <div>
-                <label style={{ display: 'block', fontWeight: 600, marginBottom: '8px' }}>會員套票</label>
+                <label style={{ display: 'block', fontWeight: 600, marginBottom: '8px' }}>{T.ticket}</label>
                 <select
                   value={selectedTicketId}
                   onChange={(event) => {
@@ -490,12 +585,13 @@ export default function BookingPage() {
                     }
                   }}
                   style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #ddd' }}
-                  disabled={!authUser || filteredTickets.length === 0}
+                  disabled={!authUser || filteredTickets.length === 0 || isEditing}
+                  style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #ddd', background: isEditing ? '#f9fafb' : '#fff' }}
                 >
-                  <option value="">{authUser ? '不使用套票' : '登入後可使用套票'}</option>
+                  <option value="">{authUser ? T.noTicket : T.loginForTicket}</option>
                   {filteredTickets.map((ticket) => (
                     <option key={ticket.id} value={ticket.id}>
-                      {ticket.ticket_name} · 剩餘 {ticket.remaining_count} 次
+                      {ticket.ticket_name} / {T.remaining} {ticket.remaining_count} {T.times}
                     </option>
                   ))}
                 </select>
@@ -505,10 +601,8 @@ export default function BookingPage() {
             <div style={{ marginTop: '20px', padding: '18px', borderRadius: '14px', background: '#FAF8F5' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
                 <div>
-                  <div style={{ fontWeight: 800 }}>應付金額</div>
-                  <div style={{ color: '#666', fontSize: '14px' }}>
-                    {selectedTicket ? '本次將扣除 1 次套票額度' : '優惠會由伺服器再次驗證'}
-                  </div>
+                  <div style={{ fontWeight: 800 }}>{T.amount}</div>
+                  <div style={{ color: '#666', fontSize: '14px' }}>{selectedTicket ? T.ticketUse : T.couponApply}</div>
                 </div>
                 <div style={{ fontSize: '28px', fontWeight: 800, color: '#A68B6A' }}>{formatCurrency(finalPrice)}</div>
               </div>
@@ -521,7 +615,7 @@ export default function BookingPage() {
               className="btn-interactive"
               style={{ width: '100%', marginTop: '18px', padding: '16px', borderRadius: '14px', border: 'none', background: 'linear-gradient(135deg, #A68B6A, #8B7355)', color: '#fff', fontWeight: 800, cursor: 'pointer' }}
             >
-              {submitting ? '提交中...' : editId ? '更新預約' : '提交預約'}
+              {submitting ? T.submitting : editId ? T.update : T.submit}
             </button>
           </div>
         </div>
@@ -531,17 +625,27 @@ export default function BookingPage() {
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '16px' }}>
           <div style={{ background: '#fff', borderRadius: '18px', padding: '24px', width: '100%', maxWidth: '420px', textAlign: 'center' }}>
             <div style={{ fontSize: '48px', marginBottom: '12px' }}>OK</div>
-            <h2 style={{ marginBottom: '8px' }}>{editId ? '預約已更新' : '預約成功'}</h2>
-            <p style={{ color: '#666', marginBottom: '16px' }}>預約編號：{bookingRef || '-'}</p>
+            <h2 style={{ marginBottom: '8px' }}>{editId ? T.updated : T.success}</h2>
+            <p style={{ color: '#666', marginBottom: '16px' }}>
+              {T.refLabel}
+              {bookingRef || '-'}
+            </p>
             <div style={{ display: 'grid', gap: '10px' }}>
-              <a href={waUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'block', padding: '12px 16px', borderRadius: '12px', background: '#25D366', color: '#fff', textDecoration: 'none', fontWeight: 700 }}>
-                WhatsApp 確認
-              </a>
+              {waUrl ? (
+                <a href={waUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'block', padding: '12px 16px', borderRadius: '12px', background: '#25D366', color: '#fff', textDecoration: 'none', fontWeight: 700 }}>
+                  {T.whatsappConfirm}
+                </a>
+              ) : (
+                <div style={{ padding: '12px 16px', borderRadius: '12px', background: '#f3f4f6', color: '#666', fontWeight: 700 }}>
+                  <div>{T.whatsappUnavailable}</div>
+                  <div style={{ fontSize: '12px', fontWeight: 500, marginTop: '4px' }}>{T.whatsappUnavailableHelp}</div>
+                </div>
+              )}
               <Link href="/account/bookings" style={{ display: 'block', padding: '12px 16px', borderRadius: '12px', background: '#f3f4f6', color: '#333', textDecoration: 'none', fontWeight: 700 }}>
-                查看我的預約
+                {T.viewBookings}
               </Link>
               <button type="button" onClick={() => setShowModal(false)} style={{ padding: '12px 16px', borderRadius: '12px', background: '#fff', border: '1px solid #ddd', fontWeight: 700, cursor: 'pointer' }}>
-                關閉
+                {T.close}
               </button>
             </div>
           </div>
