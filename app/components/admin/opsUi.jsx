@@ -91,13 +91,47 @@ export function SummaryPill({ label, value, tone = 'default' }) {
   )
 }
 
-export function EmptyState({ title, description }) {
+export function EmptyState({ title, description, actions }) {
   return (
     <div className="admin-card" style={{ padding: '28px', textAlign: 'center', color: 'var(--text-light)' }}>
       <div style={{ fontSize: '16px', fontWeight: 800, color: 'var(--text)', marginBottom: '6px' }}>{title}</div>
       <div style={{ fontSize: '13px', lineHeight: 1.6 }}>{description}</div>
+      {actions && <div style={{ marginTop: '14px', display: 'flex', justifyContent: 'center', gap: '10px', flexWrap: 'wrap' }}>{actions}</div>}
     </div>
   )
+}
+
+export function AdminActionBar({ eyebrow, title, description, status, actions, children }) {
+  return (
+    <div
+      className="admin-card"
+      style={{
+        padding: '18px 20px',
+        border: '1px solid rgba(166, 139, 106, 0.2)',
+        background: 'linear-gradient(135deg, #fff, #FBF8F4)',
+        display: 'flex',
+        justifyContent: 'space-between',
+        gap: '16px',
+        alignItems: 'center',
+        flexWrap: 'wrap',
+      }}
+    >
+      <div style={{ minWidth: 0 }}>
+        {eyebrow && <div style={{ fontSize: '12px', fontWeight: 800, letterSpacing: '0.08em', color: '#A68B6A' }}>{eyebrow}</div>}
+        <div style={{ marginTop: '4px', fontSize: '20px', fontWeight: 800, color: 'var(--text)' }}>{title}</div>
+        {description && <div style={{ marginTop: '6px', fontSize: '13px', color: 'var(--text-light)', lineHeight: 1.6 }}>{description}</div>}
+        {status && <div style={{ marginTop: '8px' }}>{status}</div>}
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+        {children}
+        {actions}
+      </div>
+    </div>
+  )
+}
+
+export function EmptyStateWithActions({ title, description, actions }) {
+  return <EmptyState title={title} description={description} actions={actions} />
 }
 
 export function Pill({ children, tone = 'default' }) {
@@ -121,5 +155,16 @@ export function Pill({ children, tone = 'default' }) {
     >
       {children}
     </span>
+  )
+}
+
+export function RecordFilterBar({ children, actions, columns = 'repeat(auto-fit, minmax(180px, 1fr))' }) {
+  return (
+    <div className="admin-card" style={{ padding: '18px', border: '1px solid var(--gray)' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: columns, gap: '12px', alignItems: 'center' }}>
+        {children}
+        {actions ? <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', flexWrap: 'wrap' }}>{actions}</div> : null}
+      </div>
+    </div>
   )
 }
