@@ -21,13 +21,13 @@ const getNameById = (rows = [], id) => {
 }
 
 const getTargetScopeLabel = (row, locations = [], providerGroups = [], staff = [], providerGroupsReady = true) => {
-  const locationLabel = row?.location_id ? getNameById(locations, row.location_id) || `#${row.location_id}` : 'All locations'
+  const locationLabel = row?.location_id ? getNameById(locations, row.location_id) || `#${row.location_id}` : '全部地點'
   const providerGroupLabel = row?.provider_group_id
     ? getNameById(providerGroups, row.provider_group_id) || `#${row.provider_group_id}`
     : providerGroupsReady
-      ? 'All provider groups'
-      : 'Provider group unavailable'
-  const staffLabel = row?.staff_id ? getNameById(staff, row.staff_id) || `#${row.staff_id}` : 'All staff'
+      ? '全部服務供應者群組'
+      : '服務供應者群組未就緒'
+  const staffLabel = row?.staff_id ? getNameById(staff, row.staff_id) || `#${row.staff_id}` : '全部人員'
   return `${locationLabel} / ${providerGroupLabel} / ${staffLabel}`
 }
 
@@ -83,9 +83,9 @@ export default function HolidaysTab({
   if (!available) {
     return (
       <div className="admin-card" style={{ padding: '28px', color: 'var(--text-light)' }}>
-        <div style={{ fontSize: '14px', fontWeight: 800, color: 'var(--text)' }}>Holidays table unavailable</div>
+        <div style={{ fontSize: '14px', fontWeight: 800, color: 'var(--text)' }}>假期資料表未就緒</div>
         <div style={{ marginTop: '8px', fontSize: '13px', lineHeight: 1.6 }}>
-          Run the latest migration before using holiday scope targeting. This page stays read-only until the holiday lookup tables are available.
+          請先執行最新 migration，然後先可使用假期範圍設定。直到假期查詢資料表就緒前，呢個頁面會維持唯讀。
         </div>
       </div>
     )
@@ -95,15 +95,15 @@ export default function HolidaysTab({
     <div style={{ display: 'grid', gap: '18px' }}>
       <div className="admin-card" style={{ padding: '22px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
         <div>
-          <div style={{ fontSize: '12px', fontWeight: 800, letterSpacing: '0.08em', color: '#A68B6A' }}>OPERATIONS</div>
-          <h3 style={{ margin: '6px 0 0', fontSize: '18px' }}>Holidays</h3>
+          <div style={{ fontSize: '12px', fontWeight: 800, letterSpacing: '0.08em', color: '#A68B6A' }}>營運</div>
+          <h3 style={{ margin: '6px 0 0', fontSize: '18px' }}>假期管理</h3>
           <p style={{ margin: '8px 0 0', fontSize: '13px', color: 'var(--text-light)' }}>
-            Create branch closures, provider-group scoped blackouts, staff leave days, and special operational blackout dates.
+            建立分店休業、指定服務供應者群組黑期、人員請假日，以及特別營運封鎖日期。
           </p>
         </div>
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
           <button type="button" onClick={addRow} className="btn btn-small btn-interactive">
-            + Add holiday
+            + 新增假期
           </button>
           <button
             type="button"
@@ -112,47 +112,47 @@ export default function HolidaysTab({
             className="btn btn-small btn-interactive"
             style={{ minWidth: '120px' }}
           >
-            {saving ? 'Saving...' : 'Save'}
+            {saving ? '儲存中...' : '儲存'}
           </button>
         </div>
       </div>
 
       {providerGroupsUnavailable && (
         <div className="admin-card" style={{ padding: '14px 16px', border: '1px solid #FCD34D', background: '#FFFBEB', color: '#92400E', fontSize: '13px', lineHeight: 1.6 }}>
-          Provider groups are not loaded yet. Location and staff targeting still work, but provider-group targeting cannot be added or changed until the lookup table is available.
+          服務供應者群組資料尚未載入。地點同人員範圍仍可用，但未到群組查詢資料表就緒前，不能新增或修改服務供應者群組範圍。
         </div>
       )}
 
       <div className="admin-card" style={{ display: 'grid', gap: '12px', padding: '20px' }}>
         {rows.length === 0 ? (
-          <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-light)' }}>No holidays configured yet.</div>
+          <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-light)' }}>暫時未有假期設定。</div>
         ) : (
           rows.map((row) => (
             <div key={row.id} className="admin-card" style={{ padding: '16px', border: '1px solid var(--gray)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap', marginBottom: '12px' }}>
                 <div style={{ display: 'grid', gap: '4px' }}>
-                  <div style={{ fontSize: '12px', fontWeight: 800, letterSpacing: '0.08em', color: '#A68B6A' }}>TARGETING</div>
+                  <div style={{ fontSize: '12px', fontWeight: 800, letterSpacing: '0.08em', color: '#A68B6A' }}>範圍設定</div>
                   <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text)' }}>{getTargetScopeLabel(row, locations, providerGroups, staff, providerGroupsReady)}</div>
                 </div>
                 <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
                   <span className="badge badge-outline" style={{ background: '#fff' }}>
-                    Location: {row.location_id ? getNameById(locations, row.location_id) || `#${row.location_id}` : 'All'}
+                    地點：{row.location_id ? getNameById(locations, row.location_id) || `#${row.location_id}` : '全部'}
                   </span>
                   <span className="badge badge-outline" style={{ background: '#fff' }}>
-                    Provider group: {row.provider_group_id ? getNameById(providerGroups, row.provider_group_id) || `#${row.provider_group_id}` : providerGroupsReady ? 'All' : 'Unavailable'}
+                    服務供應者群組：{row.provider_group_id ? getNameById(providerGroups, row.provider_group_id) || `#${row.provider_group_id}` : providerGroupsReady ? '全部' : '未就緒'}
                   </span>
                   <span className="badge badge-outline" style={{ background: '#fff' }}>
-                    Staff: {row.staff_id ? getNameById(staff, row.staff_id) || `#${row.staff_id}` : 'All'}
+                    人員：{row.staff_id ? getNameById(staff, row.staff_id) || `#${row.staff_id}` : '全部'}
                   </span>
                 </div>
               </div>
 
               <div style={{ display: 'grid', gap: '12px', gridTemplateColumns: '1.3fr 1fr 1fr 1fr 1fr 1fr auto' }}>
-                <input value={row.title} onChange={(e) => updateRow(row.id, { title: e.target.value })} placeholder="Holiday title" style={fieldStyle} />
+                <input value={row.title} onChange={(e) => updateRow(row.id, { title: e.target.value })} placeholder="假期名稱" style={fieldStyle} />
                 <input type="date" value={row.holiday_date} onChange={(e) => updateRow(row.id, { holiday_date: e.target.value })} style={fieldStyle} />
                 <input type="date" value={row.end_date} onChange={(e) => updateRow(row.id, { end_date: e.target.value })} style={fieldStyle} />
                 <select value={row.location_id} onChange={(e) => updateRow(row.id, { location_id: e.target.value === '' ? '' : Number(e.target.value) })} style={fieldStyle}>
-                  <option value="">All locations</option>
+                  <option value="">全部地點</option>
                   {locations.map((location) => (
                     <option key={location.id} value={location.id}>
                       {location.name}
@@ -165,7 +165,7 @@ export default function HolidaysTab({
                   style={fieldStyle}
                   disabled={providerGroupsUnavailable}
                 >
-                  <option value="">{providerGroupsUnavailable ? 'Provider group unavailable' : 'All provider groups'}</option>
+                  <option value="">{providerGroupsUnavailable ? '服務供應者群組未就緒' : '全部服務供應者群組'}</option>
                   {providerGroups.map((group) => (
                     <option key={group.id} value={group.id}>
                       {group.name || group.title || group.label || group.code || `#${group.id}`}
@@ -173,7 +173,7 @@ export default function HolidaysTab({
                   ))}
                 </select>
                 <select value={row.staff_id} onChange={(e) => updateRow(row.id, { staff_id: e.target.value === '' ? '' : Number(e.target.value) })} style={fieldStyle}>
-                  <option value="">All staff</option>
+                  <option value="">全部人員</option>
                   {staff.map((member) => (
                     <option key={member.id} value={member.id}>
                       {member.name}
@@ -181,16 +181,16 @@ export default function HolidaysTab({
                   ))}
                 </select>
                 <button type="button" onClick={() => removeRow(row.id)} className="btn btn-small btn-interactive" style={{ background: '#FEF2F2', color: '#DC2626', border: '1px solid #FECACA' }}>
-                  Remove
+                  刪除
                 </button>
               </div>
 
               <div style={{ display: 'grid', gap: '12px', gridTemplateColumns: '120px minmax(0, 1fr)', marginTop: '12px' }}>
                 <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 700, fontSize: '13px' }}>
                   <input type="checkbox" checked={row.is_closed !== false} onChange={(e) => updateRow(row.id, { is_closed: e.target.checked })} />
-                  Closed
+                  關閉
                 </label>
-                <input value={row.note} onChange={(e) => updateRow(row.id, { note: e.target.value })} placeholder="Internal note" style={fieldStyle} />
+                <input value={row.note} onChange={(e) => updateRow(row.id, { note: e.target.value })} placeholder="內部備註" style={fieldStyle} />
               </div>
             </div>
           ))
