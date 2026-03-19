@@ -1024,8 +1024,9 @@ export default function Admin() {
         if (error) throw error
       }
 
-      await fetchData()
-      toast.success('儲存成功')
+      await loadBaseData({ showLoading: false })
+      await loadServiceRelationsData()
+      toast.success('已儲存服務')
     } catch (error) {
       toast.error('服務儲存失敗：' + (error?.message || '未知錯誤'))
     } finally {
@@ -1040,8 +1041,8 @@ export default function Admin() {
     setSaving(true)
     try {
       await saveCollection(table, items, deletedIds)
-      await fetchData()
-      toast.success('儲存成功')
+      await loadInventoryData({ force: true })
+      toast.success('已儲存庫存')
     } catch (error) {
       toast.error('庫存儲存失敗：' + (error?.message || '未知錯誤'))
     } finally {
@@ -1067,8 +1068,11 @@ export default function Admin() {
         member_user_id: row.member_user_id || null,
       }))
       await saveCollection('transactions', normalizedRows, deletedIds)
-      await fetchData()
-      toast.success('儲存成功')
+      await loadOrdersTransactionsData({ force: true })
+      if (tabDataLoaded.dashboard || tabDataLoaded.analytics) {
+        await loadDashboardAnalyticsData({ force: true })
+      }
+      toast.success('已儲存交易紀錄')
     } catch (error) {
       toast.error('交易紀錄儲存失敗：' + (error?.message || '未知錯誤'))
     } finally {
@@ -1081,8 +1085,8 @@ export default function Admin() {
     try {
       const rows = Array.isArray(payloadOrRows) ? payloadOrRows : payloadOrRows?.coupons || []
       await saveCollection('coupons', rows)
-      await fetchData()
-      toast.success('儲存成功')
+      await loadCouponsData({ force: true })
+      toast.success('已儲存優惠券')
     } catch (error) {
       toast.error('優惠碼儲存失敗：' + (error?.message || '未知錯誤'))
     } finally {
