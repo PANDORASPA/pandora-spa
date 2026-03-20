@@ -116,6 +116,51 @@ const T = {
 
 const DAY_LABELS = ['一', '二', '三', '四', '五', '六', '日']
 
+Object.assign(T, {
+  title: '線上預約',
+  intro: '先選擇服務與日期，再從下拉選單選擇可預約時段。',
+  loadingStaff: '載入服務供應者資料中...',
+  loadingBootstrapFailed: '無法載入預約資料',
+  noStaffFound: '找不到這位服務供應者',
+  backToBooking: '返回預約頁',
+  serviceProvider: '服務供應者',
+  service: '服務',
+  businessHours: '營業時間',
+  customerName: '顧客姓名',
+  customerNamePlaceholder: '請輸入顧客姓名',
+  customerPhone: '聯絡電話',
+  customerPhonePlaceholder: '請輸入聯絡電話',
+  date: '日期',
+  time: '時間',
+  chooseDateThenTime: '先選日期，再選時間',
+  bookingSummary: '預約摘要',
+  amountDue: '應付金額',
+  monthPrev: '上月',
+  monthNext: '下月',
+  chooseDate: '選擇日期',
+  collapseCalendar: '收起月曆',
+  contactLabel: '查詢電話',
+  timeDropdown: '可預約時段',
+  submit: '提交預約',
+  submitted: '預約已送出',
+  submitFailed: '提交預約失敗',
+})
+
+DAY_LABELS.splice(0, DAY_LABELS.length, '一', '二', '三', '四', '五', '六', '日')
+
+const getReasonMessageClean = (summary) => {
+  if (!summary) return ''
+  if (summary.status === 'off') return T.offNote
+  if (summary.status !== 'full') return ''
+  if (summary.reason === 'fully_booked' || summary.reason === 'resource_full') {
+    return '有上班，但今天已滿'
+  }
+  if (summary.reason === 'provider_mismatch' || summary.reason === 'location_required' || summary.reason === 'no_bookable_slots') {
+    return '已安排上班，但此服務目前未形成可預約時段'
+  }
+  return T.configLimitedNote
+}
+
 function LegendPill({ children, tone = 'default' }) {
   const palette =
     tone === 'warning'
@@ -420,6 +465,7 @@ export default function BookingStaffPage() {
     setError('')
 
     const dailySlotsKey = [staffId, serviceId, staff?.location_id || 'none', selectedDate, availabilityVersion || 'v0'].join(':')
+    const monthSummaryKey = [staffId, serviceId, staff?.location_id || 'none', monthKey, availabilityVersion || 'v0'].join(':')
     const cachedSlots = readCached(dailySlotsCache, dailySlotsKey, DAILY_SLOTS_CACHE_TTL_MS)
     if (cachedSlots) {
       setSlots(cachedSlots)
@@ -449,6 +495,23 @@ export default function BookingStaffPage() {
           : Array.isArray(payload?.slotMatrix)
             ? payload.slotMatrix.flat().filter(Boolean)
             : []
+        if (!nextSlots.length && payload?.dateSummaryReason) {
+          setMonthSummary((current) => {
+            const next = current.map((entry) => {
+              if (entry?.date !== selectedDate) return entry
+              const nextStatus = payload.dateSummaryReason === 'staff_unavailable' ? 'off' : 'full'
+              return {
+                ...entry,
+                status: nextStatus,
+                reason: payload.dateSummaryReason,
+                hasAvailableSlots: false,
+                availableCount: 0,
+              }
+            })
+            writeCached(monthSummaryCache, monthSummaryKey, next)
+            return next
+          })
+        }
         writeCached(dailySlotsCache, dailySlotsKey, nextSlots)
         setSlots(nextSlots)
       })
@@ -465,7 +528,7 @@ export default function BookingStaffPage() {
     return () => {
       cancelled = true
     }
-  }, [availabilityVersion, selectedDate, serviceId, staff?.location_id, staffId, summaryMap])
+  }, [availabilityVersion, monthKey, selectedDate, serviceId, staff?.location_id, staffId, summaryMap])
 
   const handleSubmit = async (event) => {
     event.preventDefault()
@@ -686,7 +749,7 @@ export default function BookingStaffPage() {
                 </label>
               </div>
 
-              {selectedDate && selectedSummary ? <div style={{ color: '#6B7280', fontSize: '14px' }}>{getReasonMessage(selectedSummary)}</div> : null}
+              {selectedDate && selectedSummary ? <div style={{ color: '#6B7280', fontSize: '14px' }}>{getReasonMessageClean(selectedSummary)}</div> : null}
               {selectedDate && !loadingSlots && slots.length === 0 && selectedSummary?.status === 'available' ? <div style={{ color: '#6B7280' }}>{T.noAvailability}</div> : null}
             </div>
 
