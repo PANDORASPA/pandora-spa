@@ -65,10 +65,14 @@ export const bookingOpsCopy = {
   fullDayHint: '有上班，但今天已滿',
   offDayHint: '今日休息，未有可預約時段',
   limitedDayHint: '已安排上班，但目前未形成可預約時段',
+  providerMismatchHint: '已安排上班，但此服務與服務供應者設定未形成可預約時段',
+  locationRequiredHint: '已安排上班，但此服務需要先確認地點才可形成可預約時段',
+  partialBlockedHint: '已安排上班，但可預約時段已被休息、休假或封鎖時段扣減',
   loadFailed: '無法載入資料',
   calendarAvailable: '上班 / 可預約',
   calendarFull: '上班 / 已滿',
   calendarRest: '休息',
+  calendarLimited: '上班 / 規則限制',
 }
 
 export const sectionShell = {
