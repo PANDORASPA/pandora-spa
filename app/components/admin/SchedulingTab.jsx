@@ -130,34 +130,118 @@ const getPreviewStatusCopy = (entry = {}) => {
 
 const normalizeDateValue = (value) => String(value || '').slice(0, 10)
 
-const getSelectedDatePlan = ({ dateISO, staff, shiftRows = [], breakRows = [], timeOffRows = [], blockedRows = [] }) => {
+const normalizeOptionalNumber = (value) => {
+  if (value === '' || value == null) return null
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+const normalizeDayList = (value) =>
+  String(value || '')
+    .split(',')
+    .map((item) => String(item || '').trim())
+    .filter((item) => /^[0-6]$/.test(item))
+
+const holidayMatchesPreviewScope = (holiday, { dateISO, locationId, staffId, providerGroupIds = [] }) => {
+  const holidayDate = normalizeDateValue(holiday?.holiday_date)
+  const endDate = normalizeDateValue(holiday?.end_date || holiday?.holiday_date)
+  if (!holidayDate || holidayDate > dateISO || endDate < dateISO) return false
+
+  const holidayLocationId = normalizeOptionalNumber(holiday?.location_id)
+  const holidayStaffId = normalizeOptionalNumber(holiday?.staff_id)
+  const holidayProviderGroupId = normalizeOptionalNumber(holiday?.provider_group_id)
+
+  if (!holidayLocationId && !holidayStaffId && !holidayProviderGroupId) return true
+  if (holidayStaffId && holidayStaffId === Number(staffId)) return true
+  if (holidayLocationId && locationId && holidayLocationId === Number(locationId)) return true
+  if (holidayProviderGroupId && providerGroupIds.includes(Number(holidayProviderGroupId))) return true
+  return false
+}
+
+const getSelectedDatePlan = ({
+  dateISO,
+  staff,
+  settings = {},
+  holidays = [],
+  selectedService = null,
+  serviceLocations = [],
+  serviceProviderGroups = [],
+  shiftRows = [],
+  breakRows = [],
+  timeOffRows = [],
+  blockedRows = [],
+}) => {
   if (!dateISO || !staff) return null
   const dayOfWeek = String(new Date(`${dateISO}T00:00:00Z`).getUTCDay())
   const override = (shiftRows || []).find((row) => normalizeDateValue(row.date) === dateISO)
   const isDayOff = (staff?.daysOff || staff?.daysoff || []).map(String).includes(dayOfWeek)
   const baseline = staff?.schedule?.[dayOfWeek] || {}
-
-  const workingWindow = override
-    ? override.is_off
-      ? null
-      : {
-          start: formatTime(override.start_time || baseline.start),
-          end: formatTime(override.end_time || baseline.end),
-          source: '日期覆蓋',
+  const baselineWindow =
+    baseline.start && baseline.end
+      ? {
+          start: formatTime(baseline.start),
+          end: formatTime(baseline.end),
+          source: '每週時間表',
         }
-    : isDayOff
+      : null
+  const businessDayOff = normalizeDayList(settings?.days_off).includes(dayOfWeek)
+  const selectedServiceLocationIds = (serviceLocations || [])
+    .filter((row) => Number(row?.service_id) === Number(selectedService?.id) && row?.enabled !== false)
+    .map((row) => normalizeOptionalNumber(row?.location_id))
+    .filter(Boolean)
+  const selectedServiceProviderGroupIds = (serviceProviderGroups || [])
+    .filter((row) => Number(row?.service_id) === Number(selectedService?.id))
+    .map((row) => normalizeOptionalNumber(row?.provider_group_id))
+    .filter(Boolean)
+  const resolvedLocationId = normalizeOptionalNumber(staff?.location_id)
+  const resolvedProviderGroupId = normalizeOptionalNumber(staff?.provider_group_id)
+  const matchedHolidays = (holidays || []).filter((holiday) =>
+    holidayMatchesPreviewScope(holiday, {
+      dateISO,
+      locationId: resolvedLocationId,
+      staffId: staff?.id,
+      providerGroupIds: resolvedProviderGroupId ? [resolvedProviderGroupId] : [],
+    }),
+  )
+  const holidayClosed = matchedHolidays.some((holiday) => holiday?.is_closed !== false)
+
+  const workingWindow = businessDayOff
+    ? null
+    : holidayClosed
       ? null
-      : baseline.start && baseline.end
-        ? {
-            start: formatTime(baseline.start),
-            end: formatTime(baseline.end),
-            source: '每週時間表',
-          }
-        : null
+      : override
+        ? override.is_off
+          ? null
+          : {
+              start: formatTime(override.start_time || baseline.start),
+              end: formatTime(override.end_time || baseline.end),
+              source: '日期覆蓋',
+            }
+        : isDayOff
+          ? null
+          : baselineWindow
 
   return {
+    dayKey: dayOfWeek,
+    baselineWindow,
     workingWindow,
     override: override || null,
+    isDayOff,
+    businessDayOff,
+    matchedHolidays,
+    holidayClosed,
+    resolvedLocationId,
+    resolvedProviderGroupId,
+    selectedServiceLocationIds,
+    selectedServiceProviderGroupIds,
+    serviceLocationMatched:
+      selectedServiceLocationIds.length === 0 ||
+      !resolvedLocationId ||
+      selectedServiceLocationIds.includes(resolvedLocationId),
+    serviceProviderGroupMatched:
+      selectedServiceProviderGroupIds.length === 0 ||
+      !resolvedProviderGroupId ||
+      selectedServiceProviderGroupIds.includes(resolvedProviderGroupId),
     breaks: (breakRows || []).filter((row) => String(row.day_of_week ?? '') === dayOfWeek && row.enabled !== false),
     timeOff: (timeOffRows || []).filter((row) => normalizeDateValue(row.date) === dateISO),
     blocked: (blockedRows || []).filter((row) => normalizeDateValue(row.date) === dateISO),
@@ -231,6 +315,10 @@ export default function SchedulingTab({
 }) {
   const locations = operationalContext?.locations || []
   const providerGroups = operationalContext?.providerGroups || []
+  const holidays = operationalContext?.holidays || []
+  const settings = operationalContext?.settings || {}
+  const serviceLocations = operationalContext?.serviceLocations || []
+  const serviceProviderGroups = operationalContext?.serviceProviderGroups || []
   const availableTables = operationalContext?.availableTables || {}
   const [selectedStaffId, setSelectedStaffId] = useState(staff[0]?.id ?? null)
   const [previewMonth, setPreviewMonth] = useState(monthKeyFromDate(todayISO()))
@@ -259,20 +347,29 @@ export default function SchedulingTab({
     () => (selectedStaff?.services || []).map((value) => String(value)).join(','),
     [selectedStaff?.services],
   )
+  const selectedPreviewService = useMemo(
+    () => services.find((service) => String(service.id) === String(previewServiceId)) || null,
+    [previewServiceId, services],
+  )
   const previewMap = useMemo(() => new Map(previewDates.map((entry) => [entry.date, entry])), [previewDates])
   const previewGrid = useMemo(() => buildMonthGrid(previewMonth), [previewMonth])
   const selectedPreviewEntry = selectedPreviewDate ? previewMap.get(selectedPreviewDate) || null : null
   const selectedDatePlan = useMemo(
-    () =>
-      getSelectedDatePlan({
-        dateISO: selectedPreviewDate,
-        staff: selectedStaff,
-        shiftRows,
-        breakRows,
-        timeOffRows,
-        blockedRows,
-      }),
-    [blockedRows, breakRows, selectedPreviewDate, selectedStaff, shiftRows, timeOffRows],
+      () =>
+        getSelectedDatePlan({
+          dateISO: selectedPreviewDate,
+          staff: selectedStaff,
+          settings,
+          holidays,
+          selectedService: selectedPreviewService,
+          serviceLocations,
+          serviceProviderGroups,
+          shiftRows,
+          breakRows,
+          timeOffRows,
+          blockedRows,
+        }),
+    [blockedRows, breakRows, holidays, selectedPreviewDate, selectedPreviewService, selectedStaff, serviceLocations, serviceProviderGroups, settings, shiftRows, timeOffRows],
   )
 
   useEffect(() => {
@@ -887,10 +984,10 @@ export default function SchedulingTab({
                     <Pill tone={getPreviewStatusCopy(selectedPreviewEntry).tone}>{getPreviewStatusCopy(selectedPreviewEntry).label}</Pill>
                   </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
-                    <div>
-                      <div style={{ fontSize: '12px', color: '#6B7280', fontWeight: 700 }}>月曆狀態</div>
-                      <div style={{ marginTop: '4px', fontWeight: 800 }}>{selectedPreviewEntry.status}</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
+                      <div>
+                        <div style={{ fontSize: '12px', color: '#6B7280', fontWeight: 700 }}>月曆狀態</div>
+                        <div style={{ marginTop: '4px', fontWeight: 800 }}>{selectedPreviewEntry.status}</div>
                     </div>
                     <div>
                       <div style={{ fontSize: '12px', color: '#6B7280', fontWeight: 700 }}>可預約總數</div>
@@ -900,15 +997,21 @@ export default function SchedulingTab({
                       <div style={{ fontSize: '12px', color: '#6B7280', fontWeight: 700 }}>工作時段總數</div>
                       <div style={{ marginTop: '4px', fontWeight: 800 }}>{Number(selectedPreviewEntry.slotCount || 0)}</div>
                     </div>
-                    <div>
-                      <div style={{ fontSize: '12px', color: '#6B7280', fontWeight: 700 }}>判定原因</div>
-                      <div style={{ marginTop: '4px', fontWeight: 800 }}>{selectedPreviewEntry.reason || '-'}</div>
+                      <div>
+                        <div style={{ fontSize: '12px', color: '#6B7280', fontWeight: 700 }}>判定原因</div>
+                        <div style={{ marginTop: '4px', fontWeight: 800 }}>{selectedPreviewEntry.reason || '-'}</div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '12px', color: '#6B7280', fontWeight: 700 }}>每週時間表基準</div>
+                        <div style={{ marginTop: '4px', fontWeight: 800 }}>
+                          {selectedDatePlan?.baselineWindow ? `${selectedDatePlan.baselineWindow.start} - ${selectedDatePlan.baselineWindow.end}` : '未設定'}
+                        </div>
+                      </div>
                     </div>
-                  </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
-                    <div>
-                      <div style={{ fontSize: '12px', color: '#6B7280', fontWeight: 700 }}>當日上班時間</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
+                      <div>
+                        <div style={{ fontSize: '12px', color: '#6B7280', fontWeight: 700 }}>當日上班時間</div>
                       <div style={{ marginTop: '4px', fontWeight: 800 }}>
                         {selectedDatePlan?.workingWindow ? `${selectedDatePlan.workingWindow.start} - ${selectedDatePlan.workingWindow.end}` : '休息 / 無 working window'}
                       </div>
@@ -916,30 +1019,62 @@ export default function SchedulingTab({
                         {selectedDatePlan?.workingWindow?.source || '未設定'}
                       </div>
                     </div>
-                    <div>
-                      <div style={{ fontSize: '12px', color: '#6B7280', fontWeight: 700 }}>日期覆蓋</div>
-                      <div style={{ marginTop: '4px', fontWeight: 800 }}>
-                        {selectedDatePlan?.override
-                          ? selectedDatePlan.override.is_off
+                      <div>
+                        <div style={{ fontSize: '12px', color: '#6B7280', fontWeight: 700 }}>日期覆蓋</div>
+                        <div style={{ marginTop: '4px', fontWeight: 800 }}>
+                          {selectedDatePlan?.override
+                            ? selectedDatePlan.override.is_off
                             ? '整日休息'
                             : `${formatTime(selectedDatePlan.override.start_time)} - ${formatTime(selectedDatePlan.override.end_time)}`
                           : '沒有覆蓋'}
+                        </div>
                       </div>
-                    </div>
-                    <div>
-                      <div style={{ fontSize: '12px', color: '#6B7280', fontWeight: 700 }}>固定休息時段</div>
-                      <div style={{ marginTop: '4px', fontWeight: 800 }}>{selectedDatePlan?.breaks?.length || 0} 筆</div>
-                    </div>
-                    <div>
+                      <div>
+                        <div style={{ fontSize: '12px', color: '#6B7280', fontWeight: 700 }}>每週休息日命中</div>
+                        <div style={{ marginTop: '4px', fontWeight: 800 }}>{selectedDatePlan?.isDayOff ? '是' : '否'}</div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '12px', color: '#6B7280', fontWeight: 700 }}>店舖公休日命中</div>
+                        <div style={{ marginTop: '4px', fontWeight: 800 }}>{selectedDatePlan?.businessDayOff ? '是' : '否'}</div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '12px', color: '#6B7280', fontWeight: 700 }}>假期命中</div>
+                        <div style={{ marginTop: '4px', fontWeight: 800 }}>
+                          {selectedDatePlan?.holidayClosed ? `是 (${selectedDatePlan?.matchedHolidays?.length || 0} 筆)` : '否'}
+                        </div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '12px', color: '#6B7280', fontWeight: 700 }}>固定休息時段</div>
+                        <div style={{ marginTop: '4px', fontWeight: 800 }}>{selectedDatePlan?.breaks?.length || 0} 筆</div>
+                      </div>
+                      <div>
                       <div style={{ fontSize: '12px', color: '#6B7280', fontWeight: 700 }}>休假 / 封鎖</div>
                       <div style={{ marginTop: '4px', fontWeight: 800 }}>
-                        {(selectedDatePlan?.timeOff?.length || 0) + (selectedDatePlan?.blocked?.length || 0)} 筆
+                          {(selectedDatePlan?.timeOff?.length || 0) + (selectedDatePlan?.blocked?.length || 0)} 筆
+                        </div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '12px', color: '#6B7280', fontWeight: 700 }}>服務地點匹配</div>
+                        <div style={{ marginTop: '4px', fontWeight: 800 }}>
+                          {selectedDatePlan?.serviceLocationMatched ? '已匹配' : '未匹配'}
+                        </div>
+                        <div style={{ marginTop: '4px', fontSize: '12px', color: '#6B7280' }}>
+                          服務地點：{selectedDatePlan?.selectedServiceLocationIds?.length ? selectedDatePlan.selectedServiceLocationIds.join(', ') : '不限'} / 員工地點：{selectedDatePlan?.resolvedLocationId || '-'}
+                        </div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '12px', color: '#6B7280', fontWeight: 700 }}>服務群組匹配</div>
+                        <div style={{ marginTop: '4px', fontWeight: 800 }}>
+                          {selectedDatePlan?.serviceProviderGroupMatched ? '已匹配' : '未匹配'}
+                        </div>
+                        <div style={{ marginTop: '4px', fontSize: '12px', color: '#6B7280' }}>
+                          服務群組：{selectedDatePlan?.selectedServiceProviderGroupIds?.length ? selectedDatePlan.selectedServiceProviderGroupIds.join(', ') : '不限'} / 員工群組：{selectedDatePlan?.resolvedProviderGroupId || '-'}
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              ) : null}
-            </div>
+                ) : null}
+              </div>
           </div>
         ) : null}
       </div>
