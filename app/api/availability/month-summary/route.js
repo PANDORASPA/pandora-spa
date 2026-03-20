@@ -25,12 +25,19 @@ export async function GET(request) {
     }
 
     const supabase = getServiceClient()
+    const { data: versionRow } = await supabase
+      .from('settings')
+      .select('value')
+      .eq('key', 'availability_cache_version')
+      .maybeSingle()
+
     const monthSummary = await buildMonthSummaries({
       supabase,
       referenceDateISO,
       serviceId,
       staffId,
       locationId,
+      cacheVersion: String(versionRow?.value || ''),
     })
 
     return NextResponse.json(monthSummary, { status: 200 })
