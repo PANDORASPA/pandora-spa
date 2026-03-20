@@ -27,8 +27,8 @@ export async function POST(request) {
     const staffIdInput = body?.staffId == null || body?.staffId === '' ? null : Number(body.staffId)
     const locationIdInput = normalizeOptionalNumber(body?.locationId)
     const startTime = String(body?.startTime || '')
-    const customerName = String(body?.customerName || '')
-    const customerPhone = String(body?.customerPhone || '')
+    let customerName = String(body?.customerName || '').trim()
+    let customerPhone = String(body?.customerPhone || '').trim()
     const couponCode = body?.couponCode ? String(body.couponCode) : ''
     const userTicketId = body?.userTicketId ? Number(body.userTicketId) : null
 
@@ -43,6 +43,21 @@ export async function POST(request) {
     }
 
     const supabase = getServiceClient()
+    if (!customerName || !customerPhone) {
+      const { data: profile } = await supabase
+        .from('member_profiles')
+        .select('full_name,phone')
+        .eq('id', user.id)
+        .maybeSingle()
+
+      customerName = customerName || String(profile?.full_name || user.user_metadata?.full_name || '').trim()
+      customerPhone = customerPhone || String(profile?.phone || user.user_metadata?.phone || '').trim()
+    }
+
+    if (!customerName || !customerPhone) {
+      return NextResponse.json({ error: 'Please complete your name and phone number before booking.' }, { status: 400 })
+    }
+
     const context = await loadPhase2Context({
       supabase,
       dateISO,
