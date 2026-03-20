@@ -62,14 +62,20 @@ function Section({ title, description, children, tone = 'default' }) {
   )
 }
 
-export default function SettingsTab({ settings, saveSettings, saving = false }) {
+export default function SettingsTab({ settings, saveSettings, saving = false, memberProfiles = [], saveAdminProfiles }) {
   const [draft, setDraft] = useState(settings || {})
+  const [adminDraft, setAdminDraft] = useState(memberProfiles || [])
 
   useEffect(() => {
     setDraft(settings || {})
   }, [settings])
 
+  useEffect(() => {
+    setAdminDraft(memberProfiles || [])
+  }, [memberProfiles])
+
   const isDirty = JSON.stringify(draft || {}) !== JSON.stringify(settings || {})
+  const adminDirty = JSON.stringify(adminDraft || []) !== JSON.stringify(memberProfiles || [])
   const daysOff = normalizeDaysOff(draft.days_off)
   const businessHours = parseBusinessHours(draft.business_hours)
 
@@ -185,6 +191,63 @@ export default function SettingsTab({ settings, saveSettings, saving = false }) 
         </div>
         <div style={{ color: 'var(--text-light)', fontSize: '12px', lineHeight: 1.6 }}>
           If a day is selected here, the whole store becomes unavailable before staff-level shifts, breaks, and blocked slots are evaluated.
+        </div>
+      </Section>
+
+      <Section title="管理員帳號" description="可授權多位已註冊會員進入後台。只會切換 member_profiles 的管理權限，不會建立新帳號。" tone="accent">
+        <div style={{ display: 'grid', gap: '12px' }}>
+          {(adminDraft || []).length === 0 ? (
+            <div style={{ color: 'var(--text-light)', fontSize: '13px' }}>暫時未有可管理的會員資料。</div>
+          ) : (
+            adminDraft.map((profile) => (
+              <label
+                key={profile.id}
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  gap: '12px',
+                  padding: '12px 14px',
+                  border: '1px solid var(--gray)',
+                  borderRadius: '12px',
+                  background: '#fff',
+                }}
+              >
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontWeight: 700, color: 'var(--text)' }}>{profile.full_name || profile.email || profile.id}</div>
+                  <div style={{ marginTop: '4px', color: 'var(--text-light)', fontSize: '12px', lineHeight: 1.5 }}>
+                    {profile.email || '未有電郵'}{profile.phone ? ` · ${profile.phone}` : ''}
+                  </div>
+                </div>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: 700 }}>
+                  <input
+                    type="checkbox"
+                    checked={profile.is_admin === true}
+                    onChange={(event) =>
+                      setAdminDraft((current) =>
+                        current.map((item) => (item.id === profile.id ? { ...item, is_admin: event.target.checked } : item))
+                      )
+                    }
+                  />
+                  管理員
+                </span>
+              </label>
+            ))
+          )}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+            <div style={{ color: 'var(--text-light)', fontSize: '12px' }}>
+              先讓對方完成註冊，之後在這裡開啟管理員權限。
+            </div>
+            <button
+              type="button"
+              onClick={() => saveAdminProfiles?.(adminDraft)}
+              disabled={!adminDirty || saving}
+              className="btn btn-small btn-interactive"
+              style={{ minWidth: '148px', justifyContent: 'center' }}
+            >
+              {saving ? '儲存中...' : '儲存管理員帳號'}
+            </button>
+          </div>
         </div>
       </Section>
     </div>
