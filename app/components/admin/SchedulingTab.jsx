@@ -42,6 +42,14 @@ const buildMonthGrid = (monthKey) => {
 }
 
 const formatTime = (value) => String(value || '').slice(0, 5)
+const CALENDAR_LIMITED_LABEL = '上班 / 規則限制'
+const CALENDAR_LIMITED_HINTS = {
+  provider_mismatch: '目前所選服務與服務供應者設定未能對上，暫時不會顯示可預約時段。',
+  location_required: '此服務需要先選擇地點，否則不會建立可預約時段。',
+  no_bookable_slots: '有上班，但時段已被休息、假期或封鎖規則扣減。',
+  resource_full: '有上班，但資源設備已滿，所以前台仍會顯示已滿。',
+  fully_booked: '有上班，但目前所有可預約時段已被預約完。',
+}
 
 const cardStyle = {
   border: '1px solid #E5E7EB',
@@ -70,22 +78,36 @@ const getPreviewStatusCopy = (entry = {}) => {
   if (entry?.reason === 'provider_mismatch') {
     return {
       tone: 'warning',
-      label: bookingOpsCopy.calendarLimited,
-      hint: bookingOpsCopy.providerMismatchHint,
+      label: CALENDAR_LIMITED_LABEL,
+      hint: CALENDAR_LIMITED_HINTS.provider_mismatch,
     }
   }
   if (entry?.reason === 'location_required') {
     return {
       tone: 'warning',
-      label: bookingOpsCopy.calendarLimited,
-      hint: bookingOpsCopy.locationRequiredHint,
+      label: CALENDAR_LIMITED_LABEL,
+      hint: CALENDAR_LIMITED_HINTS.location_required,
     }
   }
   if (entry?.reason === 'no_bookable_slots') {
     return {
       tone: 'warning',
-      label: bookingOpsCopy.calendarLimited,
-      hint: bookingOpsCopy.partialBlockedHint,
+      label: CALENDAR_LIMITED_LABEL,
+      hint: CALENDAR_LIMITED_HINTS.no_bookable_slots,
+    }
+  }
+  if (entry?.reason === 'resource_full') {
+    return {
+      tone: 'warning',
+      label: bookingOpsCopy.calendarFull,
+      hint: CALENDAR_LIMITED_HINTS.resource_full,
+    }
+  }
+  if (entry?.reason === 'fully_booked') {
+    return {
+      tone: 'warning',
+      label: bookingOpsCopy.calendarFull,
+      hint: CALENDAR_LIMITED_HINTS.fully_booked,
     }
   }
   return {
@@ -180,6 +202,14 @@ export default function SchedulingTab({
   const [blockedDeletedIds, setBlockedDeletedIds] = useState([])
 
   const selectedStaff = useMemo(() => staff.find((item) => Number(item.id) === Number(selectedStaffId)) || staff[0] || null, [selectedStaffId, staff])
+  const selectedStaffDaysOff = useMemo(
+    () => (selectedStaff?.daysOff || selectedStaff?.daysoff || []),
+    [selectedStaff?.daysOff, selectedStaff?.daysoff],
+  )
+  const selectedStaffServicesKey = useMemo(
+    () => (selectedStaff?.services || []).map((value) => String(value)).join(','),
+    [selectedStaff?.services],
+  )
   const previewMap = useMemo(() => new Map(previewDates.map((entry) => [entry.date, entry])), [previewDates])
   const previewGrid = useMemo(() => buildMonthGrid(previewMonth), [previewMonth])
 
@@ -242,7 +272,7 @@ export default function SchedulingTab({
         })),
     )
     setBlockedDeletedIds([])
-  }, [blockedSlots, selectedStaff, staffBreaks, staffShifts, staffTimeOff])
+  }, [blockedSlots, selectedStaff?.id, staffBreaks, staffShifts, staffTimeOff])
 
   useEffect(() => {
     const nextService =
@@ -258,7 +288,7 @@ export default function SchedulingTab({
       const currentValid = services.some((service) => String(service.id) === String(current))
       return currentValid ? current : nextService
     })
-  }, [selectedStaff, services])
+  }, [selectedStaff?.id, selectedStaffServicesKey, services])
 
   useEffect(() => {
     if (!selectedStaff?.id || !previewServiceId || !previewMonth) {
@@ -301,7 +331,7 @@ export default function SchedulingTab({
       })
 
     return () => controller.abort()
-  }, [previewMonth, previewServiceId, selectedStaff])
+  }, [previewMonth, previewServiceId, selectedStaff?.id, selectedStaff?.location_id])
   const removeRow = (setRows, setDeletedIds, id) => {
     setRows((current) => current.filter((row) => row.id !== id))
     if (Number(id) > 0) setDeletedIds((current) => [...current, Number(id)])
@@ -491,7 +521,7 @@ export default function SchedulingTab({
                 <div style={{ minWidth: '1180px', display: 'grid', gridTemplateColumns: 'repeat(7, minmax(160px, 1fr))', gap: '12px' }}>
                   {WEEK_DAYS.map((day) => {
                     const schedule = selectedStaff.schedule?.[day.key] || {}
-                    const isOff = (selectedStaff.daysOff || []).some((value) => String(value) === day.key)
+                    const isOff = selectedStaffDaysOff.some((value) => String(value) === day.key)
                     const hasWorkingHours = Boolean(schedule.start && schedule.end && !isOff)
                     return (
                       <div
@@ -679,7 +709,7 @@ export default function SchedulingTab({
               <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                 <Pill tone="success">{bookingOpsCopy.calendarAvailable}</Pill>
                 <Pill tone="warning">{bookingOpsCopy.calendarFull}</Pill>
-                <Pill tone="warning">{bookingOpsCopy.calendarLimited}</Pill>
+                <Pill tone="warning">{CALENDAR_LIMITED_LABEL}</Pill>
                 <Pill tone="muted">{bookingOpsCopy.calendarRest}</Pill>
               </div>
 
