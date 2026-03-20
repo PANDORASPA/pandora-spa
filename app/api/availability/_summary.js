@@ -84,8 +84,8 @@ export const getMonthWindow = (referenceDateISO) => {
   }
 }
 
-const buildMonthSummaryCacheKey = ({ referenceDateISO, serviceId, staffId, locationId }) =>
-  [referenceDateISO, serviceId, staffId, locationId || 'none'].join(':')
+const buildMonthSummaryCacheKey = ({ referenceDateISO, serviceId, staffId, locationId, cacheVersion }) =>
+  [referenceDateISO, serviceId, staffId, locationId || 'none', cacheVersion || 'v0'].join(':')
 
 const readCachedMonthSummary = (cacheKey) => {
   const cached = monthSummaryCache.get(cacheKey)
@@ -162,11 +162,11 @@ const buildMonthlyContext = async ({
   }
 
   const [serviceLocationsRes, serviceProviderGroupsRes, staffProviderGroupsRes, holidaysRes, serviceResourcesRes] = await Promise.all([
-    safeSelect(supabase.from('service_locations').select('*').eq('service_id', serviceId)),
-    safeSelect(supabase.from('service_provider_groups').select('*').eq('service_id', serviceId)),
-    safeSelect(supabase.from('staff_provider_groups').select('*')),
-    safeSelect(supabase.from('holidays').select('*').lte('holiday_date', monthEndISO)),
-    safeSelect(supabase.from('service_resources').select('*').eq('service_id', serviceId)),
+    safeSelect(supabase.from('service_locations').select('id,service_id,location_id,enabled').eq('service_id', serviceId)),
+    safeSelect(supabase.from('service_provider_groups').select('id,service_id,provider_group_id,assignment_mode').eq('service_id', serviceId)),
+    safeSelect(supabase.from('staff_provider_groups').select('staff_id,provider_group_id')),
+    safeSelect(supabase.from('holidays').select('id,holiday_date,end_date,location_id,staff_id,provider_group_id,is_closed').lte('holiday_date', monthEndISO)),
+    safeSelect(supabase.from('service_resources').select('id,service_id,resource_id,quantity,required').eq('service_id', serviceId)),
   ])
 
   const service = serviceRes.data
@@ -212,7 +212,11 @@ const buildMonthlyContext = async ({
     staffProviderGroupMap.get(staffId).add(groupId)
   }
 
-  const staffQuery = supabase.from('staff').select('*').eq('enabled', true).order('name')
+  const staffQuery = supabase
+    .from('staff')
+    .select('id,name,enabled,role,services,schedule,daysoff,daysOff,location_id,provider_group_id,break_start,break_end')
+    .eq('enabled', true)
+    .order('name')
   const staffRes = requestedStaffId ? await staffQuery.eq('id', requestedStaffId) : await staffQuery
   if (staffRes.error) {
     throw new Phase2Error(staffRes.error.message, { code: 'staff_load_failed', status: 500 })
@@ -231,16 +235,37 @@ const buildMonthlyContext = async ({
 
   const [shiftsRes, breaksRes, timeOffRes, blockedRes, bookingsResult] = await Promise.all([
     staffIds.length
-      ? safeSelect(supabase.from('staff_shifts').select('*').gte('date', monthStartISO).lte('date', monthEndISO).in('staff_id', staffIds))
+      ? safeSelect(
+          supabase
+            .from('staff_shifts')
+            .select('id,staff_id,date,start_time,end_time,is_off')
+            .gte('date', monthStartISO)
+            .lte('date', monthEndISO)
+            .in('staff_id', staffIds),
+        )
       : Promise.resolve({ data: [] }),
     staffIds.length
-      ? safeSelect(supabase.from('staff_breaks').select('*').in('staff_id', staffIds))
+      ? safeSelect(supabase.from('staff_breaks').select('id,staff_id,day_of_week,start_time,end_time,enabled').in('staff_id', staffIds))
       : Promise.resolve({ data: [] }),
     staffIds.length
-      ? safeSelect(supabase.from('staff_time_off').select('*').gte('date', monthStartISO).lte('date', monthEndISO).in('staff_id', staffIds))
+      ? safeSelect(
+          supabase
+            .from('staff_time_off')
+            .select('id,staff_id,date,start_time,end_time')
+            .gte('date', monthStartISO)
+            .lte('date', monthEndISO)
+            .in('staff_id', staffIds),
+        )
       : Promise.resolve({ data: [] }),
     staffIds.length
-      ? safeSelect(supabase.from('blocked_slots').select('*').gte('date', monthStartISO).lte('date', monthEndISO).in('staff_id', staffIds))
+      ? safeSelect(
+          supabase
+            .from('blocked_slots')
+            .select('id,staff_id,date,start_time,end_time')
+            .gte('date', monthStartISO)
+            .lte('date', monthEndISO)
+            .in('staff_id', staffIds),
+        )
       : Promise.resolve({ data: [] }),
     (async () => {
       const result = await supabase
@@ -267,8 +292,12 @@ const buildMonthlyContext = async ({
   const bookingIds = bookings.map((booking) => booking.id).filter(Boolean)
   const resourceIds = (serviceResourcesRes.data || []).map((row) => Number(row.resource_id)).filter(Number.isFinite)
   const [resourcesRes, allocationsRes] = await Promise.all([
-    resourceIds.length > 0 ? safeSelect(supabase.from('resources').select('*').in('id', resourceIds)) : Promise.resolve({ data: [] }),
-    bookingIds.length > 0 ? safeSelect(supabase.from('booking_resource_allocations').select('*').in('booking_id', bookingIds)) : Promise.resolve({ data: [] }),
+    resourceIds.length > 0
+      ? safeSelect(supabase.from('resources').select('id,name,location_id,enabled,capacity').in('id', resourceIds))
+      : Promise.resolve({ data: [] }),
+    bookingIds.length > 0
+      ? safeSelect(supabase.from('booking_resource_allocations').select('id,booking_id,resource_id,quantity').in('booking_id', bookingIds))
+      : Promise.resolve({ data: [] }),
   ])
 
   return {
@@ -508,8 +537,9 @@ export const buildMonthSummaries = async ({
   serviceId,
   staffId,
   locationId,
+  cacheVersion,
 }) => {
-  const cacheKey = buildMonthSummaryCacheKey({ referenceDateISO, serviceId, staffId, locationId })
+  const cacheKey = buildMonthSummaryCacheKey({ referenceDateISO, serviceId, staffId, locationId, cacheVersion })
   const cached = readCachedMonthSummary(cacheKey)
   if (cached) return cached
 
@@ -536,6 +566,7 @@ export const buildMonthSummaries = async ({
     daysInMonth,
     startDate: monthStartISO,
     days: daysInMonth,
+    cacheVersion: cacheVersion || '',
     dates,
   }
 
