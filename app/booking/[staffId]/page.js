@@ -505,6 +505,7 @@ export default function BookingStaffPage() {
   const selectedSummary = selectedDate ? summaryMap.get(selectedDate) : null
   const selectedService = useMemo(() => services.find((item) => String(item.id) === String(serviceId)) || null, [services, serviceId])
   const monthGrid = useMemo(() => (calendarOpen ? buildMonthGrid(monthKey) : []), [calendarOpen, monthKey])
+  const currentDateISO = useMemo(() => todayISO(), [])
 
   useEffect(() => {
     if (!monthSummary.length) {
@@ -513,18 +514,19 @@ export default function BookingStaffPage() {
     }
 
     const current = selectedDate ? summaryMap.get(selectedDate) : null
-    if (current && current.status !== 'off' && selectedDate.startsWith(monthKey)) {
+    if (current && current.status !== 'off' && selectedDate.startsWith(monthKey) && selectedDate >= currentDateISO) {
       return
     }
 
-    const firstAvailable = monthSummary.find((entry) => entry?.status === 'available')
-    const firstFull = monthSummary.find((entry) => entry?.status === 'full')
+    const futureEntries = monthSummary.filter((entry) => entry?.date >= currentDateISO)
+    const firstAvailable = futureEntries.find((entry) => entry?.status === 'available')
+    const firstFull = futureEntries.find((entry) => entry?.status === 'full')
     setSelectedDate(firstAvailable?.date || firstFull?.date || '')
-  }, [monthKey, monthSummary, selectedDate, summaryMap])
+  }, [currentDateISO, monthKey, monthSummary, selectedDate, summaryMap])
 
   useEffect(() => {
     setSelectedTime('')
-    if (!selectedDate || !staffId || !serviceId) {
+    if (!selectedDate || !staffId || !serviceId || selectedDate < currentDateISO) {
       setSlots([])
       return
     }
@@ -603,7 +605,7 @@ export default function BookingStaffPage() {
     return () => {
       cancelled = true
     }
-  }, [availabilityVersion, monthKey, selectedDate, serviceId, staff?.location_id, staffId, summaryMap])
+  }, [availabilityVersion, currentDateISO, monthKey, selectedDate, serviceId, staff?.location_id, staffId, summaryMap])
 
   const handleSubmit = async (event) => {
     event.preventDefault()
@@ -764,7 +766,8 @@ export default function BookingStaffPage() {
                         ))}
                         {monthGrid.map((cell) => {
                           const summary = summaryMap.get(cell.dateISO) || {}
-                          const status = summary.status || 'off'
+                          const isPastDate = cell.dateISO < currentDateISO
+                          const status = isPastDate ? 'off' : summary.status || 'off'
                           const isSelected = selectedDate === cell.dateISO
                           return (
                             <button
@@ -791,7 +794,7 @@ export default function BookingStaffPage() {
                               <div style={{ fontWeight: 900, fontSize: '22px', lineHeight: 1 }}>{cell.dayLabel}</div>
                               {cell.inMonth ? (
                                 <div style={{ marginTop: '8px', fontSize: '12px', fontWeight: 700, color: status === 'off' ? '#9CA3AF' : '#6B7280' }}>
-                                  {getCalendarStatusLabel(summary)}
+                                  {isPastDate ? T.off : getCalendarStatusLabel(summary)}
                                 </div>
                               ) : null}
                             </button>
@@ -810,7 +813,17 @@ export default function BookingStaffPage() {
                     disabled={!selectedDate || selectedSummary?.status !== 'available' || loadingSlots}
                     style={fieldStyle}
                   >
-                    <option value="">{selectedDate ? (loadingSlots ? T.loadingSlots : T.chooseTimeFirst) : T.chooseDateFirst}</option>
+                    <option value="">
+                      {selectedDate
+                        ? selectedDate < currentDateISO
+                          ? '過去日期不可預約'
+                          : loadingSlots
+                            ? T.loadingSlots
+                            : selectedSummary?.status === 'available' && slots.length === 0
+                              ? T.noAvailability
+                              : T.chooseTimeFirst
+                        : T.chooseDateFirst}
+                    </option>
                     {slots.map((slot) => {
                       const time = String(slot?.time || slot?.startTime || slot?.start_time || '').slice(0, 5)
                       if (!time) return null
@@ -824,7 +837,7 @@ export default function BookingStaffPage() {
                 </label>
               </div>
 
-              {selectedDate && selectedSummary ? <div style={{ color: '#6B7280', fontSize: '14px' }}>{getReasonMessageDisplay(selectedSummary)}</div> : null}
+              {selectedDate && selectedSummary ? <div style={{ color: '#6B7280', fontSize: '14px' }}>{selectedDate < currentDateISO ? '過去日期不可預約' : getReasonMessageDisplay(selectedSummary)}</div> : null}
               {selectedDate && !loadingSlots && slots.length === 0 && selectedSummary?.status === 'available' ? <div style={{ color: '#6B7280' }}>{T.noAvailability}</div> : null}
             </div>
 
