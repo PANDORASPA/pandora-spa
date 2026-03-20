@@ -23,8 +23,14 @@ const anonSupabase = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_
   auth: { persistSession: false, autoRefreshToken: false },
 })
 
+const DEFAULT_BASE_URL = 'http://localhost:3000'
 const baseUrlArg = process.argv.find((arg) => arg.startsWith('--base-url='))
-const baseUrl = baseUrlArg ? baseUrlArg.slice('--base-url='.length).replace(/\/$/, '') : ''
+const normalizeBaseUrl = (value) => {
+  const text = String(value || '').trim().replace(/\/$/, '')
+  if (!text) return DEFAULT_BASE_URL
+  return text.replace('127.0.0.1', 'localhost')
+}
+const baseUrl = normalizeBaseUrl(baseUrlArg ? baseUrlArg.slice('--base-url='.length) : '')
 const smokeDate = '2026-03-19'
 const smokeConfig = {
   serviceId: 1,
@@ -76,6 +82,13 @@ const addMinutes = (time, amount) => {
 
 const ok = (status, details = {}) => ({ status, ...details })
 
+const diagnosticCategoryForResponse = (response, fallback = 'unexpected_server_error') => {
+  if (response?.blocked) return 'environment_invalid'
+  if (response?.status === 401 || response?.status === 403) return 'auth_session_invalid'
+  if (response?.status >= 500) return 'availability_error'
+  return fallback
+}
+
 async function fetchJson(url, { method = 'GET', headers = {}, body } = {}) {
   const response = await fetch(url, {
     method,
@@ -89,6 +102,27 @@ async function fetchJson(url, { method = 'GET', headers = {}, body } = {}) {
     ok: response.ok,
     body: parsed,
     headers: Object.fromEntries(response.headers.entries()),
+  }
+}
+
+async function probeAccountSession(cookieHeader) {
+  const response = await fetch(`${baseUrl}/account/bookings`, {
+    headers: { cookie: cookieHeader },
+    redirect: 'manual',
+  })
+  return {
+    status: response.status,
+    location: response.headers.get('location'),
+    valid: response.status === 200,
+  }
+}
+
+async function probeAvailabilityEnvironment() {
+  const response = await fetchJson(`${baseUrl}/api/public/availability-version`)
+  return {
+    status: response.status,
+    valid: response.ok,
+    error: response.body?.error || null,
   }
 }
 
@@ -442,7 +476,6 @@ async function replaceHoliday(providerGroupId) {
 }
 
 async function runAvailability(dateISO, locationId) {
-  if (!baseUrl) return { blocked: true, reason: 'missing baseUrl' }
   const url = `${baseUrl}/api/availability?date=${dateISO}&serviceId=${smokeConfig.serviceId}&staffId=${smokeConfig.staffId}&locationId=${locationId}`
   return fetchJson(url)
 }
@@ -507,7 +540,8 @@ async function main() {
 
   let controlledBookingFlow = {
     status: 'blocked',
-    reason: 'missing baseUrl',
+    reason: 'environment_invalid',
+    diagnostic_category: 'environment_invalid',
   }
   let controlledBookingEvidence = {
     create: null,
@@ -518,6 +552,8 @@ async function main() {
   if (baseUrl) {
     const smokeUser = await ensureSmokeUser()
     const smokeCookie = await buildCookieHeader(smokeConfig.memberEmail)
+    const environmentProbe = await probeAvailabilityEnvironment()
+    const authProbe = await probeAccountSession(smokeCookie)
     await cleanupControlledBookings(smokeUser.id)
 
     const smokeTicket = await maybeSingle(
@@ -542,194 +578,258 @@ async function main() {
         return data
       })())
 
-    const createAvailability = await runAvailability(smokeConfig.controlledCreateDate, location.id)
-    const createSlots = uniqueSlots(createAvailability.body?.slots)
-    const createStart = createSlots[0] || '09:00'
-    const createResponse = await createBookingRequest({
-      cookieHeader: smokeCookie,
-      dateISO: smokeConfig.controlledCreateDate,
-      startTime: createStart,
-      locationId: location.id,
-      staffId: smokeConfig.staffId,
-      userTicketId: userTicket.id,
-      customerName: 'Controlled Smoke Customer',
-      customerPhone: '12345678',
-    })
-
-    const createdBookingId = createResponse.body?.booking?.id || null
-    const createSnapshot = createdBookingId ? await fetchBookingSnapshot(createdBookingId) : { booking: null, allocations: [] }
-    const createTicketSnapshot = await maybeSingle(supabase.from('user_tickets').select('*').eq('id', userTicket.id))
-
-    const rescheduleAvailability = await runAvailability(smokeConfig.controlledRescheduleDate, location.id)
-    const rescheduleSlots = uniqueSlots(rescheduleAvailability.body?.slots)
-    const rescheduleStart = rescheduleSlots.find((slot) => slot !== createStart) || rescheduleSlots[0] || createStart
-    const rescheduleBefore = createdBookingId ? await fetchBookingSnapshot(createdBookingId) : { booking: null, allocations: [] }
-    const rescheduleResponse = createdBookingId
-      ? await rescheduleBookingRequest({
-          cookieHeader: smokeCookie,
-          bookingId: createdBookingId,
-          dateISO: smokeConfig.controlledRescheduleDate,
-          startTime: rescheduleStart,
-          locationId: location.id,
-          staffId: smokeConfig.staffId,
-          customerName: 'Controlled Smoke Customer',
-          customerPhone: '12345678',
-          userTicketId: userTicket.id,
-        })
-      : { status: 500, ok: false, body: { error: 'Missing booking id' } }
-    const rescheduleAfter = createdBookingId ? await fetchBookingSnapshot(createdBookingId) : { booking: null, allocations: [] }
-
-    const cancelBefore = createdBookingId ? await fetchBookingSnapshot(createdBookingId) : { booking: null, allocations: [] }
-    const cancelResponse = createdBookingId
-      ? await cancelBookingRequest({
-          cookieHeader: smokeCookie,
-          bookingId: createdBookingId,
-        })
-      : { status: 500, ok: false, body: { error: 'Missing booking id' } }
-    const cancelAfter = createdBookingId ? await fetchBookingSnapshot(createdBookingId) : { booking: null, allocations: [] }
-    const ticketBeforeCancel = createTicketSnapshot
-    const ticketAfterCancel = await maybeSingle(supabase.from('user_tickets').select('*').eq('id', userTicket.id))
-
-    controlledBookingEvidence = {
-      create: {
-        request: {
-          date: smokeConfig.controlledCreateDate,
-          start_time: createStart,
-          location_id: location.id,
-          provider_group_id: providerGroup.id,
-          staff_id: smokeConfig.staffId,
-          user_ticket_id: userTicket.id,
+    if (!environmentProbe.valid) {
+      controlledBookingFlow = {
+        status: 'fail',
+        reason: 'availability environment probe failed',
+        diagnostic_category: 'environment_invalid',
+        environment_probe_status: environmentProbe.status,
+        environment_probe_error: environmentProbe.error,
+      }
+      controlledBookingEvidence = {
+        create: {
+          status: 'fail',
+          response_status: environmentProbe.status,
+          response_code: 'environment_invalid',
+          diagnostic_category: 'environment_invalid',
+          environment_probe: environmentProbe,
         },
-        response_status: createResponse.status,
-        response_code: createResponse.body?.code || null,
-        booking_id: createdBookingId,
-        before_snapshot: null,
-        after_snapshot: createSnapshot.booking
-          ? {
-              appointment_date: createSnapshot.booking.appointment_date || null,
-              start_time: createSnapshot.booking.start_time || null,
-              end_time: createSnapshot.booking.end_time || null,
-              buffer_end_time: createSnapshot.booking.buffer_end_time || null,
-              location_id: createSnapshot.booking.location_id || null,
-              provider_group_id: createSnapshot.booking.provider_group_id || null,
-              allocation_count: createSnapshot.allocations.length,
-            }
-          : null,
-      },
-      reschedule: {
-        request: {
-          date: smokeConfig.controlledRescheduleDate,
-          start_time: rescheduleStart,
-          location_id: location.id,
-          provider_group_id: providerGroup.id,
-          staff_id: smokeConfig.staffId,
-          user_ticket_id: userTicket.id,
+        reschedule: {
+          status: 'blocked',
+          response_status: null,
+          response_code: 'environment_invalid',
+          diagnostic_category: 'environment_invalid',
         },
-        response_status: rescheduleResponse.status,
-        response_code: rescheduleResponse.body?.code || null,
-        booking_id: createdBookingId,
-        before_snapshot: rescheduleBefore.booking
-          ? {
-              appointment_date: rescheduleBefore.booking.appointment_date || null,
-              start_time: rescheduleBefore.booking.start_time || null,
-              allocation_count: rescheduleBefore.allocations.length,
-            }
-          : null,
-        after_snapshot: rescheduleAfter.booking
-          ? {
-              appointment_date: rescheduleAfter.booking.appointment_date || null,
-              start_time: rescheduleAfter.booking.start_time || null,
-              allocation_count: rescheduleAfter.allocations.length,
-            }
-          : null,
-      },
-      cancel: {
-        request: {
+        cancel: {
+          status: 'blocked',
+          response_status: null,
+          response_code: 'environment_invalid',
+          diagnostic_category: 'environment_invalid',
+        },
+      }
+    } else if (!authProbe.valid) {
+      controlledBookingFlow = {
+        status: 'fail',
+        reason: 'member account probe did not authenticate',
+        diagnostic_category: 'auth_session_invalid',
+        auth_probe_status: authProbe.status,
+        auth_probe_location: authProbe.location,
+      }
+      controlledBookingEvidence = {
+        create: {
+          status: 'fail',
+          response_status: authProbe.status,
+          response_code: 'auth_session_invalid',
+          diagnostic_category: 'auth_session_invalid',
+          auth_probe: authProbe,
+        },
+        reschedule: {
+          status: 'blocked',
+          response_status: null,
+          response_code: 'auth_session_invalid',
+          diagnostic_category: 'auth_session_invalid',
+        },
+        cancel: {
+          status: 'blocked',
+          response_status: null,
+          response_code: 'auth_session_invalid',
+          diagnostic_category: 'auth_session_invalid',
+        },
+      }
+    } else {
+      const createAvailability = await runAvailability(smokeConfig.controlledCreateDate, location.id)
+      const createSlots = uniqueSlots(createAvailability.body?.slots)
+      const createStart = createSlots[0] || '09:00'
+      const createResponse = await createBookingRequest({
+        cookieHeader: smokeCookie,
+        dateISO: smokeConfig.controlledCreateDate,
+        startTime: createStart,
+        locationId: location.id,
+        staffId: smokeConfig.staffId,
+        userTicketId: userTicket.id,
+        customerName: 'Controlled Smoke Customer',
+        customerPhone: '12345678',
+      })
+
+      const createdBookingId = createResponse.body?.booking?.id || null
+      const createSnapshot = createdBookingId ? await fetchBookingSnapshot(createdBookingId) : { booking: null, allocations: [] }
+      const createTicketSnapshot = await maybeSingle(supabase.from('user_tickets').select('*').eq('id', userTicket.id))
+
+      const rescheduleAvailability = await runAvailability(smokeConfig.controlledRescheduleDate, location.id)
+      const rescheduleSlots = uniqueSlots(rescheduleAvailability.body?.slots)
+      const rescheduleStart = rescheduleSlots.find((slot) => slot !== createStart) || rescheduleSlots[0] || createStart
+      const rescheduleBefore = createdBookingId ? await fetchBookingSnapshot(createdBookingId) : { booking: null, allocations: [] }
+      const rescheduleResponse = createdBookingId
+        ? await rescheduleBookingRequest({
+            cookieHeader: smokeCookie,
+            bookingId: createdBookingId,
+            dateISO: smokeConfig.controlledRescheduleDate,
+            startTime: rescheduleStart,
+            locationId: location.id,
+            staffId: smokeConfig.staffId,
+            customerName: 'Controlled Smoke Customer',
+            customerPhone: '12345678',
+            userTicketId: userTicket.id,
+          })
+        : { status: 500, ok: false, body: { error: 'Missing booking id' } }
+      const rescheduleAfter = createdBookingId ? await fetchBookingSnapshot(createdBookingId) : { booking: null, allocations: [] }
+
+      const cancelBefore = createdBookingId ? await fetchBookingSnapshot(createdBookingId) : { booking: null, allocations: [] }
+      const cancelResponse = createdBookingId
+        ? await cancelBookingRequest({
+            cookieHeader: smokeCookie,
+            bookingId: createdBookingId,
+          })
+        : { status: 500, ok: false, body: { error: 'Missing booking id' } }
+      const cancelAfter = createdBookingId ? await fetchBookingSnapshot(createdBookingId) : { booking: null, allocations: [] }
+      const ticketBeforeCancel = createTicketSnapshot
+      const ticketAfterCancel = await maybeSingle(supabase.from('user_tickets').select('*').eq('id', userTicket.id))
+
+      controlledBookingEvidence = {
+        create: {
+          request: {
+            date: smokeConfig.controlledCreateDate,
+            start_time: createStart,
+            location_id: location.id,
+            provider_group_id: providerGroup.id,
+            staff_id: smokeConfig.staffId,
+            user_ticket_id: userTicket.id,
+          },
+          response_status: createResponse.status,
+          response_code: createResponse.body?.code || null,
+          diagnostic_category: diagnosticCategoryForResponse(createResponse, 'unexpected_server_error'),
+          auth_probe: authProbe,
           booking_id: createdBookingId,
+          before_snapshot: null,
+          after_snapshot: createSnapshot.booking
+            ? {
+                appointment_date: createSnapshot.booking.appointment_date || null,
+                start_time: createSnapshot.booking.start_time || null,
+                end_time: createSnapshot.booking.end_time || null,
+                buffer_end_time: createSnapshot.booking.buffer_end_time || null,
+                location_id: createSnapshot.booking.location_id || null,
+                provider_group_id: createSnapshot.booking.provider_group_id || null,
+                allocation_count: createSnapshot.allocations.length,
+              }
+            : null,
         },
-        response_status: cancelResponse.status,
-        response_code: cancelResponse.body?.code || null,
+        reschedule: {
+          request: {
+            date: smokeConfig.controlledRescheduleDate,
+            start_time: rescheduleStart,
+            location_id: location.id,
+            provider_group_id: providerGroup.id,
+            staff_id: smokeConfig.staffId,
+            user_ticket_id: userTicket.id,
+          },
+          response_status: rescheduleResponse.status,
+          response_code: rescheduleResponse.body?.code || null,
+          diagnostic_category: diagnosticCategoryForResponse(rescheduleResponse, 'unexpected_server_error'),
+          booking_id: createdBookingId,
+          before_snapshot: rescheduleBefore.booking
+            ? {
+                appointment_date: rescheduleBefore.booking.appointment_date || null,
+                start_time: rescheduleBefore.booking.start_time || null,
+                allocation_count: rescheduleBefore.allocations.length,
+              }
+            : null,
+          after_snapshot: rescheduleAfter.booking
+            ? {
+                appointment_date: rescheduleAfter.booking.appointment_date || null,
+                start_time: rescheduleAfter.booking.start_time || null,
+                allocation_count: rescheduleAfter.allocations.length,
+              }
+            : null,
+        },
+        cancel: {
+          request: {
+            booking_id: createdBookingId,
+          },
+          response_status: cancelResponse.status,
+          response_code: cancelResponse.body?.code || null,
+          diagnostic_category: diagnosticCategoryForResponse(cancelResponse, 'unexpected_server_error'),
+          booking_id: createdBookingId,
+          before_snapshot: cancelBefore.booking
+            ? {
+                appointment_date: cancelBefore.booking.appointment_date || null,
+                start_time: cancelBefore.booking.start_time || null,
+                status: cancelBefore.booking.status || null,
+                allocation_count: cancelBefore.allocations.length,
+              }
+            : null,
+          after_snapshot: cancelAfter.booking
+            ? {
+                appointment_date: cancelAfter.booking.appointment_date || null,
+                start_time: cancelAfter.booking.start_time || null,
+                status: cancelAfter.booking.status || null,
+                allocation_count: cancelAfter.allocations.length,
+              }
+            : null,
+          ticket_before_cancel: ticketBeforeCancel
+            ? { remaining_count: ticketBeforeCancel.remaining_count ?? null }
+            : null,
+          ticket_after_cancel: ticketAfterCancel
+            ? { remaining_count: ticketAfterCancel.remaining_count ?? null }
+            : null,
+        },
+      }
+
+      const createPass =
+        createResponse.ok &&
+        createSnapshot.booking?.appointment_date === smokeConfig.controlledCreateDate &&
+        String(createSnapshot.booking?.location_id) === String(location.id) &&
+        String(createSnapshot.booking?.provider_group_id) === String(providerGroup.id) &&
+        createSnapshot.allocations.length > 0
+
+      const reschedulePass =
+        rescheduleResponse.ok &&
+        rescheduleAfter.booking?.appointment_date === smokeConfig.controlledRescheduleDate &&
+        String(rescheduleAfter.booking?.start_time || '').slice(0, 5) === String(rescheduleStart).slice(0, 5) &&
+        rescheduleBefore.allocations.length > 0 &&
+        rescheduleAfter.allocations.length > 0
+
+      const cancelPass =
+        cancelResponse.ok &&
+        cancelAfter.booking?.status === 'cancelled' &&
+        ticketBeforeCancel &&
+        ticketAfterCancel &&
+        Number(ticketAfterCancel.remaining_count || 0) === Number(ticketBeforeCancel.remaining_count || 0) + 1
+
+      controlledBookingFlow = {
+        status: createPass && reschedulePass && cancelPass ? 'pass' : 'fail',
         booking_id: createdBookingId,
-        before_snapshot: cancelBefore.booking
-          ? {
-              appointment_date: cancelBefore.booking.appointment_date || null,
-              start_time: cancelBefore.booking.start_time || null,
-              status: cancelBefore.booking.status || null,
-              allocation_count: cancelBefore.allocations.length,
-            }
-          : null,
-        after_snapshot: cancelAfter.booking
-          ? {
-              appointment_date: cancelAfter.booking.appointment_date || null,
-              start_time: cancelAfter.booking.start_time || null,
-              status: cancelAfter.booking.status || null,
-              allocation_count: cancelAfter.allocations.length,
-            }
-          : null,
-        ticket_before_cancel: ticketBeforeCancel
-          ? { remaining_count: ticketBeforeCancel.remaining_count ?? null }
-          : null,
-        ticket_after_cancel: ticketAfterCancel
-          ? { remaining_count: ticketAfterCancel.remaining_count ?? null }
-          : null,
-      },
-    }
+        create_date: smokeConfig.controlledCreateDate,
+        reschedule_date: smokeConfig.controlledRescheduleDate,
+        create_slot: createStart,
+        reschedule_slot: rescheduleStart,
+        ticket_id: userTicket.id,
+        create_pass: createPass,
+        reschedule_pass: reschedulePass,
+        cancel_pass: cancelPass,
+      }
 
-    const createPass =
-      createResponse.ok &&
-      createSnapshot.booking?.appointment_date === smokeConfig.controlledCreateDate &&
-      String(createSnapshot.booking?.location_id) === String(location.id) &&
-      String(createSnapshot.booking?.provider_group_id) === String(providerGroup.id) &&
-      createSnapshot.allocations.length > 0
-
-    const reschedulePass =
-      rescheduleResponse.ok &&
-      rescheduleAfter.booking?.appointment_date === smokeConfig.controlledRescheduleDate &&
-      String(rescheduleAfter.booking?.start_time || '').slice(0, 5) === String(rescheduleStart).slice(0, 5) &&
-      rescheduleBefore.allocations.length > 0 &&
-      rescheduleAfter.allocations.length > 0
-
-    const cancelPass =
-      cancelResponse.ok &&
-      cancelAfter.booking?.status === 'cancelled' &&
-      ticketBeforeCancel &&
-      ticketAfterCancel &&
-      Number(ticketAfterCancel.remaining_count || 0) === Number(ticketBeforeCancel.remaining_count || 0) + 1
-
-    controlledBookingFlow = {
-      status: createPass && reschedulePass && cancelPass ? 'pass' : 'fail',
-      booking_id: createdBookingId,
-      create_date: smokeConfig.controlledCreateDate,
-      reschedule_date: smokeConfig.controlledRescheduleDate,
-      create_slot: createStart,
-      reschedule_slot: rescheduleStart,
-      ticket_id: userTicket.id,
-      create_pass: createPass,
-      reschedule_pass: reschedulePass,
-      cancel_pass: cancelPass,
-    }
-
-    controlledBookingEvidence = {
-      ...controlledBookingEvidence,
-      create: {
-        ...controlledBookingEvidence.create,
-        status: createPass ? 'pass' : 'fail',
-      },
-      reschedule: {
-        ...controlledBookingEvidence.reschedule,
-        status: reschedulePass ? 'pass' : 'fail',
-      },
-      cancel: {
-        ...controlledBookingEvidence.cancel,
-        status: cancelPass ? 'pass' : 'fail',
-      },
+      controlledBookingEvidence = {
+        ...controlledBookingEvidence,
+        create: {
+          ...controlledBookingEvidence.create,
+          status: createPass ? 'pass' : 'fail',
+        },
+        reschedule: {
+          ...controlledBookingEvidence.reschedule,
+          status: reschedulePass ? 'pass' : 'fail',
+        },
+        cancel: {
+          ...controlledBookingEvidence.cancel,
+          status: cancelPass ? 'pass' : 'fail',
+        },
+      }
     }
   }
 
   const report = {
     generatedAt: new Date().toISOString(),
     baseUrl: baseUrl || null,
-    report_version: 2,
+    report_version: 3,
     seeds: {
       location_id: location.id,
       provider_group_id: providerGroup.id,
@@ -805,9 +905,19 @@ async function main() {
               after_slots: postResourceSlots,
               baseline_status: baselineResourceAvailability.status,
               after_status: postResourceAvailability.status,
+              baseline_error: baselineResourceAvailability.body?.error || null,
+              after_error: postResourceAvailability.body?.error || null,
+              diagnostic_category:
+                [baselineResourceAvailability.body?.error, postResourceAvailability.body?.error]
+                  .filter(Boolean)
+                  .some((message) => String(message).includes('Missing NEXT_PUBLIC_SUPABASE_URL') || String(message).includes('Missing NEXT_PUBLIC_SUPABASE_ANON_KEY') || String(message).includes('Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY'))
+                  ? 'environment_invalid'
+                  : baselineResourceAvailability.status >= 500 || postResourceAvailability.status >= 500
+                    ? 'availability_error'
+                    : 'unexpected_server_error',
             },
           )
-        : ok('blocked', { reason: 'Run with --base-url=http://localhost:3000 to validate /api/availability.' }),
+        : ok('blocked', { reason: 'Run with --base-url=http://localhost:3000 to validate /api/availability.', diagnostic_category: 'environment_invalid' }),
       holiday_provider_group_enforcement: baseUrl
         ? ok(
             baselineHolidayAvailability.ok &&
@@ -821,9 +931,19 @@ async function main() {
               after_slots: uniqueSlots(postHolidayAvailability.body?.slots),
               baseline_status: baselineHolidayAvailability.status,
               after_status: postHolidayAvailability.status,
+              baseline_error: baselineHolidayAvailability.body?.error || null,
+              after_error: postHolidayAvailability.body?.error || null,
+              diagnostic_category:
+                [baselineHolidayAvailability.body?.error, postHolidayAvailability.body?.error]
+                  .filter(Boolean)
+                  .some((message) => String(message).includes('Missing NEXT_PUBLIC_SUPABASE_URL') || String(message).includes('Missing NEXT_PUBLIC_SUPABASE_ANON_KEY') || String(message).includes('Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY'))
+                  ? 'environment_invalid'
+                  : baselineHolidayAvailability.status >= 500 || postHolidayAvailability.status >= 500
+                    ? 'availability_error'
+                    : 'unexpected_server_error',
             },
           )
-        : ok('blocked', { reason: 'Run with --base-url=http://localhost:3000 to validate holiday blocking.' }),
+        : ok('blocked', { reason: 'Run with --base-url=http://localhost:3000 to validate holiday blocking.', diagnostic_category: 'environment_invalid' }),
     },
     evidence_checked: [
       { name: 'controlled_booking_create', status: controlledBookingEvidence.create?.status || controlledBookingFlow.status, response_status: controlledBookingEvidence.create?.response_status ?? null },
