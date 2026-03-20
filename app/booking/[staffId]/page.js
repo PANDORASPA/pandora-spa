@@ -148,6 +148,49 @@ Object.assign(T, {
 
 DAY_LABELS.splice(0, DAY_LABELS.length, '一', '二', '三', '四', '五', '六', '日')
 
+Object.assign(T, {
+  title: '線上預約',
+  intro: '先選擇服務與日期，再從下拉選單選擇可預約時段。',
+  loadingStaff: '載入服務供應者資料中...',
+  loadingBootstrapFailed: '無法載入預約資料',
+  noStaffFound: '找不到這位服務供應者',
+  backToBooking: '返回預約頁',
+  serviceProvider: '服務供應者',
+  service: '服務',
+  businessHours: '營業時間',
+  customerName: '顧客姓名',
+  customerNamePlaceholder: '請輸入顧客姓名',
+  customerPhone: '聯絡電話',
+  customerPhonePlaceholder: '請輸入聯絡電話',
+  date: '日期',
+  time: '時間',
+  chooseDateThenTime: '先選日期，再選時間',
+  bookingSummary: '預約摘要',
+  amountDue: '應付金額',
+  monthPrev: '上月',
+  monthNext: '下月',
+  chooseDate: '選擇日期',
+  collapseCalendar: '收起月曆',
+  contactLabel: '查詢電話',
+  timeDropdown: '可預約時段',
+  submit: '提交預約',
+  submitted: '預約已送出',
+  submitFailed: '提交預約失敗',
+})
+
+DAY_LABELS.splice(0, DAY_LABELS.length, '一', '二', '三', '四', '五', '六', '日')
+
+const getReasonMessageDisplay = (summary) => {
+  if (!summary) return ''
+  if (summary.status === 'off') return '休息日'
+  if (summary.status !== 'full') return ''
+  if (summary.reason === 'fully_booked' || summary.reason === 'resource_full') return '有上班，但今天已滿'
+  if (summary.reason === 'provider_mismatch' || summary.reason === 'location_required' || summary.reason === 'no_bookable_slots') {
+    return '已安排上班，但此服務目前未形成可預約時段'
+  }
+  return bookingOpsCopy.limitedDayHint
+}
+
 const getReasonMessageClean = (summary) => {
   if (!summary) return ''
   if (summary.status === 'off') return T.offNote
@@ -749,7 +792,7 @@ export default function BookingStaffPage() {
                 </label>
               </div>
 
-              {selectedDate && selectedSummary ? <div style={{ color: '#6B7280', fontSize: '14px' }}>{getReasonMessageClean(selectedSummary)}</div> : null}
+              {selectedDate && selectedSummary ? <div style={{ color: '#6B7280', fontSize: '14px' }}>{getReasonMessageDisplay(selectedSummary)}</div> : null}
               {selectedDate && !loadingSlots && slots.length === 0 && selectedSummary?.status === 'available' ? <div style={{ color: '#6B7280' }}>{T.noAvailability}</div> : null}
             </div>
 
