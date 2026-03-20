@@ -22,7 +22,7 @@ function RegisterInner() {
     let supabase
     try {
       supabase = getBrowserClient()
-    } catch (error) {
+    } catch {
       return
     }
 
@@ -31,23 +31,48 @@ function RegisterInner() {
     })
   }, [redirectTo, router])
 
+  const validateForm = () => {
+    if (!String(fullName).trim()) {
+      toast.error('請填寫姓名')
+      return false
+    }
+    if (!String(phone).trim()) {
+      toast.error('請填寫電話')
+      return false
+    }
+    if (!String(email).trim()) {
+      toast.error('請填寫電郵')
+      return false
+    }
+    if (!String(password).trim()) {
+      toast.error('請填寫密碼')
+      return false
+    }
+    if (password !== confirmPassword) {
+      toast.error('兩次輸入的密碼不一致')
+      return false
+    }
+    return true
+  }
+
   const handleRegister = async (event) => {
     event.preventDefault()
-    if (password !== confirmPassword) {
-      toast.error('兩次密碼不一致')
-      return
-    }
+    if (!validateForm()) return
 
     setLoading(true)
     try {
       const supabase = getBrowserClient()
+      const trimmedName = String(fullName).trim()
+      const trimmedPhone = String(phone).trim()
+      const trimmedEmail = String(email).trim()
+
       const { data, error } = await supabase.auth.signUp({
-        email,
+        email: trimmedEmail,
         password,
         options: {
           data: {
-            full_name: fullName,
-            phone,
+            full_name: trimmedName,
+            phone: trimmedPhone,
           },
         },
       })
@@ -55,20 +80,21 @@ function RegisterInner() {
       if (error) throw error
 
       if (data?.user) {
-        await supabase.from('member_profiles').upsert({
+        const { error: profileError } = await supabase.from('member_profiles').upsert({
           id: data.user.id,
-          email,
-          full_name: fullName || null,
-          phone: phone || null,
+          email: trimmedEmail,
+          full_name: trimmedName,
+          phone: trimmedPhone,
         })
+        if (profileError) throw profileError
         toast.success('註冊成功')
       } else {
-        toast.success('註冊成功，請先完成電郵確認')
+        toast.success('註冊成功，請先完成電郵驗證')
       }
 
       router.replace(redirectTo)
     } catch (error) {
-      toast.error('註冊失敗: ' + (error?.message || '請稍後再試'))
+      toast.error(`註冊失敗：${error?.message || '請稍後再試'}`)
     } finally {
       setLoading(false)
     }
@@ -77,19 +103,44 @@ function RegisterInner() {
   return (
     <>
       <section style={{ padding: '30px 16px', background: '#FAF8F5', textAlign: 'center' }}>
-        <h1 style={{ fontSize: '28px' }}>註冊<span style={{ color: '#A68B6A' }}>會員</span></h1>
+        <h1 style={{ fontSize: '28px' }}>
+          註冊
+          <span style={{ color: '#A68B6A' }}>會員</span>
+        </h1>
       </section>
 
       <section style={{ padding: '24px 16px' }}>
-        <div style={{ maxWidth: '420px', margin: '0 auto', background: '#fff', borderRadius: '16px', padding: '24px', boxShadow: '0 2px 10px rgba(0,0,0,0.05)' }}>
+        <div
+          style={{
+            maxWidth: '420px',
+            margin: '0 auto',
+            background: '#fff',
+            borderRadius: '16px',
+            padding: '24px',
+            boxShadow: '0 2px 10px rgba(0,0,0,0.05)',
+          }}
+        >
           <form onSubmit={handleRegister} style={{ display: 'grid', gap: '14px' }}>
             <div>
-              <label style={{ display: 'block', fontWeight: 600, marginBottom: '6px' }}>稱呼</label>
+              <label style={{ display: 'block', fontWeight: 600, marginBottom: '6px' }}>姓名</label>
               <input
                 type="text"
                 value={fullName}
                 onChange={(event) => setFullName(event.target.value)}
-                placeholder="你的名字"
+                placeholder="請輸入姓名"
+                required
+                style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #e5e5e5' }}
+              />
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontWeight: 600, marginBottom: '6px' }}>電話</label>
+              <input
+                type="tel"
+                value={phone}
+                onChange={(event) => setPhone(event.target.value)}
+                placeholder="請輸入電話"
+                required
                 style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #e5e5e5' }}
               />
             </div>
@@ -102,17 +153,6 @@ function RegisterInner() {
                 onChange={(event) => setEmail(event.target.value)}
                 placeholder="you@example.com"
                 required
-                style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #e5e5e5' }}
-              />
-            </div>
-
-            <div>
-              <label style={{ display: 'block', fontWeight: 600, marginBottom: '6px' }}>電話</label>
-              <input
-                type="tel"
-                value={phone}
-                onChange={(event) => setPhone(event.target.value)}
-                placeholder="聯絡電話"
                 style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #e5e5e5' }}
               />
             </div>
