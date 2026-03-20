@@ -216,12 +216,9 @@ const buildMonthlyContext = async ({
     staffProviderGroupMap.get(staffId).add(groupId)
   }
 
-  const staffQuery = supabase
-    .from('staff')
-    .select('id,name,enabled,role,services,schedule,daysoff,daysOff,location_id,provider_group_id,break_start,break_end')
-    .eq('enabled', true)
-    .order('name')
-  const staffRes = requestedStaffId ? await staffQuery.eq('id', requestedStaffId) : await staffQuery
+  const staffSelect = 'id,name,enabled,role,services,schedule,daysoff,location_id,provider_group_id'
+  const buildStaffQuery = () => supabase.from('staff').select(staffSelect).eq('enabled', true).order('name')
+  const staffRes = requestedStaffId ? await buildStaffQuery().eq('id', requestedStaffId) : await buildStaffQuery()
   if (staffRes.error) {
     throw new Phase2Error(staffRes.error.message, { code: 'staff_load_failed', status: 500 })
   }
