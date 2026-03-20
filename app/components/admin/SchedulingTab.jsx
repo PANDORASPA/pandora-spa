@@ -117,6 +117,42 @@ const getPreviewStatusCopy = (entry = {}) => {
   }
 }
 
+const normalizeDateValue = (value) => String(value || '').slice(0, 10)
+
+const getSelectedDatePlan = ({ dateISO, staff, shiftRows = [], breakRows = [], timeOffRows = [], blockedRows = [] }) => {
+  if (!dateISO || !staff) return null
+  const dayOfWeek = String(new Date(`${dateISO}T00:00:00Z`).getUTCDay())
+  const override = (shiftRows || []).find((row) => normalizeDateValue(row.date) === dateISO)
+  const isDayOff = (staff?.daysOff || staff?.daysoff || []).map(String).includes(dayOfWeek)
+  const baseline = staff?.schedule?.[dayOfWeek] || {}
+
+  const workingWindow = override
+    ? override.is_off
+      ? null
+      : {
+          start: formatTime(override.start_time || baseline.start),
+          end: formatTime(override.end_time || baseline.end),
+          source: '日期覆蓋',
+        }
+    : isDayOff
+      ? null
+      : baseline.start && baseline.end
+        ? {
+            start: formatTime(baseline.start),
+            end: formatTime(baseline.end),
+            source: '每週時間表',
+          }
+        : null
+
+  return {
+    workingWindow,
+    override: override || null,
+    breaks: (breakRows || []).filter((row) => String(row.day_of_week ?? '') === dayOfWeek && row.enabled !== false),
+    timeOff: (timeOffRows || []).filter((row) => normalizeDateValue(row.date) === dateISO),
+    blocked: (blockedRows || []).filter((row) => normalizeDateValue(row.date) === dateISO),
+  }
+}
+
 function RowsEditor({ title, description, emptyDescription, rows, onAdd, onRemove, renderRow, setRows }) {
   return (
     <div className="admin-card" style={{ ...cardStyle, display: 'grid', gap: '14px' }}>
@@ -188,6 +224,7 @@ export default function SchedulingTab({
   const [selectedStaffId, setSelectedStaffId] = useState(staff[0]?.id ?? null)
   const [previewMonth, setPreviewMonth] = useState(monthKeyFromDate(todayISO()))
   const [previewServiceId, setPreviewServiceId] = useState('')
+  const [selectedPreviewDate, setSelectedPreviewDate] = useState('')
   const [previewDates, setPreviewDates] = useState([])
   const [previewLoading, setPreviewLoading] = useState(false)
   const [previewError, setPreviewError] = useState('')
@@ -213,6 +250,19 @@ export default function SchedulingTab({
   )
   const previewMap = useMemo(() => new Map(previewDates.map((entry) => [entry.date, entry])), [previewDates])
   const previewGrid = useMemo(() => buildMonthGrid(previewMonth), [previewMonth])
+  const selectedPreviewEntry = selectedPreviewDate ? previewMap.get(selectedPreviewDate) || null : null
+  const selectedDatePlan = useMemo(
+    () =>
+      getSelectedDatePlan({
+        dateISO: selectedPreviewDate,
+        staff: selectedStaff,
+        shiftRows,
+        breakRows,
+        timeOffRows,
+        blockedRows,
+      }),
+    [blockedRows, breakRows, selectedPreviewDate, selectedStaff, shiftRows, timeOffRows],
+  )
 
   useEffect(() => {
     if (!staff.length) return
@@ -294,6 +344,7 @@ export default function SchedulingTab({
   useEffect(() => {
     if (!selectedStaff?.id || !previewServiceId || !previewMonth) {
       setPreviewDates([])
+      setSelectedPreviewDate('')
       return
     }
 
@@ -333,6 +384,20 @@ export default function SchedulingTab({
 
     return () => controller.abort()
   }, [previewMonth, previewNonce, previewServiceId, selectedStaff?.id, selectedStaff?.location_id])
+
+  useEffect(() => {
+    if (!previewDates.length) {
+      setSelectedPreviewDate('')
+      return
+    }
+    const current = selectedPreviewDate ? previewMap.get(selectedPreviewDate) : null
+    if (current && selectedPreviewDate.startsWith(previewMonth)) return
+    const firstPreferred =
+      previewDates.find((entry) => entry?.status === 'available') ||
+      previewDates.find((entry) => entry?.status === 'full') ||
+      previewDates.find((entry) => entry?.status === 'off')
+    setSelectedPreviewDate(firstPreferred?.date || '')
+  }, [previewDates, previewMap, previewMonth, selectedPreviewDate])
   const removeRow = (setRows, setDeletedIds, id) => {
     setRows((current) => current.filter((row) => row.id !== id))
     if (Number(id) > 0) setDeletedIds((current) => [...current, Number(id)])
@@ -711,7 +776,6 @@ export default function SchedulingTab({
               <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                 <Pill tone="success">{bookingOpsCopy.calendarAvailable}</Pill>
                 <Pill tone="warning">{bookingOpsCopy.calendarFull}</Pill>
-                <Pill tone="warning">{CALENDAR_LIMITED_LABEL}</Pill>
                 <Pill tone="muted">{bookingOpsCopy.calendarRest}</Pill>
               </div>
 
@@ -732,33 +796,120 @@ export default function SchedulingTab({
                   const entry = previewMap.get(dateISO)
                   const status = entry?.status || 'off'
                   const previewCopy = getPreviewStatusCopy(entry)
+                  const countLabel =
+                    status === 'available'
+                      ? `${Number(entry?.availableCount || 0)} 個可約時段`
+                      : status === 'full' && Number(entry?.slotCount || 0) > 0
+                        ? `${Number(entry?.slotCount || 0)} 個工作時段`
+                        : ''
+                  const isSelected = selectedPreviewDate === dateISO
 
                   return (
-                    <div
+                    <button
                       key={dateISO}
+                      type="button"
+                      onClick={() => {
+                        if (!inMonth) return
+                        setSelectedPreviewDate(dateISO)
+                      }}
                       style={{
                         ...cardStyle,
                         minHeight: '92px',
                         padding: '10px',
                         opacity: inMonth ? 1 : 0.45,
                         color: status === 'off' ? '#9CA3AF' : '#111827',
-                        background: status === 'off' ? '#F8FAFC' : '#fff',
-                        borderColor: status === 'full' ? 'rgba(166, 139, 106, 0.45)' : '#E5E7EB',
+                        background: isSelected ? '#FFF8EE' : status === 'off' ? '#F8FAFC' : '#fff',
+                        borderColor: isSelected ? '#A68B6A' : status === 'full' ? 'rgba(166, 139, 106, 0.45)' : '#E5E7EB',
+                        textAlign: 'left',
+                        cursor: inMonth ? 'pointer' : 'default',
                       }}
                     >
                       <div style={{ fontSize: '15px', fontWeight: 900 }}>{dayLabel}</div>
                       {inMonth ? (
                         <div style={{ marginTop: '8px', display: 'grid', gap: '6px' }}>
                           <Pill tone={previewCopy.tone}>{previewCopy.label}</Pill>
+                          {countLabel ? <div style={{ fontSize: '12px', fontWeight: 800, color: status === 'off' ? '#9CA3AF' : '#374151' }}>{countLabel}</div> : null}
                           <div style={{ fontSize: '12px', fontWeight: 700, color: status === 'off' ? '#9CA3AF' : '#6B7280', lineHeight: 1.4 }}>
                             {previewCopy.hint}
                           </div>
                         </div>
                       ) : null}
-                    </div>
+                    </button>
                   )
                 })}
               </div>
+
+              {selectedPreviewEntry ? (
+                <div
+                  className="admin-card"
+                  style={{
+                    ...cardStyle,
+                    display: 'grid',
+                    gap: '14px',
+                    background: '#FCFBF9',
+                    borderColor: 'rgba(166, 139, 106, 0.2)',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+                    <div>
+                      <div style={{ fontSize: '12px', color: '#A68B6A', fontWeight: 800, letterSpacing: '0.08em' }}>選中日期</div>
+                      <div style={{ marginTop: '4px', fontSize: '20px', fontWeight: 900 }}>{selectedPreviewDate}</div>
+                    </div>
+                    <Pill tone={getPreviewStatusCopy(selectedPreviewEntry).tone}>{getPreviewStatusCopy(selectedPreviewEntry).label}</Pill>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
+                    <div>
+                      <div style={{ fontSize: '12px', color: '#6B7280', fontWeight: 700 }}>月曆狀態</div>
+                      <div style={{ marginTop: '4px', fontWeight: 800 }}>{selectedPreviewEntry.status}</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '12px', color: '#6B7280', fontWeight: 700 }}>可預約總數</div>
+                      <div style={{ marginTop: '4px', fontWeight: 800 }}>{Number(selectedPreviewEntry.availableCount || 0)}</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '12px', color: '#6B7280', fontWeight: 700 }}>工作時段總數</div>
+                      <div style={{ marginTop: '4px', fontWeight: 800 }}>{Number(selectedPreviewEntry.slotCount || 0)}</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '12px', color: '#6B7280', fontWeight: 700 }}>判定原因</div>
+                      <div style={{ marginTop: '4px', fontWeight: 800 }}>{selectedPreviewEntry.reason || '-'}</div>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
+                    <div>
+                      <div style={{ fontSize: '12px', color: '#6B7280', fontWeight: 700 }}>當日上班時間</div>
+                      <div style={{ marginTop: '4px', fontWeight: 800 }}>
+                        {selectedDatePlan?.workingWindow ? `${selectedDatePlan.workingWindow.start} - ${selectedDatePlan.workingWindow.end}` : '休息 / 無 working window'}
+                      </div>
+                      <div style={{ marginTop: '4px', fontSize: '12px', color: '#6B7280' }}>
+                        {selectedDatePlan?.workingWindow?.source || '未設定'}
+                      </div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '12px', color: '#6B7280', fontWeight: 700 }}>日期覆蓋</div>
+                      <div style={{ marginTop: '4px', fontWeight: 800 }}>
+                        {selectedDatePlan?.override
+                          ? selectedDatePlan.override.is_off
+                            ? '整日休息'
+                            : `${formatTime(selectedDatePlan.override.start_time)} - ${formatTime(selectedDatePlan.override.end_time)}`
+                          : '沒有覆蓋'}
+                      </div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '12px', color: '#6B7280', fontWeight: 700 }}>固定休息時段</div>
+                      <div style={{ marginTop: '4px', fontWeight: 800 }}>{selectedDatePlan?.breaks?.length || 0} 筆</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '12px', color: '#6B7280', fontWeight: 700 }}>休假 / 封鎖</div>
+                      <div style={{ marginTop: '4px', fontWeight: 800 }}>
+                        {(selectedDatePlan?.timeOff?.length || 0) + (selectedDatePlan?.blocked?.length || 0)} 筆
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
             </div>
           </div>
         ) : null}
