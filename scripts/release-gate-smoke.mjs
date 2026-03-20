@@ -23,8 +23,14 @@ const anonSupabase = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_
   auth: { persistSession: false, autoRefreshToken: false },
 })
 
+const DEFAULT_BASE_URL = 'http://localhost:3000'
 const baseUrlArg = process.argv.find((arg) => arg.startsWith('--base-url='))
-const baseUrl = baseUrlArg ? baseUrlArg.slice('--base-url='.length).replace(/\/$/, '') : ''
+const normalizeBaseUrl = (value) => {
+  const text = String(value || '').trim().replace(/\/$/, '')
+  if (!text) return DEFAULT_BASE_URL
+  return text.replace('127.0.0.1', 'localhost')
+}
+const baseUrl = normalizeBaseUrl(baseUrlArg ? baseUrlArg.slice('--base-url='.length) : '')
 const smokeDate = '2026-03-19'
 const smokeConfig = {
   serviceId: 1,
@@ -46,6 +52,11 @@ const smokeConfig = {
 }
 
 const outcome = (status, details = {}) => ({ status, ...details })
+const createStructuredError = (message, details = {}) => {
+  const error = new Error(message)
+  error.details = details
+  return error
+}
 
 const parseTimeToMinutes = (value) => {
   if (!value) return null
@@ -95,6 +106,27 @@ async function fetchJson(url, { method = 'GET', headers = {}, body } = {}) {
     ok: response.ok,
     headers: Object.fromEntries(response.headers.entries()),
     body: payload,
+  }
+}
+
+async function probeAuthenticatedRoute(cookieHeader) {
+  const response = await fetch(`${baseUrl}/account/bookings`, {
+    headers: { cookie: cookieHeader },
+    redirect: 'manual',
+  })
+  return {
+    status: response.status,
+    location: response.headers.get('location'),
+    valid: response.status === 200,
+  }
+}
+
+async function probeAvailabilityEnvironment() {
+  const response = await fetchJson(`${baseUrl}/api/public/availability-version`)
+  return {
+    status: response.status,
+    valid: response.ok,
+    error: response.body?.error || null,
   }
 }
 
@@ -288,11 +320,62 @@ async function runAvailability(dateISO, locationId, staffId) {
   return fetchJson(url)
 }
 
+async function runMonthSummary(referenceDateISO, locationId, staffId) {
+  const [year, month] = String(referenceDateISO).split('-')
+  const url = `${baseUrl}/api/availability/month-summary?serviceId=${smokeConfig.serviceId}&staffId=${staffId}&locationId=${locationId}&year=${Number(year)}&month=${Number(month)}`
+  return fetchJson(url)
+}
+
 async function findSlot(dateISO, locationId, staffId, preferred = []) {
+  const monthSummary = await runMonthSummary(dateISO, locationId, staffId)
+  const dates = Array.isArray(monthSummary.body?.dates) ? monthSummary.body.dates : []
+  const dateEntry = dates.find((entry) => entry?.date === dateISO) || null
+  if (!monthSummary.ok) {
+    return {
+      monthSummary,
+      dateEntry,
+      availability: null,
+      slots: [],
+      chosen: null,
+      diagnosticCategory: monthSummary.status >= 500 ? 'availability_error' : 'seed_invalid',
+      diagnosticReason: monthSummary.body?.error || 'month_summary_failed',
+    }
+  }
+  if (!dateEntry) {
+    return {
+      monthSummary,
+      dateEntry,
+      availability: null,
+      slots: [],
+      chosen: null,
+      diagnosticCategory: 'seed_invalid',
+      diagnosticReason: 'date_missing_from_month_summary',
+    }
+  }
+  if (dateEntry.status !== 'available') {
+    return {
+      monthSummary,
+      dateEntry,
+      availability: null,
+      slots: [],
+      chosen: null,
+      diagnosticCategory: 'seed_invalid',
+      diagnosticReason: dateEntry.reason || dateEntry.status || 'not_available',
+    }
+  }
+
   const availability = await runAvailability(dateISO, locationId, staffId)
   const slots = uniqueSlots(availability.body?.slots)
   const chosen = preferred.find((slot) => slots.includes(slot)) || slots[0] || null
-  return { availability, slots, chosen }
+  return {
+    monthSummary,
+    dateEntry,
+    availability,
+    slots,
+    chosen,
+    diagnosticCategory: availability.ok ? (chosen ? null : 'seed_invalid') : availability.status >= 500 ? 'availability_error' : 'unexpected_server_error',
+    diagnosticReason: availability.ok ? (chosen ? null : 'no_bookable_slots') : availability.body?.error || 'availability_failed',
+  }
 }
 
 async function createBookingRequest({ cookieHeader, dateISO, startTime, locationId, staffId, userTicketId = null, label }) {
@@ -355,8 +438,6 @@ async function cancelBooking({ cookieHeader, bookingId }) {
 }
 
 async function main() {
-  if (!baseUrl) throw new Error('Run with --base-url=http://localhost:3000 or similar.')
-
   const service = await maybeSingle(serviceSupabase.from('services').select('*').eq('id', smokeConfig.serviceId))
   if (!service) throw new Error(`Service ${smokeConfig.serviceId} not found`)
 
@@ -376,6 +457,24 @@ async function main() {
   const memberCookie = await buildCookieHeader(smokeConfig.memberEmail)
   const outsiderCookie = await buildCookieHeader(smokeConfig.outsiderEmail)
   const adminCookie = await buildCookieHeader(smokeConfig.adminEmail)
+  const environmentProbe = await probeAvailabilityEnvironment()
+  if (!environmentProbe.valid) {
+    throw createStructuredError('Availability environment probe failed.', {
+      diagnostic_category: 'environment_invalid',
+      environment_probe: environmentProbe,
+    })
+  }
+  const memberProbe = await probeAuthenticatedRoute(memberCookie)
+  const outsiderProbe = await probeAuthenticatedRoute(outsiderCookie)
+  const adminProbe = await probeAuthenticatedRoute(adminCookie)
+  if (!memberProbe.valid) {
+    throw createStructuredError('Smoke member session is not valid for account route.', {
+      diagnostic_category: 'auth_session_invalid',
+      auth_probe: memberProbe,
+      outsider_probe: outsiderProbe,
+      admin_probe: adminProbe,
+    })
+  }
 
   await cleanupUserBookings(memberUser.id)
   await cleanupUserBookings(outsiderUser.id)
@@ -383,7 +482,20 @@ async function main() {
   const ticket = await ensureTicketForUser(memberUser.id)
 
   const createBaseline = await findSlot(smokeConfig.createDate, location.id, smokeConfig.primaryStaffId)
-  if (!createBaseline.chosen) throw new Error('No create slot available for primary staff.')
+  if (!createBaseline.chosen) {
+    throw createStructuredError('No create slot available for primary staff.', {
+      diagnostic_category: createBaseline.diagnosticCategory || 'seed_invalid',
+      create_baseline: {
+        date: smokeConfig.createDate,
+        date_entry: createBaseline.dateEntry,
+        month_summary_status: createBaseline.monthSummary?.status ?? null,
+        month_summary_error: createBaseline.monthSummary?.body?.error ?? null,
+        availability_status: createBaseline.availability?.status ?? null,
+        availability_error: createBaseline.availability?.body?.error ?? null,
+        diagnostic_reason: createBaseline.diagnosticReason,
+      },
+    })
+  }
 
   const createSuccess = await createBookingRequest({
     cookieHeader: memberCookie,
@@ -429,7 +541,17 @@ async function main() {
   const selfExclusionSnapshot = await fetchBookingSnapshot(createdBooking.id)
 
   const rescheduleTarget = await findSlot(smokeConfig.rescheduleDate, location.id, smokeConfig.primaryStaffId, ['10:00', '10:15', '10:30', '11:00'])
-  if (!rescheduleTarget.chosen) throw new Error('No reschedule slot available for primary staff.')
+  if (!rescheduleTarget.chosen) {
+    throw createStructuredError('No reschedule slot available for primary staff.', {
+      diagnostic_category: rescheduleTarget.diagnosticCategory || 'seed_invalid',
+      reschedule_target: {
+        date: smokeConfig.rescheduleDate,
+        date_entry: rescheduleTarget.dateEntry,
+        availability_status: rescheduleTarget.availability?.status ?? null,
+        diagnostic_reason: rescheduleTarget.diagnosticReason,
+      },
+    })
+  }
 
   const beforeReschedule = await fetchBookingSnapshot(createdBooking.id)
   const rescheduleSuccess = await rescheduleBooking({
@@ -443,7 +565,17 @@ async function main() {
   const afterReschedule = await fetchBookingSnapshot(createdBooking.id)
 
   const rollbackTarget = await findSlot(smokeConfig.rollbackDate, location.id, smokeConfig.primaryStaffId, ['11:00', '11:15', '11:30', '12:00'])
-  if (!rollbackTarget.chosen) throw new Error('No rollback target slot available for primary staff.')
+  if (!rollbackTarget.chosen) {
+    throw createStructuredError('No rollback target slot available for primary staff.', {
+      diagnostic_category: rollbackTarget.diagnosticCategory || 'seed_invalid',
+      rollback_target: {
+        date: smokeConfig.rollbackDate,
+        date_entry: rollbackTarget.dateEntry,
+        availability_status: rollbackTarget.availability?.status ?? null,
+        diagnostic_reason: rollbackTarget.diagnosticReason,
+      },
+    })
+  }
 
   const beforeRollback = await fetchBookingSnapshot(createdBooking.id)
   const forcedRollback = await rescheduleBooking({
@@ -460,7 +592,17 @@ async function main() {
   const afterRollback = await fetchBookingSnapshot(createdBooking.id)
 
   const ticketCreateBaseline = await findSlot(smokeConfig.ticketCancelDate, location.id, smokeConfig.primaryStaffId, ['09:00', '10:00', '11:00'])
-  if (!ticketCreateBaseline.chosen) throw new Error('No ticket cancel slot available for primary staff.')
+  if (!ticketCreateBaseline.chosen) {
+    throw createStructuredError('No ticket cancel slot available for primary staff.', {
+      diagnostic_category: ticketCreateBaseline.diagnosticCategory || 'seed_invalid',
+      ticket_target: {
+        date: smokeConfig.ticketCancelDate,
+        date_entry: ticketCreateBaseline.dateEntry,
+        availability_status: ticketCreateBaseline.availability?.status ?? null,
+        diagnostic_reason: ticketCreateBaseline.diagnosticReason,
+      },
+    })
+  }
   const ticketCreate = await createBookingRequest({
     cookieHeader: memberCookie,
     dateISO: smokeConfig.ticketCancelDate,
@@ -686,6 +828,31 @@ async function main() {
 }
 
 main().catch((error) => {
+  const report = {
+    generatedAt: new Date().toISOString(),
+    baseUrl,
+    checks: {},
+    release_decision: 'NO-GO',
+    blocking_findings: [
+      {
+        name: 'script_execution',
+        response_status: null,
+        response_code: error?.details?.diagnostic_category || 'unexpected_server_error',
+      },
+    ],
+    known_p2: [],
+    known_p3: [],
+    evidence_checked: [],
+    next_fix_round_needed: 'yes',
+    failure: {
+      message: error?.message || 'Unknown error',
+      diagnostic_category: error?.details?.diagnostic_category || 'unexpected_server_error',
+      details: error?.details || null,
+    },
+  }
+  const reportPath = path.join(root, `RELEASE_GATE_REPORT_${smokeDate}.json`)
+  fs.writeFileSync(reportPath, JSON.stringify(report, null, 2))
   console.error(error)
+  console.log(`REPORT_PATH=${reportPath}`)
   process.exit(1)
 })
