@@ -386,7 +386,18 @@ const buildDateSummaryFromMonthlyContext = ({ monthlyContext, dateISO, staffId }
 
   const evaluation = evaluatePhase2Availability(context, { requestedStaffId: staff.id })
   const slotMatrix = Array.isArray(evaluation.staffSlotMatrix?.[staff.id]) ? evaluation.staffSlotMatrix[staff.id] : []
-  const availableCount = slotMatrix.filter((entry) => entry?.available).length
+  const uniqueSlotMap = new Map()
+  for (const entry of slotMatrix) {
+    const time = String(entry?.time || '')
+    if (!time) continue
+    const current = uniqueSlotMap.get(time)
+    uniqueSlotMap.set(time, {
+      time,
+      available: Boolean(current?.available || entry?.available),
+    })
+  }
+  const uniqueSlots = Array.from(uniqueSlotMap.values())
+  const availableCount = uniqueSlots.filter((entry) => entry?.available).length
   const dateSummary = evaluation.dateSummary || {}
   const workingCount = Number(dateSummary.workingCount || 0)
   const resourceBlockedCount = Number(dateSummary.resourceBlockedCount || 0)
@@ -416,7 +427,7 @@ const buildDateSummaryFromMonthlyContext = ({ monthlyContext, dateISO, staffId }
     hasWorkingHours,
     hasAvailableSlots: availableCount > 0,
     availableCount,
-    slotCount: slotMatrix.length,
+    slotCount: uniqueSlots.length,
     reason,
   }
 }
@@ -468,7 +479,18 @@ export const buildDateSummary = async ({ supabase, dateISO, serviceId, staffId, 
 
   const evaluation = evaluatePhase2Availability(context, { requestedStaffId: staff.id })
   const slotMatrix = Array.isArray(evaluation.staffSlotMatrix?.[staff.id]) ? evaluation.staffSlotMatrix[staff.id] : []
-  const availableCount = slotMatrix.filter((entry) => entry?.available).length
+  const uniqueSlotMap = new Map()
+  for (const entry of slotMatrix) {
+    const time = String(entry?.time || '')
+    if (!time) continue
+    const current = uniqueSlotMap.get(time)
+    uniqueSlotMap.set(time, {
+      time,
+      available: Boolean(current?.available || entry?.available),
+    })
+  }
+  const uniqueSlots = Array.from(uniqueSlotMap.values())
+  const availableCount = uniqueSlots.filter((entry) => entry?.available).length
   const dateSummary = evaluation.dateSummary || {}
   const workingCount = Number(dateSummary.workingCount || 0)
   const resourceBlockedCount = Number(dateSummary.resourceBlockedCount || 0)
@@ -498,7 +520,7 @@ export const buildDateSummary = async ({ supabase, dateISO, serviceId, staffId, 
     hasWorkingHours,
     hasAvailableSlots: availableCount > 0,
     availableCount,
-    slotCount: slotMatrix.length,
+    slotCount: uniqueSlots.length,
     reason,
   }
 }
