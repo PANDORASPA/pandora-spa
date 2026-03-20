@@ -1,131 +1,74 @@
 {
-  "generatedAt": "2026-03-20T01:29:59.989Z",
-  "baseUrl": "http://127.0.0.1:3000",
-  "report_version": 2,
+  "generatedAt": "2026-03-20T02:10:04.200Z",
+  "baseUrl": "http://localhost:3000",
+  "report_version": 3,
   "seeds": {
     "location_id": 1,
     "provider_group_id": 1,
     "resource_id": 1,
-    "booking_id": 42,
+    "booking_id": 44,
     "order_id": 4,
     "transaction_id": 1,
     "customer_id": 3,
-    "holiday_id": 6,
+    "holiday_id": 8,
     "user_ticket_id": 4,
     "staff_id": 3
   },
   "controlled_booking_flow": {
     "status": "fail",
-    "booking_id": null,
-    "create_date": "2026-03-27",
-    "reschedule_date": "2026-03-28",
-    "create_slot": "09:00",
-    "reschedule_slot": "09:00",
-    "ticket_id": 6,
-    "create_pass": false,
-    "reschedule_pass": false,
-    "cancel_pass": false
+    "reason": "availability environment probe failed",
+    "diagnostic_category": "environment_invalid",
+    "environment_probe_status": 404,
+    "environment_probe_error": null
   },
   "controlled_booking_evidence": {
     "create": {
-      "request": {
-        "date": "2026-03-27",
-        "start_time": "09:00",
-        "location_id": 1,
-        "provider_group_id": 1,
-        "staff_id": 3,
-        "user_ticket_id": 6
-      },
-      "response_status": 401,
-      "response_code": null,
-      "booking_id": null,
-      "before_snapshot": null,
-      "after_snapshot": null,
-      "status": "fail"
+      "status": "fail",
+      "response_status": 404,
+      "response_code": "environment_invalid",
+      "diagnostic_category": "environment_invalid",
+      "environment_probe": {
+        "status": 404,
+        "valid": false,
+        "error": null
+      }
     },
     "reschedule": {
-      "request": {
-        "date": "2026-03-28",
-        "start_time": "09:00",
-        "location_id": 1,
-        "provider_group_id": 1,
-        "staff_id": 3,
-        "user_ticket_id": 6
-      },
-      "response_status": 500,
-      "response_code": null,
-      "booking_id": null,
-      "before_snapshot": null,
-      "after_snapshot": null,
-      "status": "fail"
+      "status": "blocked",
+      "response_status": null,
+      "response_code": "environment_invalid",
+      "diagnostic_category": "environment_invalid"
     },
     "cancel": {
-      "request": {
-        "booking_id": null
-      },
-      "response_status": 500,
-      "response_code": null,
-      "booking_id": null,
-      "before_snapshot": null,
-      "after_snapshot": null,
-      "ticket_before_cancel": {
-        "remaining_count": 2
-      },
-      "ticket_after_cancel": {
-        "remaining_count": 2
-      },
-      "status": "fail"
+      "status": "blocked",
+      "response_status": null,
+      "response_code": "environment_invalid",
+      "diagnostic_category": "environment_invalid"
     }
   },
   "checks": {
     "controlled_booking_create": {
       "status": "fail",
-      "request": {
-        "date": "2026-03-27",
-        "start_time": "09:00",
-        "location_id": 1,
-        "provider_group_id": 1,
-        "staff_id": 3,
-        "user_ticket_id": 6
-      },
-      "response_status": 401,
-      "response_code": null,
-      "booking_id": null,
-      "before_snapshot": null,
-      "after_snapshot": null
+      "response_status": 404,
+      "response_code": "environment_invalid",
+      "diagnostic_category": "environment_invalid",
+      "environment_probe": {
+        "status": 404,
+        "valid": false,
+        "error": null
+      }
     },
     "controlled_booking_reschedule": {
-      "status": "fail",
-      "request": {
-        "date": "2026-03-28",
-        "start_time": "09:00",
-        "location_id": 1,
-        "provider_group_id": 1,
-        "staff_id": 3,
-        "user_ticket_id": 6
-      },
-      "response_status": 500,
-      "response_code": null,
-      "booking_id": null,
-      "before_snapshot": null,
-      "after_snapshot": null
+      "status": "blocked",
+      "response_status": null,
+      "response_code": "environment_invalid",
+      "diagnostic_category": "environment_invalid"
     },
     "controlled_booking_cancel": {
-      "status": "fail",
-      "request": {
-        "booking_id": null
-      },
-      "response_status": 500,
-      "response_code": null,
-      "booking_id": null,
-      "before_snapshot": null,
-      "after_snapshot": null,
-      "ticket_before_cancel": {
-        "remaining_count": 2
-      },
-      "ticket_after_cancel": {
-        "remaining_count": 2
-      }
+      "status": "blocked",
+      "response_status": null,
+      "response_code": "environment_invalid",
+      "diagnostic_category": "environment_invalid"
     },
     "bookings_detail_seed_ready": {
       "status": "pass",
@@ -138,8 +81,8 @@
     "transaction_edit_save_roundtrip": {
       "status": "pass",
       "before": "Smoke seed created",
-      "after": "Smoke roundtrip 2026-03-20T01:29:52.336Z",
-      "booking_id": 42,
+      "after": "Smoke roundtrip 2026-03-20T02:09:59.864Z",
+      "booking_id": 44,
       "order_id": 4
     },
     "customer_operational_seed_ready": {
@@ -148,7 +91,7 @@
       "user_ticket_id": 4,
       "transaction_id": 1,
       "order_id": 4,
-      "booking_id": 42
+      "booking_id": 44
     },
     "availability_resource_full": {
       "status": "fail",
@@ -156,31 +99,37 @@
       "baseline_slots": [],
       "after_slots": [],
       "baseline_status": 500,
-      "after_status": 500
+      "after_status": 500,
+      "baseline_error": "Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY",
+      "after_error": "Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY",
+      "diagnostic_category": "environment_invalid"
     },
     "holiday_provider_group_enforcement": {
       "status": "fail",
       "baseline_slots": [],
       "after_slots": [],
       "baseline_status": 500,
-      "after_status": 500
+      "after_status": 500,
+      "baseline_error": "Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY",
+      "after_error": "Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY",
+      "diagnostic_category": "environment_invalid"
     }
   },
   "evidence_checked": [
     {
       "name": "controlled_booking_create",
       "status": "fail",
-      "response_status": 401
+      "response_status": 404
     },
     {
       "name": "controlled_booking_reschedule",
-      "status": "fail",
-      "response_status": 500
+      "status": "blocked",
+      "response_status": null
     },
     {
       "name": "controlled_booking_cancel",
-      "status": "fail",
-      "response_status": 500
+      "status": "blocked",
+      "response_status": null
     }
   ]
 }
