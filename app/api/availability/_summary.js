@@ -20,6 +20,7 @@ const DEFAULT_DAYS = 14
 const HK_TIME_ZONE = 'Asia/Hong_Kong'
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 const MONTH_SUMMARY_CACHE_TTL_MS = 30 * 1000
+const OPTIONAL_SERVICE_COLUMNS = ['buffer_min', 'slot_step_min', 'min_booking_qty', 'max_booking_qty', 'booking_mode']
 const monthSummaryCache = new Map()
 
 export const normalizeDateISO = (value) => {
@@ -53,6 +54,9 @@ export const parseOptionalNumber = (value) => {
   const parsed = Number(value)
   return Number.isFinite(parsed) ? parsed : null
 }
+
+const hasMissingOptionalServiceColumn = (message = '') =>
+  OPTIONAL_SERVICE_COLUMNS.some((column) => String(message).includes(column))
 
 export const resolveMonthReferenceISO = ({ startDate, year, month } = {}) => {
   const normalizedStartDate = normalizeDateISO(startDate)
@@ -136,7 +140,7 @@ const buildMonthlyContext = async ({
     .eq('id', serviceId)
     .single()
 
-  if (serviceRes.error && String(serviceRes.error.message || '').includes('buffer_min')) {
+  if (serviceRes.error && hasMissingOptionalServiceColumn(serviceRes.error.message || '')) {
     const fallbackRes = await supabase
       .from('services')
       .select('id,name,price,time,enabled,default_location_id,default_provider_group_id')
