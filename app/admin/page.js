@@ -559,6 +559,25 @@ export default function AdminPage() {
     return Number.isFinite(parsed) ? parsed : null
   }
 
+  const ensureValidTimeRange = ({ table, row, label }) => {
+    if (row?.is_off) return row
+    if (table === 'staff_time_off' && row?.is_all_day) {
+      return {
+        ...row,
+        start_time: '00:00',
+        end_time: '23:59',
+      }
+    }
+
+    if (!row?.start_time || !row?.end_time) {
+      throw new Error(`${label}需要同時設定開始與結束時間`)
+    }
+    if (String(row.start_time) >= String(row.end_time)) {
+      throw new Error(`${label}的結束時間必須晚於開始時間`)
+    }
+    return row
+  }
+
   const bumpAvailabilityCacheVersion = async () => {
     const { error } = await supabase
       .from('settings')
@@ -664,7 +683,9 @@ export default function AdminPage() {
           } else {
             payload.id = Number(payload.id)
           }
-          return payload
+
+          const label = scheduleTableLabels[table] || '排班設定'
+          return ensureValidTimeRange({ table, row: payload, label })
         })
       const normalizedDeletedIds = (deletedIds || [])
         .map((value) => Number(value))
