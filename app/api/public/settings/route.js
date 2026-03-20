@@ -5,6 +5,7 @@ const DEFAULT_SETTINGS = {
   phone: '',
   business_hours: '11:00 - 20:00',
   days_off: [],
+  availability_cache_version: '',
 }
 
 const parseDaysOff = (value) => {
@@ -32,7 +33,7 @@ export async function GET() {
     const { data, error } = await supabase
       .from('settings')
       .select('key,value')
-      .in('key', ['phone', 'business_hours', 'days_off'])
+      .in('key', ['phone', 'business_hours', 'days_off', 'availability_cache_version'])
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 })
