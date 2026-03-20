@@ -6,6 +6,7 @@ const DEFAULT_SETTINGS = {
   phone: '',
   business_hours: '11:00 - 20:00',
   days_off: [],
+  availability_cache_version: '',
 }
 
 const parseDaysOff = (value) => {
@@ -46,7 +47,7 @@ export async function GET(request) {
     const [staffRes, servicesRes, settingsRes] = await Promise.all([
       supabase.from('staff').select('id,name,role,bio,photo_url,services').eq('enabled', true).order('name'),
       supabase.from('services').select('id,name,price,time,description,sort_order,enabled').eq('enabled', true).order('sort_order'),
-      supabase.from('settings').select('key,value').in('key', ['phone', 'business_hours', 'days_off']),
+      supabase.from('settings').select('key,value').in('key', ['phone', 'business_hours', 'days_off', 'availability_cache_version']),
     ])
 
     if (staffRes.error) return NextResponse.json({ error: staffRes.error.message }, { status: 500 })
