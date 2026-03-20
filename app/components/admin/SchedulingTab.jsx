@@ -58,6 +58,17 @@ const cardStyle = {
   background: '#fff',
 }
 
+const dayModeButtonStyle = (active) => ({
+  padding: '8px 12px',
+  borderRadius: '999px',
+  border: `1px solid ${active ? '#A68B6A' : '#E5E7EB'}`,
+  background: active ? '#FFF8EE' : '#fff',
+  color: active ? '#8B5E34' : '#6B7280',
+  fontSize: '12px',
+  fontWeight: 800,
+  cursor: 'pointer',
+})
+
 const getPreviewStatusCopy = (entry = {}) => {
   const status = entry?.status || 'off'
   if (status === 'available') {
@@ -209,7 +220,7 @@ export default function SchedulingTab({
   onDeleteStaff,
   onUpdateField,
   onToggleService,
-  onToggleDailyOff,
+  onSetDailyMode,
   onUpdateSchedule,
   onSave,
   onSaveShifts,
@@ -608,10 +619,14 @@ export default function SchedulingTab({
                             <div style={{ fontSize: '12px', color: '#A68B6A', fontWeight: 800 }}>{day.label}</div>
                             <div style={{ marginTop: '4px', fontSize: '18px', fontWeight: 900 }}>{day.label}</div>
                           </div>
-                          <label style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#6B7280' }}>
-                            <input type="checkbox" checked={isOff} onChange={() => onToggleDailyOff(selectedStaff.id, day.key)} />
-                            休息
-                          </label>
+                          <div style={{ display: 'inline-flex', gap: '6px', alignItems: 'center' }}>
+                            <button type="button" onClick={() => onSetDailyMode(selectedStaff.id, day.key, 'work')} style={dayModeButtonStyle(!isOff)}>
+                              上班
+                            </button>
+                            <button type="button" onClick={() => onSetDailyMode(selectedStaff.id, day.key, 'rest')} style={dayModeButtonStyle(isOff)}>
+                              休息
+                            </button>
+                          </div>
                         </div>
                         <label style={{ display: 'grid', gap: '6px' }}>
                           <span style={{ fontSize: '12px', fontWeight: 700 }}>上班時間</span>
@@ -664,10 +679,14 @@ export default function SchedulingTab({
                   <input type="date" value={row.date || ''} onChange={(event) => update({ date: event.target.value })} style={smallFieldStyle} />
                   <input type="time" value={row.start_time || ''} onChange={(event) => update({ start_time: event.target.value })} style={smallFieldStyle} disabled={row.is_off} />
                   <input type="time" value={row.end_time || ''} onChange={(event) => update({ end_time: event.target.value })} style={smallFieldStyle} disabled={row.is_off} />
-                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#6B7280' }}>
-                    <input type="checkbox" checked={Boolean(row.is_off)} onChange={(event) => update({ is_off: event.target.checked })} />
-                    休息
-                  </label>
+                  <div style={{ display: 'inline-flex', gap: '6px', alignItems: 'center' }}>
+                    <button type="button" onClick={() => update({ is_off: false })} style={dayModeButtonStyle(!row.is_off)}>
+                      上班
+                    </button>
+                    <button type="button" onClick={() => update({ is_off: true, start_time: '', end_time: '' })} style={dayModeButtonStyle(Boolean(row.is_off))}>
+                      休息
+                    </button>
+                  </div>
                 </>
               )}
             />
@@ -715,7 +734,17 @@ export default function SchedulingTab({
                   <input type="time" value={row.start_time || ''} onChange={(event) => update({ start_time: event.target.value })} style={smallFieldStyle} disabled={row.is_all_day} />
                   <input type="time" value={row.end_time || ''} onChange={(event) => update({ end_time: event.target.value })} style={smallFieldStyle} disabled={row.is_all_day} />
                   <label style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#6B7280' }}>
-                    <input type="checkbox" checked={Boolean(row.is_all_day)} onChange={(event) => update({ is_all_day: event.target.checked })} />
+                    <input
+                      type="checkbox"
+                      checked={Boolean(row.is_all_day)}
+                      onChange={(event) =>
+                        update(
+                          event.target.checked
+                            ? { is_all_day: true, start_time: '00:00', end_time: '23:59' }
+                            : { is_all_day: false, start_time: row.start_time || '11:00', end_time: row.end_time || '20:00' }
+                        )
+                      }
+                    />
                     全天
                   </label>
                 </>
