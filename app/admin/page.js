@@ -6,6 +6,7 @@ import dynamic from 'next/dynamic'
 import { toast } from 'react-hot-toast'
 import { supabase } from '../../lib/supabase'
 import { analyzeScheduleRows } from '../../lib/booking/admin-schedule'
+import { parseBusinessHours } from '../../lib/booking/availability'
 
 const ServicesTab = dynamic(() => import('../components/admin/ServicesTab'))
 const CustomersTab = dynamic(() => import('../components/admin/CustomersTab'))
