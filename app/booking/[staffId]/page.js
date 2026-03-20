@@ -1,9 +1,10 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'react-hot-toast'
+import { bookingOpsCopy } from '../../components/admin/opsUi'
 
 const MONTH_SUMMARY_CACHE_TTL_MS = 60 * 1000
 const DAILY_SLOTS_CACHE_TTL_MS = 30 * 1000
@@ -29,7 +30,51 @@ const panelStyle = {
   boxShadow: '0 16px 36px rgba(15, 23, 42, 0.04)',
 }
 
-function Pill({ children, tone = 'default' }) {
+const T = {
+  title: '線上預約',
+  intro: '先選擇服務、日期，再從下拉選單選擇可預約的時段。',
+  loadingStaff: '載入服務供應者資料中…',
+  loadingBootstrapFailed: '無法載入預約資料',
+  noStaffFound: '找不到這位服務供應者',
+  backToBooking: '返回預約頁',
+  serviceProvider: '服務供應者',
+  service: '服務',
+  businessHours: '營業時間',
+  customerName: '顧客姓名',
+  customerNamePlaceholder: '請輸入顧客姓名',
+  customerPhone: '聯絡電話',
+  customerPhonePlaceholder: '請輸入聯絡電話',
+  date: '日期',
+  time: '時間',
+  chooseDateThenTime: '先選日期，再選時間',
+  bookingSummary: '預約摘要',
+  amountDue: '應付金額',
+  monthPrev: '上月',
+  monthNext: '下月',
+  chooseDate: '選擇日期',
+  collapseCalendar: '收起月曆',
+  contactLabel: '查詢電話',
+  timeDropdown: '可預約時段',
+  submit: '提交預約',
+  submitted: '預約已送出',
+  submitFailed: '預約失敗',
+  available: bookingOpsCopy.available,
+  full: bookingOpsCopy.full,
+  off: bookingOpsCopy.rest,
+  chooseDateFirst: bookingOpsCopy.chooseDateFirst,
+  chooseTimeFirst: bookingOpsCopy.chooseTimeFirst,
+  loadingDates: bookingOpsCopy.loadingDates,
+  loadingSlots: bookingOpsCopy.loadingSlots,
+  noAvailability: bookingOpsCopy.noAvailability,
+  fullNote: bookingOpsCopy.fullDayHint,
+  configLimitedNote: bookingOpsCopy.limitedDayHint,
+  offNote: bookingOpsCopy.offDayHint,
+  restDay: bookingOpsCopy.restDay,
+}
+
+const DAY_LABELS = ['一', '二', '三', '四', '五', '六', '日']
+
+function LegendPill({ children, tone = 'default' }) {
   const palette =
     tone === 'warning'
       ? { background: '#FFF7ED', border: '#FCD9BD', color: '#9A5E1A' }
@@ -57,25 +102,6 @@ function Pill({ children, tone = 'default' }) {
   )
 }
 
-const T = {
-  title: '線上預約',
-  intro: '先選擇日期，再從下拉選單選擇可預約的時段。',
-  loadingStaff: '載入服務供應者中...',
-  loadingDates: '載入月曆中...',
-  loadingSlots: '載入可預約時段中...',
-  chooseDateFirst: '請先選擇日期',
-  chooseTimeFirst: '請先選擇時段',
-  noAvailability: '暫時沒有可預約時段',
-  submit: '提交預約',
-  submitted: '預約已送出',
-  unavailable: '休息',
-  full: '已滿',
-  available: '可預約',
-  fullNote: '有上班，但今天已滿',
-  configLimitedNote: '已設定上班，但此服務目前未形成可預約時段',
-  offNote: '今天休息，未有可預約時段',
-}
-
 const monthKeyFromDate = (value) => String(value || '').slice(0, 7)
 const todayISO = () => new Date().toISOString().slice(0, 10)
 
@@ -97,26 +123,42 @@ const buildMonthGrid = (monthKey) => {
     const current = new Date(cursor)
     current.setUTCDate(cursor.getUTCDate() + index)
     const dateISO = current.toISOString().slice(0, 10)
-    return { dateISO, inMonth: dateISO.startsWith(monthKey), dayLabel: dateISO.slice(8, 10) }
+    return {
+      dateISO,
+      inMonth: dateISO.startsWith(monthKey),
+      dayLabel: dateISO.slice(8, 10),
+    }
   })
 }
 
-const getFullReasonLabel = (summary) => {
-  if (!summary) return T.fullNote
-  if (summary.reason === 'location_required') return '已設定上班，但此服務需要先確認地點才可形成可預約時段'
-  if (summary.reason === 'provider_mismatch') return '已設定上班，但此服務與服務供應者設定未形成可預約時段'
-  if (summary.reason === 'no_bookable_slots') return '今天有上班，但可預約時段已被休息、休假或封鎖時段扣減'
-  return T.fullNote
+const formatDateLabel = (dateISO) => {
+  if (!dateISO) return ''
+  return new Intl.DateTimeFormat('zh-HK', {
+    month: 'numeric',
+    day: 'numeric',
+    weekday: 'short',
+    timeZone: 'Asia/Hong_Kong',
+  }).format(new Date(`${dateISO}T12:00:00Z`))
 }
 
 const getCalendarStatusLabel = (summary) => {
-  if (!summary) return T.unavailable
+  if (!summary) return T.off
   if (summary.status === 'available') return T.available
-  if (summary.status === 'off') return T.unavailable
-  if (summary.reason === 'provider_mismatch' || summary.reason === 'location_required' || summary.reason === 'no_bookable_slots') {
-    return '未成時段'
-  }
+  if (summary.status === 'off') return T.off
   return T.full
+}
+
+const getReasonMessage = (summary) => {
+  if (!summary) return ''
+  if (summary.status === 'off') return T.offNote
+  if (summary.status !== 'full') return ''
+  if (summary.reason === 'fully_booked' || summary.reason === 'resource_full') {
+    return '有上班，但今天已滿'
+  }
+  if (summary.reason === 'provider_mismatch' || summary.reason === 'location_required' || summary.reason === 'no_bookable_slots') {
+    return '已安排上班，但此服務目前未形成可預約時段'
+  }
+  return T.configLimitedNote
 }
 
 const readCached = (cache, key, ttlMs) => {
@@ -136,15 +178,30 @@ const writeCached = (cache, key, value) => {
   })
 }
 
+const serviceBadgeStyle = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  padding: '6px 12px',
+  borderRadius: '999px',
+  border: '1px solid #D7B894',
+  color: '#A56F2C',
+  fontSize: '12px',
+  fontWeight: 700,
+  background: '#FFFDF9',
+}
+
 export default function BookingStaffPage() {
   const router = useRouter()
   const params = useParams()
   const searchParams = useSearchParams()
   const staffId = Number(params?.staffId || searchParams.get('staffId') || 0)
+  const calendarRef = useRef(null)
 
   const [staff, setStaff] = useState(null)
   const [services, setServices] = useState([])
   const [settings, setSettings] = useState({ phone: '', business_hours: '11:00 - 20:00' })
+  const [availabilityVersion, setAvailabilityVersion] = useState('')
   const [serviceId, setServiceId] = useState('')
   const [monthKey, setMonthKey] = useState(monthKeyFromDate(todayISO()))
   const [monthSummary, setMonthSummary] = useState([])
@@ -157,6 +214,17 @@ export default function BookingStaffPage() {
   const [loadingSummary, setLoadingSummary] = useState(false)
   const [loadingSlots, setLoadingSlots] = useState(false)
   const [error, setError] = useState('')
+  const [calendarOpen, setCalendarOpen] = useState(false)
+
+  useEffect(() => {
+    const handlePointerDown = (event) => {
+      if (!calendarRef.current?.contains(event.target)) {
+        setCalendarOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handlePointerDown)
+    return () => document.removeEventListener('mousedown', handlePointerDown)
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -165,7 +233,7 @@ export default function BookingStaffPage() {
     fetch(`/api/public/booking-bootstrap?staffId=${encodeURIComponent(String(staffId || ''))}`)
       .then(async (response) => {
         const payload = await response.json().catch(() => ({}))
-        if (!response.ok) throw new Error(payload?.error || '無法載入預約資料')
+        if (!response.ok) throw new Error(payload?.error || T.loadingBootstrapFailed)
         return payload
       })
       .then((payload) => {
@@ -174,35 +242,73 @@ export default function BookingStaffPage() {
         setStaff(payload?.staff || null)
         setServices(nextServices)
         setSettings(payload?.settings || { phone: '', business_hours: '11:00 - 20:00' })
-        setServiceId(nextServices[0]?.id != null ? String(nextServices[0].id) : '')
+        setAvailabilityVersion(String(payload?.settings?.availability_cache_version || ''))
+        setServiceId((current) => current || (nextServices[0]?.id != null ? String(nextServices[0].id) : ''))
       })
       .catch((fetchError) => {
-        if (!cancelled) setError(fetchError?.message || '無法載入預約資料')
+        if (!cancelled) setError(fetchError?.message || T.loadingBootstrapFailed)
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
       })
+
     return () => {
       cancelled = true
     }
   }, [staffId])
 
   useEffect(() => {
+    let disposed = false
+
+    const syncAvailabilityVersion = async () => {
+      try {
+        const response = await fetch('/api/public/availability-version')
+        const payload = await response.json().catch(() => ({}))
+        if (!response.ok || disposed) return
+        const nextVersion = String(payload?.version || '')
+        if (!nextVersion || nextVersion === availabilityVersion) return
+        monthSummaryCache.clear()
+        dailySlotsCache.clear()
+        setAvailabilityVersion(nextVersion)
+      } catch {
+        // Keep current caches when version check fails.
+      }
+    }
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        syncAvailabilityVersion()
+      }
+    }
+
+    window.addEventListener('focus', syncAvailabilityVersion)
+    document.addEventListener('visibilitychange', handleVisibility)
+
+    return () => {
+      disposed = true
+      window.removeEventListener('focus', syncAvailabilityVersion)
+      document.removeEventListener('visibilitychange', handleVisibility)
+    }
+  }, [availabilityVersion])
+
+  useEffect(() => {
     if (!staffId || !serviceId || !monthKey) return
     let cancelled = false
     setLoadingSummary(true)
     setError('')
-    const monthSummaryKey = [staffId, serviceId, staff?.location_id || 'none', monthKey].join(':')
+
+    const monthSummaryKey = [staffId, serviceId, staff?.location_id || 'none', monthKey, availabilityVersion || 'v0'].join(':')
     const cachedMonthSummary = readCached(monthSummaryCache, monthSummaryKey, MONTH_SUMMARY_CACHE_TTL_MS)
     if (cachedMonthSummary) {
       setMonthSummary(cachedMonthSummary)
       setLoadingSummary(false)
       return
     }
+
     fetch(`/api/availability/month-summary?staffId=${staffId}&serviceId=${serviceId}&year=${monthKey.slice(0, 4)}&month=${monthKey.slice(5, 7)}`)
       .then(async (response) => {
         const payload = await response.json().catch(() => ({}))
-        if (!response.ok) throw new Error(payload?.error || '無法載入月曆')
+        if (!response.ok) throw new Error(payload?.error || bookingOpsCopy.loadFailed)
         return payload
       })
       .then((payload) => {
@@ -212,36 +318,36 @@ export default function BookingStaffPage() {
         setMonthSummary(dates)
       })
       .catch((fetchError) => {
-        if (!cancelled) setError(fetchError?.message || '無法載入月曆')
+        if (!cancelled) setError(fetchError?.message || bookingOpsCopy.loadFailed)
       })
       .finally(() => {
         if (!cancelled) setLoadingSummary(false)
       })
+
     return () => {
       cancelled = true
     }
-  }, [monthKey, serviceId, staff?.location_id, staffId])
+  }, [availabilityVersion, monthKey, serviceId, staff?.location_id, staffId])
 
   const summaryMap = useMemo(() => new Map(monthSummary.map((entry) => [entry.date, entry])), [monthSummary])
-  const monthGrid = useMemo(() => buildMonthGrid(monthKey), [monthKey])
   const selectedSummary = selectedDate ? summaryMap.get(selectedDate) : null
   const selectedService = useMemo(() => services.find((item) => String(item.id) === String(serviceId)) || null, [services, serviceId])
+  const monthGrid = useMemo(() => (calendarOpen ? buildMonthGrid(monthKey) : []), [calendarOpen, monthKey])
 
   useEffect(() => {
-    if (!monthSummary.length) return
-    if (!selectedDate || !selectedDate.startsWith(monthKey)) {
-      const firstAvailable = monthSummary.find((entry) => entry?.status === 'available')
-      const firstFull = monthSummary.find((entry) => entry?.status === 'full')
-      setSelectedDate(firstAvailable?.date || firstFull?.date || '')
+    if (!monthSummary.length) {
+      setSelectedDate('')
       return
     }
 
-    const current = summaryMap.get(selectedDate)
-    if (!current || current.status === 'off') {
-      const firstAvailable = monthSummary.find((entry) => entry?.status === 'available')
-      const firstFull = monthSummary.find((entry) => entry?.status === 'full')
-      setSelectedDate(firstAvailable?.date || firstFull?.date || '')
+    const current = selectedDate ? summaryMap.get(selectedDate) : null
+    if (current && current.status !== 'off' && selectedDate.startsWith(monthKey)) {
+      return
     }
+
+    const firstAvailable = monthSummary.find((entry) => entry?.status === 'available')
+    const firstFull = monthSummary.find((entry) => entry?.status === 'full')
+    setSelectedDate(firstAvailable?.date || firstFull?.date || '')
   }, [monthKey, monthSummary, selectedDate, summaryMap])
 
   useEffect(() => {
@@ -250,6 +356,7 @@ export default function BookingStaffPage() {
       setSlots([])
       return
     }
+
     const daySummary = summaryMap.get(selectedDate)
     if (daySummary?.status !== 'available') {
       setSlots([])
@@ -259,17 +366,19 @@ export default function BookingStaffPage() {
     let cancelled = false
     setLoadingSlots(true)
     setError('')
-    const dailySlotsKey = [staffId, serviceId, staff?.location_id || 'none', selectedDate].join(':')
+
+    const dailySlotsKey = [staffId, serviceId, staff?.location_id || 'none', selectedDate, availabilityVersion || 'v0'].join(':')
     const cachedSlots = readCached(dailySlotsCache, dailySlotsKey, DAILY_SLOTS_CACHE_TTL_MS)
     if (cachedSlots) {
       setSlots(cachedSlots)
       setLoadingSlots(false)
       return
     }
+
     fetch(`/api/availability?date=${selectedDate}&serviceId=${serviceId}&staffId=${staffId}`)
       .then(async (response) => {
         const payload = await response.json().catch(() => ({}))
-        if (!response.ok) throw new Error(payload?.error || '無法載入時段')
+        if (!response.ok) throw new Error(payload?.error || bookingOpsCopy.loadFailed)
         return payload
       })
       .then((payload) => {
@@ -285,16 +394,17 @@ export default function BookingStaffPage() {
       .catch((fetchError) => {
         if (!cancelled) {
           setSlots([])
-          setError(fetchError?.message || '無法載入時段')
+          setError(fetchError?.message || bookingOpsCopy.loadFailed)
         }
       })
       .finally(() => {
         if (!cancelled) setLoadingSlots(false)
       })
+
     return () => {
       cancelled = true
     }
-  }, [selectedDate, serviceId, staff?.location_id, staffId, summaryMap])
+  }, [availabilityVersion, selectedDate, serviceId, staff?.location_id, staffId, summaryMap])
 
   const handleSubmit = async (event) => {
     event.preventDefault()
@@ -316,11 +426,11 @@ export default function BookingStaffPage() {
         }),
       })
       const payload = await response.json().catch(() => ({}))
-      if (!response.ok) throw new Error(payload?.error || '預約失敗')
+      if (!response.ok) throw new Error(payload?.error || T.submitFailed)
       toast.success(T.submitted)
       router.push('/account/bookings')
     } catch (submitError) {
-      toast.error(submitError?.message || '預約失敗')
+      toast.error(submitError?.message || T.submitFailed)
     }
   }
 
@@ -331,8 +441,8 @@ export default function BookingStaffPage() {
   if (!staff) {
     return (
       <section style={{ padding: '48px 16px', textAlign: 'center' }}>
-        <p>{error || '找不到服務供應者'}</p>
-        <Link href="/booking">返回選擇服務供應者</Link>
+        <p>{error || T.noStaffFound}</p>
+        <Link href="/booking">{T.backToBooking}</Link>
       </section>
     )
   }
@@ -346,165 +456,213 @@ export default function BookingStaffPage() {
             <p style={{ marginTop: '8px', color: '#666' }}>{T.intro}</p>
           </div>
 
-          <div className="admin-card" style={{ ...panelStyle, display: 'grid', gap: '16px' }}>
+          <form className="admin-card" style={{ ...panelStyle, display: 'grid', gap: '18px' }} onSubmit={handleSubmit}>
             <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 240px', gap: '16px', alignItems: 'center' }}>
               <div>
-                <div style={{ fontSize: '12px', color: '#A68B6A', fontWeight: 800, letterSpacing: '0.08em' }}>服務供應者</div>
+                <div style={{ fontSize: '12px', color: '#A68B6A', fontWeight: 800, letterSpacing: '0.08em' }}>{T.serviceProvider}</div>
                 <div style={{ marginTop: '4px', fontSize: '24px', fontWeight: 900 }}>{staff.name}</div>
-                <div style={{ marginTop: '6px', color: '#6B7280' }}>{staff.role || '服務供應者'}</div>
+                <div style={{ marginTop: '6px', color: '#6B7280' }}>{staff.role || T.serviceProvider}</div>
               </div>
-              <div style={{ textAlign: 'right', color: '#6B7280', fontSize: '13px' }}>{settings.phone ? `查詢：${settings.phone}` : null}</div>
+              <div style={{ textAlign: 'right', color: '#6B7280', fontSize: '13px' }}>
+                {settings.phone ? `${T.contactLabel}：${settings.phone}` : null}
+              </div>
+            </div>
+
+            <div className="admin-card" style={{ ...panelStyle, padding: '20px', display: 'grid', gap: '14px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 320px', gap: '14px', alignItems: 'end' }}>
+                <label style={{ display: 'grid', gap: '8px' }}>
+                  <span style={{ fontSize: '13px', fontWeight: 800 }}>{T.service}</span>
+                  <select value={serviceId} onChange={(event) => setServiceId(event.target.value)} style={fieldStyle}>
+                    {services.map((service) => (
+                      <option key={service.id} value={service.id}>
+                        {service.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <div style={{ display: 'grid', gap: '8px' }}>
+                  <span style={{ fontSize: '13px', fontWeight: 800 }}>{T.businessHours}</span>
+                  <div style={{ ...fieldStyle, display: 'flex', alignItems: 'center' }}>{settings.business_hours || '11:00 - 20:00'}</div>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                {selectedService?.duration_min ? <span style={serviceBadgeStyle}>{selectedService.duration_min} 分鐘</span> : null}
+                {selectedService?.buffer_min ? <span style={serviceBadgeStyle}>緩衝時間 {selectedService.buffer_min} 分鐘</span> : null}
+                <span style={serviceBadgeStyle}>應付金額 ${Number(selectedService?.price || 0).toFixed(0)}</span>
+              </div>
+            </div>
+
+            <div className="admin-card" style={{ ...panelStyle, display: 'grid', gap: '14px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
+                <div>
+                  <div style={{ fontSize: '12px', color: '#A68B6A', fontWeight: 800, letterSpacing: '0.08em' }}>{T.date}</div>
+                  <div style={{ marginTop: '4px', fontSize: '30px', fontWeight: 900 }}>{T.chooseDateThenTime}</div>
+                </div>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  <LegendPill>{T.available}</LegendPill>
+                  <LegendPill tone="warning">{T.full}</LegendPill>
+                  <LegendPill tone="muted">{T.off}</LegendPill>
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 280px) minmax(0, 1fr)', gap: '14px', alignItems: 'start' }}>
+                <div ref={calendarRef} style={{ position: 'relative', display: 'grid', gap: '8px' }}>
+                  <span style={{ fontSize: '13px', fontWeight: 800 }}>{T.date}</span>
+                  <button
+                    type="button"
+                    onClick={() => setCalendarOpen((current) => !current)}
+                    style={{
+                      ...fieldStyle,
+                      minHeight: '48px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <span>{selectedDate ? formatDateLabel(selectedDate) : T.chooseDateFirst}</span>
+                    <span style={{ color: '#A68B6A', fontWeight: 800 }}>{calendarOpen ? T.collapseCalendar : T.chooseDate}</span>
+                  </button>
+
+                  {calendarOpen ? (
+                    <div
+                      className="admin-card"
+                      style={{
+                        ...panelStyle,
+                        position: 'absolute',
+                        top: '100%',
+                        left: 0,
+                        zIndex: 20,
+                        width: 'min(100vw - 32px, 560px)',
+                        minWidth: '320px',
+                        marginTop: '8px',
+                        display: 'grid',
+                        gap: '14px',
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                        <div style={{ fontSize: '18px', fontWeight: 900 }}>{getMonthLabel(monthKey)}</div>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <button type="button" className="btn btn-small btn-interactive" onClick={() => setMonthKey((current) => addMonths(current, -1))} disabled={loadingSummary}>
+                            {T.monthPrev}
+                          </button>
+                          <button type="button" className="btn btn-small btn-interactive" onClick={() => setMonthKey((current) => addMonths(current, 1))} disabled={loadingSummary}>
+                            {T.monthNext}
+                          </button>
+                        </div>
+                      </div>
+
+                      {loadingSummary ? <div style={{ color: '#6B7280' }}>{T.loadingDates}</div> : null}
+
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: '8px' }}>
+                        {DAY_LABELS.map((day) => (
+                          <div key={day} style={{ fontSize: '12px', color: '#6B7280', fontWeight: 800, textAlign: 'center' }}>
+                            星期{day}
+                          </div>
+                        ))}
+                        {monthGrid.map((cell) => {
+                          const summary = summaryMap.get(cell.dateISO) || {}
+                          const status = summary.status || 'off'
+                          const isSelected = selectedDate === cell.dateISO
+                          return (
+                            <button
+                              key={cell.dateISO}
+                              type="button"
+                              onClick={() => {
+                                if (status === 'off') return
+                                setSelectedDate(cell.dateISO)
+                                setCalendarOpen(false)
+                              }}
+                              disabled={status === 'off'}
+                              style={{
+                                minHeight: '84px',
+                                padding: '10px 8px',
+                                borderRadius: '16px',
+                                border: `1px solid ${isSelected ? '#A68B6A' : status === 'off' ? '#E5E7EB' : '#CBB39A'}`,
+                                background: isSelected ? '#FFF8EE' : status === 'off' ? '#F8FAFC' : '#fff',
+                                color: status === 'off' ? '#9CA3AF' : '#111827',
+                                opacity: cell.inMonth ? 1 : 0.38,
+                                cursor: status === 'off' ? 'not-allowed' : 'pointer',
+                                textAlign: 'center',
+                              }}
+                            >
+                              <div style={{ fontWeight: 900, fontSize: '22px', lineHeight: 1 }}>{cell.dayLabel}</div>
+                              {cell.inMonth ? (
+                                <div style={{ marginTop: '8px', fontSize: '12px', fontWeight: 700, color: status === 'off' ? '#9CA3AF' : '#6B7280' }}>
+                                  {getCalendarStatusLabel(summary)}
+                                </div>
+                              ) : null}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+
+                <label style={{ display: 'grid', gap: '8px' }}>
+                  <span style={{ fontSize: '13px', fontWeight: 800 }}>{T.timeDropdown}</span>
+                  <select
+                    value={selectedTime}
+                    onChange={(event) => setSelectedTime(event.target.value)}
+                    disabled={!selectedDate || selectedSummary?.status !== 'available' || loadingSlots}
+                    style={fieldStyle}
+                  >
+                    <option value="">{selectedDate ? (loadingSlots ? T.loadingSlots : T.chooseTimeFirst) : T.chooseDateFirst}</option>
+                    {slots.map((slot) => {
+                      const time = String(slot?.time || slot?.startTime || slot?.start_time || '').slice(0, 5)
+                      if (!time) return null
+                      return (
+                        <option key={time} value={time}>
+                          {time}
+                        </option>
+                      )
+                    })}
+                  </select>
+                </label>
+              </div>
+
+              {selectedDate && selectedSummary ? <div style={{ color: '#6B7280', fontSize: '14px' }}>{getReasonMessage(selectedSummary)}</div> : null}
+              {selectedDate && !loadingSlots && slots.length === 0 && selectedSummary?.status === 'available' ? <div style={{ color: '#6B7280' }}>{T.noAvailability}</div> : null}
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
               <label style={{ display: 'grid', gap: '8px' }}>
-                <span style={{ fontSize: '13px', fontWeight: 800 }}>服務</span>
-                <select value={serviceId} onChange={(event) => setServiceId(event.target.value)} style={fieldStyle}>
-                  {services.map((service) => (
-                    <option key={service.id} value={service.id}>
-                      {service.name}
-                    </option>
-                  ))}
-                </select>
+                <span style={{ fontSize: '13px', fontWeight: 800 }}>{T.customerName}</span>
+                <input value={customerName} onChange={(event) => setCustomerName(event.target.value)} style={fieldStyle} placeholder={T.customerNamePlaceholder} />
               </label>
               <label style={{ display: 'grid', gap: '8px' }}>
-                <span style={{ fontSize: '13px', fontWeight: 800 }}>顧客姓名</span>
-                <input value={customerName} onChange={(event) => setCustomerName(event.target.value)} style={fieldStyle} placeholder="請輸入姓名" />
-              </label>
-              <label style={{ display: 'grid', gap: '8px' }}>
-                <span style={{ fontSize: '13px', fontWeight: 800 }}>電話</span>
-                <input value={customerPhone} onChange={(event) => setCustomerPhone(event.target.value)} style={fieldStyle} placeholder="請輸入電話" />
+                <span style={{ fontSize: '13px', fontWeight: 800 }}>{T.customerPhone}</span>
+                <input value={customerPhone} onChange={(event) => setCustomerPhone(event.target.value)} style={fieldStyle} placeholder={T.customerPhonePlaceholder} />
               </label>
             </div>
-          </div>
 
-          <div className="admin-card" style={{ ...panelStyle, display: 'grid', gap: '14px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-              <div>
-                <div style={{ fontSize: '12px', color: '#A68B6A', fontWeight: 800, letterSpacing: '0.08em' }}>日期</div>
-                <div style={{ marginTop: '4px', fontSize: '20px', fontWeight: 900 }}>先選日期，再選時間</div>
-              </div>
-              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                <Pill>{T.available}</Pill>
-                <Pill tone="warning">{T.full}</Pill>
-                <Pill tone="muted">{T.unavailable}</Pill>
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
-              <div style={{ fontSize: '18px', fontWeight: 900 }}>{getMonthLabel(monthKey)}</div>
-              <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-                <button type="button" className="btn btn-small btn-interactive" onClick={() => setMonthKey((current) => addMonths(current, -1))} disabled={loadingSummary}>
-                  上月
-                </button>
-                <button type="button" className="btn btn-small btn-interactive" onClick={() => setMonthKey((current) => addMonths(current, 1))} disabled={loadingSummary}>
-                  下月
-                </button>
-              </div>
-            </div>
-
-            {loadingSummary ? <div style={{ color: '#6B7280' }}>{T.loadingDates}</div> : null}
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: '10px' }}>
-              {['一', '二', '三', '四', '五', '六', '日'].map((day) => (
-                <div key={day} style={{ fontSize: '12px', color: '#6B7280', fontWeight: 800 }}>
-                  星期{day}
-                </div>
-              ))}
-              {monthGrid.map((cell) => {
-                const summary = summaryMap.get(cell.dateISO) || {}
-                const status = summary.status || 'off'
-                const isSelected = selectedDate === cell.dateISO
-                return (
-                  <button
-                    key={cell.dateISO}
-                    type="button"
-                    onClick={() => {
-                      if (status === 'off') return
-                      setSelectedDate(cell.dateISO)
-                    }}
-                    disabled={status === 'off'}
-                    style={{
-                      ...panelStyle,
-                      minHeight: '92px',
-                      padding: '12px',
-                      opacity: cell.inMonth ? 1 : 0.4,
-                      textAlign: 'left',
-                      borderColor: isSelected ? '#A68B6A' : status === 'available' || status === 'full' ? '#CBB39A' : '#E5E7EB',
-                      background: isSelected ? '#FFF8EE' : status === 'off' ? '#F8FAFC' : '#fff',
-                      color: status === 'off' ? '#9CA3AF' : '#111827',
-                      cursor: status === 'off' ? 'not-allowed' : 'pointer',
-                    }}
-                  >
-                    <div style={{ fontWeight: 900, fontSize: '18px' }}>{cell.dayLabel}</div>
-                    {cell.inMonth ? (
-                      <div style={{ marginTop: '8px', fontSize: '12px', color: status === 'off' ? '#9CA3AF' : '#6B7280', fontWeight: 700 }}>
-                        {getCalendarStatusLabel(summary)}
-                      </div>
-                    ) : null}
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-
-          <div className="admin-card" style={{ ...panelStyle, display: 'grid', gap: '14px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
-              <div>
-                <div style={{ fontSize: '12px', color: '#A68B6A', fontWeight: 800, letterSpacing: '0.08em' }}>時段</div>
-                <div style={{ marginTop: '4px', fontSize: '20px', fontWeight: 900 }}>可預約時段</div>
-              </div>
-              <div style={{ color: '#6B7280', fontSize: '13px' }}>{selectedDate || T.chooseDateFirst}</div>
-            </div>
-
-            {selectedDate && selectedSummary?.status === 'full' ? <div style={{ color: '#8B5E34' }}>{getFullReasonLabel(selectedSummary)}</div> : null}
-            {selectedDate && selectedSummary?.status === 'off' ? <div style={{ color: '#6B7280' }}>{T.offNote}</div> : null}
-
-            <label style={{ display: 'grid', gap: '8px' }}>
-              <span style={{ fontSize: '13px', fontWeight: 800 }}>時段下拉選單</span>
-              <select
-                value={selectedTime}
-                onChange={(event) => setSelectedTime(event.target.value)}
-                disabled={!selectedDate || selectedSummary?.status !== 'available' || loadingSlots}
-                style={fieldStyle}
-              >
-                <option value="">{selectedDate ? (loadingSlots ? T.loadingSlots : T.chooseTimeFirst) : T.chooseDateFirst}</option>
-                {slots.map((slot) => {
-                  const time = String(slot?.time || slot?.startTime || slot?.start_time || '').slice(0, 5)
-                  if (!time) return null
-                  return (
-                    <option key={time} value={time}>
-                      {time}
-                    </option>
-                  )
-                })}
-              </select>
-            </label>
-
-            {selectedDate && !loadingSlots && slots.length === 0 && selectedSummary?.status === 'available' ? <div style={{ color: '#6B7280' }}>{T.noAvailability}</div> : null}
-            <button type="button" className="btn btn-interactive" onClick={handleSubmit} disabled={!selectedDate || !selectedTime} style={{ minHeight: '48px' }}>
+            <button type="submit" className="btn btn-interactive" disabled={!selectedDate || !selectedTime} style={{ minHeight: '48px' }}>
               {T.submit}
             </button>
-          </div>
+          </form>
         </div>
 
         <div className="admin-card" style={{ ...panelStyle, padding: '18px', alignSelf: 'start' }}>
-          <div style={{ fontSize: '12px', color: '#A68B6A', fontWeight: 800, letterSpacing: '0.08em' }}>預約摘要</div>
+          <div style={{ fontSize: '12px', color: '#A68B6A', fontWeight: 800, letterSpacing: '0.08em' }}>{T.bookingSummary}</div>
           <div style={{ marginTop: '12px', display: 'grid', gap: '12px' }}>
             <div>
-              <div style={{ fontSize: '12px', color: '#6B7280' }}>服務</div>
+              <div style={{ fontSize: '12px', color: '#6B7280' }}>{T.service}</div>
               <div style={{ fontWeight: 900 }}>{selectedService?.name || '-'}</div>
             </div>
             <div>
-              <div style={{ fontSize: '12px', color: '#6B7280' }}>日期</div>
+              <div style={{ fontSize: '12px', color: '#6B7280' }}>{T.date}</div>
               <div style={{ fontWeight: 900 }}>{selectedDate || '-'}</div>
             </div>
             <div>
-              <div style={{ fontSize: '12px', color: '#6B7280' }}>時間</div>
+              <div style={{ fontSize: '12px', color: '#6B7280' }}>{T.time}</div>
               <div style={{ fontWeight: 900 }}>{selectedTime || '-'}</div>
             </div>
             <div>
-              <div style={{ fontSize: '12px', color: '#6B7280' }}>應付金額</div>
+              <div style={{ fontSize: '12px', color: '#6B7280' }}>{T.amountDue}</div>
               <div style={{ fontWeight: 900 }}>${Number(selectedService?.price || 0).toFixed(0)}</div>
             </div>
           </div>
