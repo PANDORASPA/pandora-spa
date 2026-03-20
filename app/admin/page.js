@@ -1209,12 +1209,35 @@ export default function AdminPage() {
     )
   }
 
-  const toggleDailyOff = (staffId, dayKey) => {
+  const setDailyMode = (staffId, dayKey, mode) => {
     setStaff((current) =>
       current.map((item) => {
         if (item.id !== staffId) return item
         const daysOff = item.daysOff || []
         const hasDay = daysOff.includes(dayKey)
+        if (mode === 'rest') {
+          return hasDay ? item : { ...item, daysOff: [...daysOff, dayKey] }
+        }
+        if (mode === 'work') {
+          const nextDaysOff = hasDay ? daysOff.filter((day) => day !== dayKey) : daysOff
+          const businessHours = parseBusinessHours(settings?.business_hours)
+          const currentSchedule = item.schedule?.[dayKey] || {}
+          const nextSchedule =
+            currentSchedule.start || currentSchedule.end
+              ? currentSchedule
+              : {
+                  start: businessHours.start,
+                  end: businessHours.end,
+                }
+          return {
+            ...item,
+            daysOff: nextDaysOff,
+            schedule: {
+              ...(item.schedule || {}),
+              [dayKey]: nextSchedule,
+            },
+          }
+        }
         return {
           ...item,
           daysOff: hasDay ? daysOff.filter((day) => day !== dayKey) : [...daysOff, dayKey],
@@ -1228,7 +1251,12 @@ export default function AdminPage() {
       current.map((item) => {
         if (item.id !== staffId) return item
         const schedule = item.schedule || {}
-        return { ...item, schedule: { ...schedule, [day]: { ...schedule[day], [field]: value } } }
+        const nextDaysOff = (item.daysOff || []).filter((entry) => String(entry) !== String(day))
+        return {
+          ...item,
+          daysOff: nextDaysOff,
+          schedule: { ...schedule, [day]: { ...schedule[day], [field]: value } },
+        }
       })
     )
   }
@@ -1291,7 +1319,7 @@ export default function AdminPage() {
           onDeleteStaff={deleteStaff}
           onUpdateField={updateStaffField}
           onToggleService={toggleStaffService}
-          onToggleDailyOff={toggleDailyOff}
+          onSetDailyMode={setDailyMode}
           onUpdateSchedule={updateStaffSchedule}
           onSave={saveStaff}
           onSaveShifts={saveShifts}
