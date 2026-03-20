@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'react-hot-toast'
 import { bookingOpsCopy } from '../../components/admin/opsUi'
+import { getBrowserClient } from '../../../lib/supabase/browser'
 
 const MONTH_SUMMARY_CACHE_TTL_MS = 60 * 1000
 const DAILY_SLOTS_CACHE_TTL_MS = 30 * 1000
@@ -372,6 +373,8 @@ export default function BookingStaffPage() {
   const [selectedTime, setSelectedTime] = useState('')
   const [customerName, setCustomerName] = useState('')
   const [customerPhone, setCustomerPhone] = useState('')
+  const [memberProfile, setMemberProfile] = useState(null)
+  const [memberProfileLoading, setMemberProfileLoading] = useState(true)
   const [loading, setLoading] = useState(true)
   const [loadingSummary, setLoadingSummary] = useState(false)
   const [loadingSlots, setLoadingSlots] = useState(false)
@@ -418,6 +421,52 @@ export default function BookingStaffPage() {
       cancelled = true
     }
   }, [staffId])
+
+  useEffect(() => {
+    let cancelled = false
+
+    const loadMemberProfile = async () => {
+      setMemberProfileLoading(true)
+      try {
+        const supabase = getBrowserClient()
+        const {
+          data: { user },
+        } = await supabase.auth.getUser()
+
+        if (!user) {
+          if (!cancelled) setMemberProfile(null)
+          return
+        }
+
+        const { data: profile } = await supabase
+          .from('member_profiles')
+          .select('full_name,phone,email')
+          .eq('id', user.id)
+          .maybeSingle()
+
+        if (cancelled) return
+
+        const nextProfile = {
+          email: profile?.email || user.email || '',
+          full_name: profile?.full_name || user.user_metadata?.full_name || '',
+          phone: profile?.phone || user.user_metadata?.phone || '',
+        }
+
+        setMemberProfile(nextProfile)
+        setCustomerName(String(nextProfile.full_name || ''))
+        setCustomerPhone(String(nextProfile.phone || ''))
+      } catch {
+        if (!cancelled) setMemberProfile(null)
+      } finally {
+        if (!cancelled) setMemberProfileLoading(false)
+      }
+    }
+
+    loadMemberProfile()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     let disposed = false
@@ -611,6 +660,12 @@ export default function BookingStaffPage() {
     event.preventDefault()
     if (!selectedDate) return toast.error(T.chooseDateFirst)
     if (!selectedTime) return toast.error(T.chooseTimeFirst)
+    const effectiveCustomerName = String(memberProfile?.full_name || customerName || '').trim()
+    const effectiveCustomerPhone = String(memberProfile?.phone || customerPhone || '').trim()
+
+    if (memberProfile && (!effectiveCustomerName || !effectiveCustomerPhone)) {
+      return toast.error('請先完成帳號資料中的姓名及電話')
+    }
 
     try {
       const response = await fetch('/api/bookings/create', {
@@ -622,8 +677,8 @@ export default function BookingStaffPage() {
           staffId,
           startTime: selectedTime,
           locationId: staff?.location_id || null,
-          customerName,
-          customerPhone,
+          customerName: effectiveCustomerName,
+          customerPhone: effectiveCustomerPhone,
         }),
       })
       const payload = await response.json().catch(() => ({}))
@@ -841,18 +896,43 @@ export default function BookingStaffPage() {
               {selectedDate && !loadingSlots && slots.length === 0 && selectedSummary?.status === 'available' ? <div style={{ color: '#6B7280' }}>{T.noAvailability}</div> : null}
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
-              <label style={{ display: 'grid', gap: '8px' }}>
-                <span style={{ fontSize: '13px', fontWeight: 800 }}>{T.customerName}</span>
-                <input value={customerName} onChange={(event) => setCustomerName(event.target.value)} style={fieldStyle} placeholder={T.customerNamePlaceholder} />
-              </label>
-              <label style={{ display: 'grid', gap: '8px' }}>
-                <span style={{ fontSize: '13px', fontWeight: 800 }}>{T.customerPhone}</span>
-                <input value={customerPhone} onChange={(event) => setCustomerPhone(event.target.value)} style={fieldStyle} placeholder={T.customerPhonePlaceholder} />
-              </label>
-            </div>
+            {memberProfile ? (
+              <div className="admin-card" style={{ padding: '16px', border: '1px solid #E8E0D5', background: '#FFFCF6' }}>
+                <div style={{ fontSize: '12px', color: '#A68B6A', fontWeight: 800, letterSpacing: '0.08em' }}>會員資料</div>
+                <div style={{ marginTop: '8px', display: 'grid', gap: '6px', color: '#4B5563', fontSize: '14px' }}>
+                  <div>姓名：{memberProfile.full_name || '-'}</div>
+                  <div>電話：{memberProfile.phone || '-'}</div>
+                  {memberProfile.email ? <div>電郵：{memberProfile.email}</div> : null}
+                </div>
+                {!memberProfileLoading && (!memberProfile.full_name || !memberProfile.phone) ? (
+                  <div style={{ marginTop: '8px', color: '#B45309', fontSize: '13px', lineHeight: 1.6 }}>
+                    請先完成帳號資料中的姓名及電話，之後才可提交預約。
+                  </div>
+                ) : (
+                  <div style={{ marginTop: '8px', color: '#6B7280', fontSize: '13px', lineHeight: 1.6 }}>
+                    你已登入會員，預約會直接使用帳號內的姓名及電話。
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
+                <label style={{ display: 'grid', gap: '8px' }}>
+                  <span style={{ fontSize: '13px', fontWeight: 800 }}>{T.customerName}</span>
+                  <input value={customerName} onChange={(event) => setCustomerName(event.target.value)} style={fieldStyle} placeholder={T.customerNamePlaceholder} />
+                </label>
+                <label style={{ display: 'grid', gap: '8px' }}>
+                  <span style={{ fontSize: '13px', fontWeight: 800 }}>{T.customerPhone}</span>
+                  <input value={customerPhone} onChange={(event) => setCustomerPhone(event.target.value)} style={fieldStyle} placeholder={T.customerPhonePlaceholder} />
+                </label>
+              </div>
+            )}
 
-            <button type="submit" className="btn btn-interactive" disabled={!selectedDate || !selectedTime} style={{ minHeight: '48px' }}>
+            <button
+              type="submit"
+              className="btn btn-interactive"
+              disabled={!selectedDate || !selectedTime || Boolean(memberProfile && (!memberProfile.full_name || !memberProfile.phone))}
+              style={{ minHeight: '48px' }}
+            >
               {T.submit}
             </button>
           </form>
