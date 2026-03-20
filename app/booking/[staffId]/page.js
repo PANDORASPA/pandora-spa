@@ -347,7 +347,17 @@ export default function BookingStaffPage() {
       return
     }
 
-    fetch(`/api/availability/month-summary?staffId=${staffId}&serviceId=${serviceId}&year=${monthKey.slice(0, 4)}&month=${monthKey.slice(5, 7)}`)
+    const summaryParams = new URLSearchParams({
+      staffId: String(staffId),
+      serviceId: String(serviceId),
+      year: monthKey.slice(0, 4),
+      month: monthKey.slice(5, 7),
+    })
+    if (staff?.location_id != null && staff.location_id !== '') {
+      summaryParams.set('locationId', String(staff.location_id))
+    }
+
+    fetch(`/api/availability/month-summary?${summaryParams.toString()}`)
       .then(async (response) => {
         const payload = await response.json().catch(() => ({}))
         if (!response.ok) throw new Error(payload?.error || bookingOpsCopy.loadFailed)
@@ -417,7 +427,16 @@ export default function BookingStaffPage() {
       return
     }
 
-    fetch(`/api/availability?date=${selectedDate}&serviceId=${serviceId}&staffId=${staffId}`)
+    const slotParams = new URLSearchParams({
+      date: selectedDate,
+      serviceId: String(serviceId),
+      staffId: String(staffId),
+    })
+    if (staff?.location_id != null && staff.location_id !== '') {
+      slotParams.set('locationId', String(staff.location_id))
+    }
+
+    fetch(`/api/availability?${slotParams.toString()}`)
       .then(async (response) => {
         const payload = await response.json().catch(() => ({}))
         if (!response.ok) throw new Error(payload?.error || bookingOpsCopy.loadFailed)
