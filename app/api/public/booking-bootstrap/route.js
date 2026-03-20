@@ -34,6 +34,8 @@ const serializeStaff = (staff) => ({
   role: staff.role,
   bio: staff.bio || '',
   photo_url: staff.photo_url || '',
+  location_id: staff.location_id ?? null,
+  provider_group_id: staff.provider_group_id ?? null,
   services: parseList(staff.services).map((item) => Number(item)).filter(Number.isFinite),
 })
 
@@ -45,7 +47,7 @@ export async function GET(request) {
     const supabase = getServiceClient()
 
     const [staffRes, servicesRes, settingsRes] = await Promise.all([
-      supabase.from('staff').select('id,name,role,bio,photo_url,services').eq('enabled', true).order('name'),
+      supabase.from('staff').select('id,name,role,bio,photo_url,services,location_id,provider_group_id').eq('enabled', true).order('name'),
       supabase.from('services').select('id,name,price,time,description,sort_order,enabled').eq('enabled', true).order('sort_order'),
       supabase.from('settings').select('key,value').in('key', ['phone', 'business_hours', 'days_off', 'availability_cache_version']),
     ])
