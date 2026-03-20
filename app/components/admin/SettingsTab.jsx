@@ -1,23 +1,40 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { AdminSection, EmptyState, StatusPill } from './AdminConfigKit'
+import { fieldStyle } from './opsUi'
 
 const DAY_OPTIONS = [
-  { key: '0', label: 'Sun' },
-  { key: '1', label: 'Mon' },
-  { key: '2', label: 'Tue' },
-  { key: '3', label: 'Wed' },
-  { key: '4', label: 'Thu' },
-  { key: '5', label: 'Fri' },
-  { key: '6', label: 'Sat' },
+  { key: '0', label: '星期日' },
+  { key: '1', label: '星期一' },
+  { key: '2', label: '星期二' },
+  { key: '3', label: '星期三' },
+  { key: '4', label: '星期四' },
+  { key: '5', label: '星期五' },
+  { key: '6', label: '星期六' },
 ]
+
+const SECTION_OPTIONS = [
+  { key: 'profile', title: '店舖資料', description: '店名、地址、聯絡電話與 Google Place ID' },
+  { key: 'availability', title: '全店預約規則', description: '營業時間、時段步進與預設 buffer' },
+  { key: 'daysOff', title: '全店公休日', description: '整間店共同休息的星期設定' },
+  { key: 'admins', title: '管理員帳號', description: '指定哪些會員帳號可進入後台' },
+]
+
+const parseBusinessHours = (value) => {
+  const fallback = ['11:00', '20:00']
+  const parts = String(value || `${fallback[0]} - ${fallback[1]}`)
+    .split('-')
+    .map((item) => item.trim())
+    .filter(Boolean)
+  return { start: parts[0] || fallback[0], end: parts[1] || fallback[1] }
+}
 
 const normalizeDaysOff = (value) => {
   if (!value) return []
   if (Array.isArray(value)) return value.map((item) => String(item).trim()).filter(Boolean)
   const text = String(value).trim()
   if (!text) return []
-
   if (text.startsWith('[')) {
     try {
       const parsed = JSON.parse(text)
@@ -26,45 +43,25 @@ const normalizeDaysOff = (value) => {
       return []
     }
   }
-
   return text.split(',').map((item) => item.trim()).filter(Boolean)
 }
 
-const parseBusinessHours = (value) => {
-  const fallback = ['11:00', '20:00']
-  const parts = String(value || `${fallback[0]} - ${fallback[1]}`)
-    .split('-')
-    .map((item) => item.trim())
-    .filter(Boolean)
-
-  return {
-    start: parts[0] || fallback[0],
-    end: parts[1] || fallback[1],
-  }
-}
-
-function Section({ title, description, children, tone = 'default' }) {
-  return (
-    <div
-      className="admin-card"
-      style={{
-        padding: '24px',
-        border: tone === 'accent' ? '1px solid rgba(166, 139, 106, 0.25)' : '1px solid var(--gray)',
-        background: tone === 'accent' ? 'linear-gradient(180deg, #fff, #fbf7f1)' : '#fff',
-      }}
-    >
-      <div style={{ marginBottom: '16px' }}>
-        <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800 }}>{title}</h3>
-        {description && <p style={{ margin: '6px 0 0', color: 'var(--text-light)', fontSize: '13px', lineHeight: 1.6 }}>{description}</p>}
-      </div>
-      {children}
-    </div>
-  )
-}
+const listItemStyle = (selected) => ({
+  width: '100%',
+  textAlign: 'left',
+  padding: '14px 16px',
+  borderRadius: '14px',
+  border: `1px solid ${selected ? 'rgba(166, 139, 106, 0.45)' : '#EEE7DE'}`,
+  background: selected ? 'linear-gradient(180deg, #fff, #FBF8F4)' : '#fff',
+  cursor: 'pointer',
+  display: 'grid',
+  gap: '6px',
+})
 
 export default function SettingsTab({ settings, saveSettings, saving = false, memberProfiles = [], saveAdminProfiles }) {
   const [draft, setDraft] = useState(settings || {})
   const [adminDraft, setAdminDraft] = useState(memberProfiles || [])
+  const [selectedSection, setSelectedSection] = useState('profile')
 
   useEffect(() => {
     setDraft(settings || {})
@@ -74,18 +71,166 @@ export default function SettingsTab({ settings, saveSettings, saving = false, me
     setAdminDraft(memberProfiles || [])
   }, [memberProfiles])
 
+  const businessHours = parseBusinessHours(draft?.business_hours)
+  const daysOff = normalizeDaysOff(draft?.days_off)
   const isDirty = JSON.stringify(draft || {}) !== JSON.stringify(settings || {})
   const adminDirty = JSON.stringify(adminDraft || []) !== JSON.stringify(memberProfiles || [])
-  const daysOff = normalizeDaysOff(draft.days_off)
-  const businessHours = parseBusinessHours(draft.business_hours)
+
+  const sectionStatus = useMemo(
+    () => ({
+      profile: draft?.shop_name ? '已填店名' : '待補資料',
+      availability: draft?.business_hours ? '已設定營業時間' : '未設定',
+      daysOff: daysOff.length ? `已選 ${daysOff.length} 天` : '未設定',
+      admins: adminDraft.filter((profile) => profile?.is_admin === true).length
+        ? `${adminDraft.filter((profile) => profile?.is_admin === true).length} 位管理員`
+        : '未指定',
+    }),
+    [adminDraft, daysOff.length, draft?.business_hours, draft?.shop_name]
+  )
 
   const updateSetting = (key, value) => setDraft((current) => ({ ...current, [key]: value }))
 
   const toggleDayOff = (dayKey) => {
-    const nextDaysOff = daysOff.includes(dayKey)
-      ? daysOff.filter((item) => item !== dayKey)
-      : [...daysOff, dayKey]
-    updateSetting('days_off', JSON.stringify(nextDaysOff))
+    const next = daysOff.includes(dayKey) ? daysOff.filter((item) => item !== dayKey) : [...daysOff, dayKey]
+    updateSetting('days_off', JSON.stringify(next))
+  }
+
+  const renderSection = () => {
+    switch (selectedSection) {
+      case 'profile':
+        return (
+          <div style={{ display: 'grid', gap: '16px' }}>
+            <label style={{ display: 'grid', gap: '8px' }}>
+              <span style={{ fontSize: '13px', fontWeight: 800 }}>店舖名稱</span>
+              <input type="text" value={draft.shop_name || ''} onChange={(event) => updateSetting('shop_name', event.target.value)} style={fieldStyle} placeholder="VIVA HAIR" />
+            </label>
+            <label style={{ display: 'grid', gap: '8px' }}>
+              <span style={{ fontSize: '13px', fontWeight: 800 }}>地址</span>
+              <input type="text" value={draft.address || ''} onChange={(event) => updateSetting('address', event.target.value)} style={fieldStyle} placeholder="完整店舖地址" />
+            </label>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
+              <label style={{ display: 'grid', gap: '8px' }}>
+                <span style={{ fontSize: '13px', fontWeight: 800 }}>電話 / WhatsApp</span>
+                <input type="text" value={draft.phone || ''} onChange={(event) => updateSetting('phone', event.target.value)} style={fieldStyle} placeholder="+852 1234 5678" />
+              </label>
+              <label style={{ display: 'grid', gap: '8px' }}>
+                <span style={{ fontSize: '13px', fontWeight: 800 }}>Google Place ID</span>
+                <input type="text" value={draft.google_place_id || ''} onChange={(event) => updateSetting('google_place_id', event.target.value)} style={fieldStyle} placeholder="地圖 / 評論用 Place ID" />
+              </label>
+            </div>
+          </div>
+        )
+      case 'availability':
+        return (
+          <div style={{ display: 'grid', gap: '16px' }}>
+            <div style={{ display: 'grid', gap: '8px' }}>
+              <span style={{ fontSize: '13px', fontWeight: 800 }}>營業時間</span>
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+                <input type="time" value={businessHours.start} onChange={(event) => updateSetting('business_hours', `${event.target.value} - ${businessHours.end}`)} style={fieldStyle} />
+                <span style={{ color: 'var(--text-light)', fontWeight: 700 }}>至</span>
+                <input type="time" value={businessHours.end} onChange={(event) => updateSetting('business_hours', `${businessHours.start} - ${event.target.value}`)} style={fieldStyle} />
+              </div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
+              <label style={{ display: 'grid', gap: '8px' }}>
+                <span style={{ fontSize: '13px', fontWeight: 800 }}>時段步進（分鐘）</span>
+                <select value={String(draft.slot_step_min || '30')} onChange={(event) => updateSetting('slot_step_min', event.target.value)} style={fieldStyle}>
+                  {[30, 60].map((value) => (
+                    <option key={value} value={String(value)}>
+                      {value}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label style={{ display: 'grid', gap: '8px' }}>
+                <span style={{ fontSize: '13px', fontWeight: 800 }}>預設 Buffer（分鐘）</span>
+                <input type="number" min="0" step="5" value={draft.default_buffer_min || '15'} onChange={(event) => updateSetting('default_buffer_min', event.target.value)} style={fieldStyle} />
+              </label>
+            </div>
+          </div>
+        )
+      case 'daysOff':
+        return (
+          <div style={{ display: 'grid', gap: '14px' }}>
+            <div style={{ color: 'var(--text-light)', fontSize: '13px', lineHeight: 1.6 }}>
+              這裡設定的是全店共同休息日，會先於員工個人排班與日期覆蓋生效。
+            </div>
+            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+              {DAY_OPTIONS.map((day) => {
+                const active = daysOff.includes(day.key)
+                return (
+                  <button
+                    key={day.key}
+                    type="button"
+                    onClick={() => toggleDayOff(day.key)}
+                    className="btn-interactive"
+                    style={{
+                      padding: '10px 16px',
+                      borderRadius: '999px',
+                      border: `1px solid ${active ? 'var(--primary)' : 'var(--gray)'}`,
+                      background: active ? 'var(--primary)' : '#fff',
+                      color: active ? '#fff' : 'var(--text-light)',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {day.label}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )
+      case 'admins':
+        return (
+          <div style={{ display: 'grid', gap: '12px' }}>
+            {(adminDraft || []).length === 0 ? (
+              <EmptyState title="未有會員資料" description="請先讓會員完成註冊，之後即可在此開啟管理員權限。" />
+            ) : (
+              adminDraft.map((profile) => (
+                <label
+                  key={profile.id}
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    gap: '12px',
+                    padding: '12px 14px',
+                    border: '1px solid var(--gray)',
+                    borderRadius: '12px',
+                    background: '#fff',
+                  }}
+                >
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontWeight: 700, color: 'var(--text)' }}>{profile.full_name || profile.email || profile.id}</div>
+                    <div style={{ marginTop: '4px', color: 'var(--text-light)', fontSize: '12px', lineHeight: 1.5 }}>
+                      {profile.email || '未有電郵'}
+                      {profile.phone ? ` · ${profile.phone}` : ''}
+                    </div>
+                  </div>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: 700 }}>
+                    <input
+                      type="checkbox"
+                      checked={profile.is_admin === true}
+                      onChange={(event) =>
+                        setAdminDraft((current) => current.map((item) => (item.id === profile.id ? { ...item, is_admin: event.target.checked } : item)))
+                      }
+                    />
+                    管理員
+                  </span>
+                </label>
+              ))
+            )}
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <button type="button" onClick={() => saveAdminProfiles?.(adminDraft)} disabled={!adminDirty || saving} className="btn btn-small btn-interactive" style={{ minWidth: '148px' }}>
+                {saving ? '儲存中…' : '儲存管理員帳號'}
+              </button>
+            </div>
+          </div>
+        )
+      default:
+        return null
+    }
   }
 
   return (
@@ -93,8 +238,8 @@ export default function SettingsTab({ settings, saveSettings, saving = false, me
       <div
         className="admin-card"
         style={{
-          padding: '20px 24px',
-          background: 'linear-gradient(135deg, #fff, #fbf7f1)',
+          padding: '20px 22px',
+          background: 'linear-gradient(135deg, #fff, #FBF8F4)',
           border: '1px solid rgba(166, 139, 106, 0.22)',
           display: 'flex',
           justifyContent: 'space-between',
@@ -104,152 +249,48 @@ export default function SettingsTab({ settings, saveSettings, saving = false, me
         }}
       >
         <div>
-          <div style={{ color: '#A68B6A', fontSize: '13px', fontWeight: 700, letterSpacing: '0.04em' }}>STORE SETTINGS</div>
-          <div style={{ marginTop: '4px', fontSize: '20px', fontWeight: 800 }}>Business rules and front desk details</div>
-          <div style={{ marginTop: '4px', color: 'var(--text-light)', fontSize: '13px', lineHeight: 1.6 }}>
-            Edit public contact details, store-wide opening hours, and full-shop days off that affect availability.
+          <div style={{ color: '#A68B6A', fontSize: '12px', fontWeight: 800, letterSpacing: '0.08em' }}>系統設定</div>
+          <div style={{ marginTop: '4px', fontSize: '20px', fontWeight: 800 }}>列表式管理店舖規則與管理員權限</div>
+          <div style={{ marginTop: '6px', fontSize: '13px', color: 'var(--text-light)', lineHeight: 1.6 }}>
+            統一用列表選取設定分類，再在右邊編輯，避免整頁混雜太多設定表單。
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-          <span style={{ padding: '7px 12px', borderRadius: '999px', fontSize: '12px', fontWeight: 700, background: isDirty ? '#FEF3C7' : '#ECFDF5', color: isDirty ? '#B45309' : '#047857' }}>
-            {isDirty ? 'Unsaved changes' : 'All changes saved'}
-          </span>
-          <button type="button" onClick={() => saveSettings(draft)} disabled={!isDirty || saving} className="btn btn-small btn-interactive" style={{ background: '#34D399', minWidth: '120px', justifyContent: 'center' }}>
-            {saving ? 'Saving...' : 'Save settings'}
-          </button>
-        </div>
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px' }}>
-        <Section title="Store profile" description="These values appear across the public website and customer touchpoints.">
-          <div style={{ display: 'grid', gap: '14px' }}>
-            <div>
-              <label>Store name</label>
-              <input type="text" value={draft.shop_name || ''} onChange={(event) => updateSetting('shop_name', event.target.value)} placeholder="VIVA HAIR" />
-            </div>
-            <div>
-              <label>Address</label>
-              <input type="text" value={draft.address || ''} onChange={(event) => updateSetting('address', event.target.value)} placeholder="Shop address" />
-            </div>
-            <div>
-              <label>Phone / WhatsApp</label>
-              <input type="text" value={draft.phone || ''} onChange={(event) => updateSetting('phone', event.target.value)} placeholder="+852 1234 5678" />
-            </div>
-            <div>
-              <label>Google place ID</label>
-              <input type="text" value={draft.google_place_id || ''} onChange={(event) => updateSetting('google_place_id', event.target.value)} placeholder="Place ID for reviews/map widgets" />
-            </div>
-          </div>
-        </Section>
-
-        <Section title="Store-wide availability" description="These settings affect all staff members before individual overrides are applied." tone="accent">
-          <div style={{ display: 'grid', gap: '14px' }}>
-            <div>
-              <label>Business hours</label>
-              <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-                <input type="time" value={businessHours.start} onChange={(event) => updateSetting('business_hours', `${event.target.value} - ${businessHours.end}`)} />
-                <span style={{ color: 'var(--text-light)', fontWeight: 700 }}>to</span>
-                <input type="time" value={businessHours.end} onChange={(event) => updateSetting('business_hours', `${businessHours.start} - ${event.target.value}`)} />
-              </div>
-            </div>
-            <div>
-              <label>Slot step (minutes)</label>
-              <input type="number" min="5" step="5" value={draft.slot_step_min || '15'} onChange={(event) => updateSetting('slot_step_min', event.target.value)} />
-            </div>
-            <div>
-              <label>Default buffer (minutes)</label>
-              <input type="number" min="0" step="5" value={draft.default_buffer_min || '15'} onChange={(event) => updateSetting('default_buffer_min', event.target.value)} />
-            </div>
-          </div>
-        </Section>
-      </div>
-
-      <Section title="Store-wide days off" description="These are full-shop closed days. They are different from each staff member's personal weekly schedule." tone="accent">
-        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '10px' }}>
-          {DAY_OPTIONS.map((day) => {
-            const active = daysOff.includes(day.key)
-            return (
-              <button
-                key={day.key}
-                type="button"
-                onClick={() => toggleDayOff(day.key)}
-                className="btn-interactive"
-                style={{
-                  padding: '10px 16px',
-                  borderRadius: '999px',
-                  border: `1px solid ${active ? 'var(--primary)' : 'var(--gray)'}`,
-                  background: active ? 'var(--primary)' : '#fff',
-                  color: active ? '#fff' : 'var(--text-light)',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                }}
-              >
-                {day.label}
-              </button>
-            )
-          })}
-        </div>
-        <div style={{ color: 'var(--text-light)', fontSize: '12px', lineHeight: 1.6 }}>
-          If a day is selected here, the whole store becomes unavailable before staff-level shifts, breaks, and blocked slots are evaluated.
-        </div>
-      </Section>
-
-      <Section title="管理員帳號" description="可授權多位已註冊會員進入後台。只會切換 member_profiles 的管理權限，不會建立新帳號。" tone="accent">
-        <div style={{ display: 'grid', gap: '12px' }}>
-          {(adminDraft || []).length === 0 ? (
-            <div style={{ color: 'var(--text-light)', fontSize: '13px' }}>暫時未有可管理的會員資料。</div>
-          ) : (
-            adminDraft.map((profile) => (
-              <label
-                key={profile.id}
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  gap: '12px',
-                  padding: '12px 14px',
-                  border: '1px solid var(--gray)',
-                  borderRadius: '12px',
-                  background: '#fff',
-                }}
-              >
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontWeight: 700, color: 'var(--text)' }}>{profile.full_name || profile.email || profile.id}</div>
-                  <div style={{ marginTop: '4px', color: 'var(--text-light)', fontSize: '12px', lineHeight: 1.5 }}>
-                    {profile.email || '未有電郵'}{profile.phone ? ` · ${profile.phone}` : ''}
-                  </div>
-                </div>
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: 700 }}>
-                  <input
-                    type="checkbox"
-                    checked={profile.is_admin === true}
-                    onChange={(event) =>
-                      setAdminDraft((current) =>
-                        current.map((item) => (item.id === profile.id ? { ...item, is_admin: event.target.checked } : item))
-                      )
-                    }
-                  />
-                  管理員
-                </span>
-              </label>
-            ))
-          )}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-            <div style={{ color: 'var(--text-light)', fontSize: '12px' }}>
-              先讓對方完成註冊，之後在這裡開啟管理員權限。
-            </div>
-            <button
-              type="button"
-              onClick={() => saveAdminProfiles?.(adminDraft)}
-              disabled={!adminDirty || saving}
-              className="btn btn-small btn-interactive"
-              style={{ minWidth: '148px', justifyContent: 'center' }}
-            >
-              {saving ? '儲存中...' : '儲存管理員帳號'}
+          <StatusPill tone={isDirty || adminDirty ? 'warning' : 'success'}>{isDirty || adminDirty ? '有未儲存變更' : '已全部儲存'}</StatusPill>
+          {selectedSection !== 'admins' ? (
+            <button type="button" onClick={() => saveSettings(draft)} disabled={!isDirty || saving} className="btn btn-small btn-interactive" style={{ minWidth: '120px' }}>
+              {saving ? '儲存中…' : '儲存設定'}
             </button>
-          </div>
+          ) : null}
         </div>
-      </Section>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(280px, 340px) minmax(0, 1fr)', gap: '18px', alignItems: 'start' }}>
+        <AdminSection eyebrow="設定列表" title="選擇設定分類" description="用同一種模式管理店舖資料、預約規則、公休日與管理員。">
+          <div style={{ display: 'grid', gap: '12px' }}>
+            {SECTION_OPTIONS.map((section) => {
+              const selected = section.key === selectedSection
+              return (
+                <button key={section.key} type="button" onClick={() => setSelectedSection(section.key)} style={listItemStyle(selected)}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', alignItems: 'flex-start' }}>
+                    <div style={{ fontWeight: 800, color: 'var(--text)' }}>{section.title}</div>
+                    <StatusPill tone="accent">{sectionStatus[section.key]}</StatusPill>
+                  </div>
+                  <div style={{ fontSize: '12px', color: 'var(--text-light)', lineHeight: 1.5 }}>{section.description}</div>
+                </button>
+              )
+            })}
+          </div>
+        </AdminSection>
+
+        <AdminSection
+          eyebrow="設定編輯"
+          title={SECTION_OPTIONS.find((section) => section.key === selectedSection)?.title || '設定'}
+          description={SECTION_OPTIONS.find((section) => section.key === selectedSection)?.description || ''}
+        >
+          {renderSection()}
+        </AdminSection>
+      </div>
     </div>
   )
 }
