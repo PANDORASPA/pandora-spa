@@ -191,6 +191,7 @@ export default function SchedulingTab({
   const [previewDates, setPreviewDates] = useState([])
   const [previewLoading, setPreviewLoading] = useState(false)
   const [previewError, setPreviewError] = useState('')
+  const [previewNonce, setPreviewNonce] = useState(0)
   const previewControllerRef = useRef(null)
   const [shiftRows, setShiftRows] = useState([])
   const [shiftDeletedIds, setShiftDeletedIds] = useState([])
@@ -331,7 +332,7 @@ export default function SchedulingTab({
       })
 
     return () => controller.abort()
-  }, [previewMonth, previewServiceId, selectedStaff?.id, selectedStaff?.location_id])
+  }, [previewMonth, previewNonce, previewServiceId, selectedStaff?.id, selectedStaff?.location_id])
   const removeRow = (setRows, setDeletedIds, id) => {
     setRows((current) => current.filter((row) => row.id !== id))
     if (Number(id) > 0) setDeletedIds((current) => [...current, Number(id)])
@@ -345,6 +346,7 @@ export default function SchedulingTab({
       await onSaveBreaks?.({ rows: breakRows, deletedIds: breakDeletedIds }, { silentSuccess: true })
       await onSaveTimeOff?.({ rows: timeOffRows, deletedIds: timeOffDeletedIds }, { silentSuccess: true })
       await onSaveBlockedSlots?.({ rows: blockedRows, deletedIds: blockedDeletedIds }, { silentSuccess: true })
+      setPreviewNonce((current) => current + 1)
       toast.success('已儲存目前服務供應者')
     } catch (error) {
       toast.error(error?.message || '儲存失敗，請再試一次')
