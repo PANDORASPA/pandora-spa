@@ -553,10 +553,32 @@ export default function AdminPage() {
     return payload
   }
 
-  const normalizeNullableNumber = (value) => {
-    if (value === '' || value == null) return null
-    const parsed = Number(value)
-    return Number.isFinite(parsed) ? parsed : null
+const normalizeNullableNumber = (value) => {
+  if (value === '' || value == null) return null
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+  const normalizeScheduleTablePayload = ({ table, row }) => {
+    const payload = { ...row }
+
+    if (table === 'staff_time_off') {
+      payload.is_all_day = Boolean(payload.is_all_day)
+      if (payload.is_all_day) {
+        payload.start_time = '00:00'
+        payload.end_time = '23:59'
+      } else {
+        payload.start_time = payload.start_time ? String(payload.start_time).substring(0, 5) : null
+        payload.end_time = payload.end_time ? String(payload.end_time).substring(0, 5) : null
+      }
+    }
+
+    if (table === 'staff_breaks' || table === 'blocked_slots') {
+      payload.start_time = payload.start_time ? String(payload.start_time).substring(0, 5) : null
+      payload.end_time = payload.end_time ? String(payload.end_time).substring(0, 5) : null
+    }
+
+    return payload
   }
 
   const ensureValidTimeRange = ({ table, row, label }) => {
@@ -657,18 +679,18 @@ export default function AdminPage() {
     }
   }
 
-  const saveScheduleTable = async ({ table, rows = [], deletedIds = [], onConflict }, options = {}) => {
-    const silentSuccess = Boolean(options?.silentSuccess)
-    try {
-      const normalizedRows = (rows || [])
-        .filter((row) => !row?.__deleted)
-        .map((row) => {
-          const payload = stripTransientFields({ ...row })
-          if (payload.staff_id != null && payload.staff_id !== '') payload.staff_id = Number(payload.staff_id)
-          if (payload.date) payload.date = String(payload.date).substring(0, 10)
-          if (payload.start_time) payload.start_time = String(payload.start_time).substring(0, 5)
-          else if (payload.start_time === '') payload.start_time = null
-          if (payload.end_time) payload.end_time = String(payload.end_time).substring(0, 5)
+    const saveScheduleTable = async ({ table, rows = [], deletedIds = [], onConflict }, options = {}) => {
+      const silentSuccess = Boolean(options?.silentSuccess)
+      try {
+        const normalizedRows = (rows || [])
+          .filter((row) => !row?.__deleted)
+          .map((row) => {
+            const payload = normalizeScheduleTablePayload({ table, row: stripTransientFields({ ...row }) })
+            if (payload.staff_id != null && payload.staff_id !== '') payload.staff_id = Number(payload.staff_id)
+            if (payload.date) payload.date = String(payload.date).substring(0, 10)
+            if (payload.start_time) payload.start_time = String(payload.start_time).substring(0, 5)
+            else if (payload.start_time === '') payload.start_time = null
+            if (payload.end_time) payload.end_time = String(payload.end_time).substring(0, 5)
           else if (payload.end_time === '') payload.end_time = null
           if (payload.day_of_week != null && payload.day_of_week !== '') payload.day_of_week = Number(payload.day_of_week)
           if (payload.is_off != null) payload.is_off = Boolean(payload.is_off)
@@ -1305,16 +1327,24 @@ export default function AdminPage() {
     if (activeTab === 'analytics') return <AnalyticsTab bookings={bookings} orders={orders} transactions={transactions} users={users} userTickets={userTickets} reviews={reviews} />
     if (activeTab === 'orders') return <OrdersTab orders={orders} bookings={bookings} customers={users} transactions={transactions} locations={locations} providerGroups={providerGroups} saving={saving} />
     if (activeTab === 'bookings') return <BookingsTab bookings={bookings} staff={staff} services={services} locations={locations} providerGroups={providerGroups} resources={resources} transactions={transactions} orders={orders} bookingResourceAllocations={bookingResourceAllocations} onUpdateStatus={updateStatus} onUpdateBookingStaff={updateBookingStaff} />
-    if (activeTab === 'staff') {
-      return (
-        <SchedulingTab
-          staff={staff}
-          services={services}
-          operationalContext={{ locations, providerGroups, availableTables }}
-          staffShifts={staffShifts}
-          staffBreaks={staffBreaks}
-          staffTimeOff={staffTimeOff}
-          blockedSlots={blockedSlots}
+      if (activeTab === 'staff') {
+        return (
+          <SchedulingTab
+            staff={staff}
+            services={services}
+            operationalContext={{
+              locations,
+              providerGroups,
+              holidays,
+              settings,
+              serviceLocations,
+              serviceProviderGroups,
+              availableTables,
+            }}
+            staffShifts={staffShifts}
+            staffBreaks={staffBreaks}
+            staffTimeOff={staffTimeOff}
+            blockedSlots={blockedSlots}
           onAddStaff={addStaff}
           onDeleteStaff={deleteStaff}
           onUpdateField={updateStaffField}
