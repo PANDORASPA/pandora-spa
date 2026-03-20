@@ -27,6 +27,21 @@ export async function GET(request) {
     })
 
     const evaluation = evaluatePhase2Availability(context, { requestedStaffId: staffId })
+    const dateSummary = evaluation.dateSummary || {}
+    const availableCount = Number(dateSummary.availableCount || 0)
+    const workingCount = Number(dateSummary.workingCount || 0)
+    const resourceBlockedCount = Number(dateSummary.resourceBlockedCount || 0)
+    const dateSummaryReason = evaluation.locationSelectionRequired
+      ? 'location_required'
+      : staffId && !evaluation.requestedStaffEligible
+        ? 'provider_mismatch'
+        : availableCount > 0
+          ? 'available'
+          : resourceBlockedCount > 0
+            ? 'resource_full'
+            : workingCount > 0
+              ? 'fully_booked'
+              : 'staff_unavailable'
 
     if (staffId) {
       return NextResponse.json(
@@ -35,7 +50,9 @@ export async function GET(request) {
           slotMatrix: evaluation.staffSlotMatrix[staffId] || [],
           locationId: evaluation.locationId,
           locationSelectionRequired: evaluation.locationSelectionRequired,
-          dateSummary: evaluation.dateSummary,
+          requestedStaffEligible: evaluation.requestedStaffEligible,
+          dateSummary,
+          dateSummaryReason,
         },
         { status: 200 }
       )
