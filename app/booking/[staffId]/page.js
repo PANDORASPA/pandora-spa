@@ -237,6 +237,38 @@ Object.assign(T, {
 
 DAY_LABELS.splice(0, DAY_LABELS.length, '一', '二', '三', '四', '五', '六', '日')
 
+DAY_LABELS.splice(0, DAY_LABELS.length, '一', '二', '三', '四', '五', '六', '日')
+
+Object.assign(T, {
+  title: '線上預約',
+  intro: '先選擇服務與日期，再從下拉選單選擇可預約時段。',
+  loadingStaff: '載入服務供應者資料中…',
+  loadingBootstrapFailed: '無法載入預約資料',
+  noStaffFound: '找不到這位服務供應者',
+  backToBooking: '返回預約頁',
+  serviceProvider: '服務供應者',
+  service: '服務',
+  businessHours: '營業時間',
+  customerName: '顧客姓名',
+  customerNamePlaceholder: '請輸入顧客姓名',
+  customerPhone: '聯絡電話',
+  customerPhonePlaceholder: '請輸入聯絡電話',
+  date: '日期',
+  time: '時間',
+  chooseDateThenTime: '先選日期，再選時間',
+  bookingSummary: '預約摘要',
+  amountDue: '應付金額',
+  monthPrev: '上月',
+  monthNext: '下月',
+  chooseDate: '選擇日期',
+  collapseCalendar: '收起月曆',
+  contactLabel: '查詢電話',
+  timeDropdown: '可預約時段',
+  submit: '提交預約',
+  submitted: '預約已送出',
+  submitFailed: '提交預約失敗',
+})
+
 function LegendPill({ children, tone = 'default' }) {
   const palette =
     tone === 'warning'
@@ -555,6 +587,24 @@ export default function BookingStaffPage() {
   const selectedService = useMemo(() => services.find((item) => String(item.id) === String(serviceId)) || null, [services, serviceId])
   const monthGrid = useMemo(() => (calendarOpen ? buildMonthGrid(monthKey) : []), [calendarOpen, monthKey])
   const currentDateISO = useMemo(() => todayISO(), [])
+  const selectedDateHelperText = useMemo(() => {
+    if (!selectedDate) return ''
+    if (selectedDate < currentDateISO) return '過去日期不可預約'
+    if (!selectedSummary) return ''
+    if (selectedSummary.status === 'off') return T.offNote
+    if (selectedSummary.status === 'full') return getReasonMessageDisplay(selectedSummary)
+    if (!loadingSlots && slots.length === 0) return T.noAvailability
+    return ''
+  }, [currentDateISO, loadingSlots, selectedDate, selectedSummary, slots.length])
+  const timePlaceholder = useMemo(() => {
+    if (!selectedDate) return T.chooseDateFirst
+    if (selectedDate < currentDateISO) return '過去日期不可預約'
+    if (loadingSlots) return T.loadingSlots
+    if (selectedSummary?.status === 'off') return T.offNote
+    if (selectedSummary?.status === 'full') return getReasonMessage(selectedSummary)
+    if (selectedSummary?.status === 'available' && slots.length === 0) return T.noAvailability
+    return T.chooseTimeFirst
+  }, [currentDateISO, loadingSlots, selectedDate, selectedSummary, slots.length])
 
   useEffect(() => {
     if (!monthSummary.length) {
@@ -614,27 +664,28 @@ export default function BookingStaffPage() {
         if (!response.ok) throw new Error(payload?.error || bookingOpsCopy.loadFailed)
         return payload
       })
-      .then((payload) => {
-        if (cancelled) return
-        const nextSlots = Array.isArray(payload?.slots)
-          ? payload.slots
-          : Array.isArray(payload?.slotMatrix)
-            ? payload.slotMatrix.flat().filter(Boolean)
-            : []
-        if (!nextSlots.length && payload?.dateSummaryReason) {
-          setMonthSummary((current) => {
-            const next = current.map((entry) => {
-              if (entry?.date !== selectedDate) return entry
-              const nextStatus = payload.dateSummaryReason === 'staff_unavailable' ? 'off' : 'full'
-              return {
-                ...entry,
-                status: nextStatus,
-                reason: payload.dateSummaryReason,
-                hasAvailableSlots: false,
-                availableCount: 0,
-              }
-            })
-            writeCached(monthSummaryCache, monthSummaryKey, next)
+        .then((payload) => {
+          if (cancelled) return
+          const nextSlots = Array.isArray(payload?.slots)
+            ? payload.slots
+            : Array.isArray(payload?.slotMatrix)
+              ? payload.slotMatrix.flat().filter(Boolean)
+              : []
+          if (!nextSlots.length) {
+            const nextReason = payload?.dateSummaryReason || daySummary?.reason || 'no_bookable_slots'
+            setMonthSummary((current) => {
+              const next = current.map((entry) => {
+                if (entry?.date !== selectedDate) return entry
+                const nextStatus = nextReason === 'staff_unavailable' ? 'off' : 'full'
+                return {
+                  ...entry,
+                  status: nextStatus,
+                  reason: nextReason,
+                  hasAvailableSlots: false,
+                  availableCount: 0,
+                }
+              })
+              writeCached(monthSummaryCache, monthSummaryKey, next)
             return next
           })
         }
@@ -862,23 +913,13 @@ export default function BookingStaffPage() {
 
                 <label style={{ display: 'grid', gap: '8px' }}>
                   <span style={{ fontSize: '13px', fontWeight: 800 }}>{T.timeDropdown}</span>
-                  <select
-                    value={selectedTime}
-                    onChange={(event) => setSelectedTime(event.target.value)}
-                    disabled={!selectedDate || selectedSummary?.status !== 'available' || loadingSlots}
-                    style={fieldStyle}
-                  >
-                    <option value="">
-                      {selectedDate
-                        ? selectedDate < currentDateISO
-                          ? '過去日期不可預約'
-                          : loadingSlots
-                            ? T.loadingSlots
-                            : selectedSummary?.status === 'available' && slots.length === 0
-                              ? T.noAvailability
-                              : T.chooseTimeFirst
-                        : T.chooseDateFirst}
-                    </option>
+                    <select
+                      value={selectedTime}
+                      onChange={(event) => setSelectedTime(event.target.value)}
+                      disabled={!selectedDate || selectedSummary?.status !== 'available' || loadingSlots}
+                      style={fieldStyle}
+                    >
+                      <option value="">{timePlaceholder}</option>
                     {slots.map((slot) => {
                       const time = String(slot?.time || slot?.startTime || slot?.start_time || '').slice(0, 5)
                       if (!time) return null
@@ -892,8 +933,7 @@ export default function BookingStaffPage() {
                 </label>
               </div>
 
-              {selectedDate && selectedSummary ? <div style={{ color: '#6B7280', fontSize: '14px' }}>{selectedDate < currentDateISO ? '過去日期不可預約' : getReasonMessageDisplay(selectedSummary)}</div> : null}
-              {selectedDate && !loadingSlots && slots.length === 0 && selectedSummary?.status === 'available' ? <div style={{ color: '#6B7280' }}>{T.noAvailability}</div> : null}
+              {selectedDateHelperText ? <div style={{ color: '#6B7280', fontSize: '14px' }}>{selectedDateHelperText}</div> : null}
             </div>
 
             {memberProfile ? (
