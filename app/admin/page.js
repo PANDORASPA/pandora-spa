@@ -1,26 +1,28 @@
-'use client'
+﻿'use client'
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import dynamic from 'next/dynamic'
 import { toast } from 'react-hot-toast'
 import { supabase } from '../../lib/supabase'
-import ServicesTab from '../components/admin/ServicesTab'
-import CustomersTab from '../components/admin/CustomersTab'
-import SettingsTab from '../components/admin/SettingsTab'
-import CouponsTab from '../components/admin/CouponsTab'
-import InventoryTab from '../components/admin/InventoryTab'
-import OrdersTab from '../components/admin/OrdersTab'
-import AnalyticsTab from '../components/admin/AnalyticsTab'
-import DashboardTab from '../components/admin/DashboardTab'
-import ArticlesTab from '../components/admin/ArticlesTab'
-import FaqsTab from '../components/admin/FaqsTab'
-import SchedulingTab from '../components/admin/SchedulingTab'
-import BookingsTab from '../components/admin/BookingsTab'
-import LocationsTab from '../components/admin/LocationsTab'
-import HolidaysTab from '../components/admin/HolidaysTab'
-import ResourcesTab from '../components/admin/ResourcesTab'
-import TransactionsTab from '../components/admin/TransactionsTab'
 import { analyzeScheduleRows } from '../../lib/booking/admin-schedule'
+
+const ServicesTab = dynamic(() => import('../components/admin/ServicesTab'))
+const CustomersTab = dynamic(() => import('../components/admin/CustomersTab'))
+const SettingsTab = dynamic(() => import('../components/admin/SettingsTab'))
+const CouponsTab = dynamic(() => import('../components/admin/CouponsTab'))
+const InventoryTab = dynamic(() => import('../components/admin/InventoryTab'))
+const OrdersTab = dynamic(() => import('../components/admin/OrdersTab'))
+const AnalyticsTab = dynamic(() => import('../components/admin/AnalyticsTab'))
+const DashboardTab = dynamic(() => import('../components/admin/DashboardTab'))
+const ArticlesTab = dynamic(() => import('../components/admin/ArticlesTab'))
+const FaqsTab = dynamic(() => import('../components/admin/FaqsTab'))
+const SchedulingTab = dynamic(() => import('../components/admin/SchedulingTab'))
+const BookingsTab = dynamic(() => import('../components/admin/BookingsTab'))
+const LocationsTab = dynamic(() => import('../components/admin/LocationsTab'))
+const HolidaysTab = dynamic(() => import('../components/admin/HolidaysTab'))
+const ResourcesTab = dynamic(() => import('../components/admin/ResourcesTab'))
+const TransactionsTab = dynamic(() => import('../components/admin/TransactionsTab'))
 
 const scheduleTableLabels = {
   staff_shifts: '日期覆蓋',
@@ -31,124 +33,31 @@ const scheduleTableLabels = {
 
 const tabLoadingMessage = '載入分頁資料中...'
 
-const tabGroupsLegacy = [
-  { name: '概覽', tabs: [{ id: 'dashboard', name: '總覽' }, { id: 'analytics', name: '分析' }] },
-  { name: '預約', tabs: [{ id: 'bookings', name: '預約' }, { id: 'staff', name: '排程' }, { id: 'holidays', name: '假期' }, { id: 'locations', name: '地點' }, { id: 'resources', name: '資源設備' }] },
-  { name: '營運', tabs: [{ id: 'orders', name: '訂單' }, { id: 'transactions', name: '交易紀錄' }, { id: 'inventory', name: '庫存' }, { id: 'coupons', name: '優惠碼' }] },
-  { name: '服務', tabs: [{ id: 'services', name: '服務' }] },
-  { name: '顧客', tabs: [{ id: 'customers', name: '顧客' }] },
-  { name: '內容', tabs: [{ id: 'articles', name: '文章' }, { id: 'faqs', name: '常見問題' }] },
-  { name: '系統', tabs: [{ id: 'settings', name: '設定' }] },
-]
-
-const tabMetaLegacy = {
-  dashboard: {
-    title: '營運總覽',
-    eyebrow: '營運儀表板',
-    description: '在同一個畫面掌握今日預約、營業額、會員活動，以及營運所需的快速入口。',
-  },
-  analytics: {
-    title: '營運分析',
-    eyebrow: '表現洞察',
-    description: '查看營業額走勢、預約結構、服務供應者表現，以及評價訊號。',
-  },
-  bookings: {
-    title: '預約',
-    eyebrow: '預約紀錄',
-    description: '追蹤服務預約、服務供應者安排、時段驗證、付款狀態，以及整體預約狀態。',
-  },
-  orders: {
-    title: '訂單',
-    eyebrow: '營運銷售',
-    description: '管理商品與套票訂單，並一致查看配送、付款與履行狀態。',
-  },
-  staff: {
-    title: '服務供應者',
-    eyebrow: '排程中心',
-    description: '管理服務供應者資料、每週時間表、指定日期安排、休息時段、休假與封鎖時段。',
-  },
-  services: {
-    title: '服務',
-    eyebrow: '服務設定',
-    description: '設定服務目錄、時長、價格，以及會影響可預約時段的規則輸入。',
-  },
-  inventory: {
-    title: '庫存',
-    eyebrow: '商品、套票與票券',
-    description: '以分階段編輯方式維護可銷售的商品、套票與票券項目。',
-  },
-  locations: {
-    title: '地點',
-    eyebrow: '營運範圍',
-    description: '管理分店與分店層級的可預約範圍，支援之後的多地點預約規則。',
-  },
-  holidays: {
-    title: '假期',
-    eyebrow: '休息日與休假',
-    description: '設定分店休息、服務供應者休假，以及會影響可預約時段的封鎖日期。',
-  },
-  resources: {
-    title: '資源設備',
-    eyebrow: '容量控制',
-    description: '管理房間、座位、儀器與其他可預約資源，並納入防撞驗證。',
-  },
-  transactions: {
-    title: '交易紀錄',
-    eyebrow: '付款帳目',
-    description: '查看付款參考編號、關聯紀錄，以及供營運追查的帳目視圖。',
-  },
-  coupons: {
-    title: '優惠碼',
-    eyebrow: '推廣活動',
-    description: '維護折扣碼與推廣設定，同時保留對預約影響的可見性。',
-  },
-  articles: {
-    title: '文章',
-    eyebrow: '內容管理',
-    description: '編輯用於前台與會員體驗的教學及推廣內容。',
-  },
-  faqs: {
-    title: '常見問題',
-    eyebrow: '內容管理',
-    description: '維持常見問題內容更新，讓預約、服務與會員流程更清晰。',
-  },
-  customers: {
-    title: '顧客',
-    eyebrow: '會員營運',
-    description: '在同一頁查看會員資料、預約紀錄、聯絡方式與營運備註。',
-  },
-  settings: {
-    title: '設定',
-    eyebrow: '系統控制',
-    description: '設定全店營業時間、公休日與會影響預約規則的預設值。',
-  },
-}
-
 const tabGroups = [
-  { name: '總覽', tabs: [{ id: 'dashboard', name: '總覽' }, { id: 'analytics', name: '分析' }] },
-  { name: '預約', tabs: [{ id: 'bookings', name: '預約' }, { id: 'staff', name: '排班' }, { id: 'holidays', name: '假期' }, { id: 'locations', name: '地點' }, { id: 'resources', name: '資源設備' }] },
-  { name: '營運', tabs: [{ id: 'orders', name: '訂單' }, { id: 'transactions', name: '交易紀錄' }, { id: 'inventory', name: '庫存' }, { id: 'coupons', name: '優惠券' }] },
-  { name: '服務', tabs: [{ id: 'services', name: '服務' }] },
-  { name: '顧客', tabs: [{ id: 'customers', name: '顧客' }] },
-  { name: '內容', tabs: [{ id: 'articles', name: '文章' }, { id: 'faqs', name: '常見問題' }] },
-  { name: '系統', tabs: [{ id: 'settings', name: '設定' }] },
+  { name: '總覽', tabs: [{ id: 'dashboard', name: '總覽' }, { id: 'analytics', name: '數據分析' }] },
+  { name: '預約與排班', tabs: [{ id: 'bookings', name: '預約' }, { id: 'staff', name: '排班' }, { id: 'holidays', name: '假期' }, { id: 'locations', name: '地點' }, { id: 'resources', name: '資源設備' }] },
+  { name: '銷售與庫存', tabs: [{ id: 'orders', name: '訂單' }, { id: 'transactions', name: '交易紀錄' }, { id: 'inventory', name: '庫存' }, { id: 'coupons', name: '優惠碼' }] },
+  { name: '服務設定', tabs: [{ id: 'services', name: '服務' }] },
+  { name: '顧客管理', tabs: [{ id: 'customers', name: '顧客' }] },
+  { name: '內容管理', tabs: [{ id: 'articles', name: '文章' }, { id: 'faqs', name: '常見問題' }] },
+  { name: '系統設定', tabs: [{ id: 'settings', name: '設定' }] },
 ]
 
 const tabMeta = {
   dashboard: {
-    title: '營運總覽',
+    title: '總覽',
     eyebrow: '營運儀表板',
-    description: '在同一個畫面掌握今日預約、銷售、顧客活動，以及營運團隊最需要的快速入口。',
+    description: '在同一個畫面掌握今日預約、銷售、顧客活動，以及營運最需要的快捷入口。',
   },
   analytics: {
-    title: '營運分析',
-    eyebrow: '數據觀察',
-    description: '查看預約走勢、銷售表現、服務供應者效率，以及會員與套票的使用情況。',
+    title: '數據分析',
+    eyebrow: '數據洞察',
+    description: '查看預約趨勢、銷售表現、服務供應者效率，以及套票使用情況。',
   },
   bookings: {
     title: '預約管理',
     eyebrow: '預約紀錄',
-    description: '追蹤服務預約、服務供應者安排、時段狀態、付款摘要，以及整體預約流程。',
+    description: '追蹤顧客預約、服務供應者安排、時段狀態、付款摘要，以及整體預約流程。',
   },
   orders: {
     title: '訂單管理',
@@ -158,7 +67,7 @@ const tabMeta = {
   staff: {
     title: '服務供應者',
     eyebrow: '排班中心',
-    description: '管理服務供應者資料、每週時間表、指定日期安排、休息時段、休假與封鎖時段。',
+    description: '管理服務供應者資料、每週時間表、指定日期安排、休息與休假時段。',
   },
   services: {
     title: '服務設定',
@@ -168,12 +77,12 @@ const tabMeta = {
   inventory: {
     title: '庫存',
     eyebrow: '商品與套票',
-    description: '以分層方式管理可售商品、套票與票券項目。',
+    description: '以分組方式管理可售商品、套票與票券項目。',
   },
   locations: {
     title: '地點',
     eyebrow: '營運據點',
-    description: '管理分店與地點的可預約設定，支援多地點預約流程。',
+    description: '管理分店與地點設定，支援多地點預約流程。',
   },
   holidays: {
     title: '假期',
@@ -183,122 +92,96 @@ const tabMeta = {
   resources: {
     title: '資源設備',
     eyebrow: '容量控制',
-    description: '管理房間、座位、設備與其他可預約資源，避免超額預約。',
+    description: '管理房間、座位、器材及其他預約資源，避免超額預約。',
   },
   transactions: {
     title: '交易紀錄',
     eyebrow: '付款明細',
-    description: '查看付款參考編號、關聯紀錄，以及可供營運追查的交易資訊。',
+    description: '查看付款參考編號、關聯訂單與營運追蹤資料。',
   },
   coupons: {
-    title: '優惠券',
+    title: '優惠碼',
     eyebrow: '推廣活動',
-    description: '維護折扣與推廣設定，同時保留預約流程中的可見性。',
+    description: '設定折扣碼與推廣活動，同時保留預約與銷售的可追蹤性。',
   },
   articles: {
     title: '文章',
     eyebrow: '內容管理',
-    description: '管理前台與會員可見的教學及推廣內容。',
+    description: '管理用於前台與會員頁的教學及推廣內容。',
   },
   faqs: {
     title: '常見問題',
     eyebrow: '內容管理',
-    description: '持續更新常見問題內容，讓預約與服務流程更清楚。',
+    description: '持續更新常見問題內容，方便顧客快速理解預約與服務流程。',
   },
   customers: {
     title: '顧客',
     eyebrow: '會員營運',
-    description: '在同一個頁面查看顧客資料、預約紀錄、付款紀錄與聯絡方式。',
+    description: '集中查看顧客資料、預約記錄、交易紀錄與會員互動。',
   },
   settings: {
     title: '設定',
     eyebrow: '系統控制',
-    description: '設定全店營業時間、公休日期與影響預約規則的系統值。',
+    description: '管理全店營運時間、公共假日與會影響預約規則的系統設定。',
   },
-}
-
-const pad2 = (value) => String(value).padStart(2, '0')
-
-const getLocalISODate = (date = new Date()) => {
-  return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`
 }
 
 const normalizeDateValue = (value) => {
   if (!value) return ''
-  const text = String(value).trim()
-  if (!text) return ''
-  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text
-
-  const parts = text.split(/[\/.-]/).map((part) => part.trim())
-  if (parts.length === 3) {
-    const [a, b, c] = parts
-    if (a.length === 4) return `${a.padStart(4, '0')}-${b.padStart(2, '0')}-${c.padStart(2, '0')}`
-    return `${c.padStart(4, '0')}-${b.padStart(2, '0')}-${a.padStart(2, '0')}`
-  }
-
-  return text
+  return String(value).slice(0, 10)
 }
 
 const normalizeTimeValue = (value) => {
   if (!value) return ''
-  const text = String(value).trim()
-  if (!text) return ''
-  return text.length >= 5 ? text.substring(0, 5) : text
+  return String(value).slice(0, 5)
+}
+
+const getLocalISODate = () => {
+  const now = new Date()
+  const localTime = new Date(now.getTime() - now.getTimezoneOffset() * 60 * 1000)
+  return localTime.toISOString().slice(0, 10)
 }
 
 const getBookingDateKey = (booking) => normalizeDateValue(booking?.appointment_date || booking?.date)
+
 const getBookingTimeKey = (booking) => normalizeTimeValue(booking?.start_time || booking?.time)
-const getBookingCustomerName = (booking) => booking?.customer_name || booking?.name || ''
-const getBookingCustomerPhone = (booking) => booking?.customer_phone || booking?.phone || ''
-const getBookingServiceName = (booking) => booking?.service_name || booking?.service || ''
-const getBookingServiceId = (booking, serviceRows = []) => {
-  const directId = Number(booking?.service_id)
-  if (Number.isFinite(directId) && directId > 0) return directId
 
-  const serviceName = String(getBookingServiceName(booking)).trim().toLowerCase()
+const getBookingServiceId = (booking, services = []) => {
+  const directId = booking?.service_id
+  if (directId != null && directId !== '') return Number(directId)
+  const serviceName = String(booking?.service_name || booking?.service || '').trim()
   if (!serviceName) return null
-
-  const matched = (serviceRows || []).find((service) => String(service?.name || '').trim().toLowerCase() === serviceName)
-  const matchedId = Number(matched?.id)
-  return Number.isFinite(matchedId) && matchedId > 0 ? matchedId : null
-}
-
-const parseBusinessHours = (value) => {
-  const text = String(value || '11:00 - 20:00')
-  const parts = text.split('-').map((part) => part.trim())
-  return {
-    start: parts[0] || '11:00',
-    end: parts[1] || '20:00',
-  }
-}
-
-const formatScheduleIssues = (issues = []) => {
-  return issues
-    .map((issue) => issue?.message || '排班資料無效')
-    .filter(Boolean)
-    .join('; ')
+  const matched = services.find((service) => String(service?.name || '').trim() === serviceName)
+  return matched?.id != null ? Number(matched.id) : null
 }
 
 const safeTableResult = async (promise) => {
   const result = await promise
-  if (!result?.error) return { available: true, data: result.data || [] }
-
-  const message = String(result.error.message || '')
-  if (
-    message.includes('does not exist') ||
-    message.includes('Could not find the table') ||
-    message.includes('schema cache') ||
-    message.includes('relation')
-  ) {
-    return { available: false, data: [] }
+  if (!result?.error) {
+    return {
+      available: true,
+      data: result?.data || [],
+      error: null,
+    }
   }
-
-  throw result.error
+  const message = String(result.error?.message || '')
+  const relationMissing =
+    message.includes('does not exist') ||
+    message.includes('schema cache') ||
+    message.includes('Could not find the table') ||
+    message.includes('Could not find the relation')
+  if (!relationMissing) {
+    throw result.error
+  }
+  return {
+    available: false,
+    data: [],
+    error: result.error,
+  }
 }
 
-export default function Admin() {
+export default function AdminPage() {
   const router = useRouter()
-
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [authChecked, setAuthChecked] = useState(false)
   const [activeTab, setActiveTab] = useState('dashboard')
@@ -664,6 +547,13 @@ export default function Admin() {
     return Number.isFinite(parsed) ? parsed : null
   }
 
+  const bumpAvailabilityCacheVersion = async () => {
+    const { error } = await supabase
+      .from('settings')
+      .upsert({ key: 'availability_cache_version', value: new Date().toISOString() }, { onConflict: 'key' })
+    if (error) throw error
+  }
+
   const saveCollection = async (table, rows = [], deletedIds = []) => {
     const payload = (rows || [])
       .filter((row) => !row?.__deleted)
@@ -726,6 +616,7 @@ export default function Admin() {
         if (deleteError) throw deleteError
       }
 
+      await bumpAvailabilityCacheVersion()
       await refreshStaffTableState('staff_shifts')
       if (!silentSuccess) toast.success('已儲存班次')
     } catch (error) {
@@ -783,6 +674,7 @@ export default function Admin() {
         if (error) throw error
       }
 
+      await bumpAvailabilityCacheVersion()
       await refreshStaffTableState(table)
       if (!silentSuccess) toast.success(`已儲存${scheduleTableLabels[table] || '排班設定'}`)
     } catch (error) {
@@ -821,6 +713,7 @@ export default function Admin() {
         enabled: row.enabled !== false,
       }))
       await saveCollection('locations', normalizedRows, deletedIds)
+      await bumpAvailabilityCacheVersion()
       await loadBaseData({ showLoading: false })
       toast.success('已儲存地點')
     } catch (error) {
@@ -847,6 +740,7 @@ export default function Admin() {
           is_closed: row.is_closed !== false,
         }))
       await saveCollection('holidays', normalizedRows, deletedIds)
+      await bumpAvailabilityCacheVersion()
       await loadBaseData({ showLoading: false })
       toast.success('已儲存假期')
     } catch (error) {
@@ -869,6 +763,7 @@ export default function Admin() {
         enabled: row.enabled !== false,
       }))
       await saveCollection('resources', normalizedRows, deletedIds)
+      await bumpAvailabilityCacheVersion()
       await loadBaseData({ showLoading: false })
       toast.success('已儲存資源設備')
     } catch (error) {
@@ -917,6 +812,7 @@ export default function Admin() {
         const { error } = await supabase.from('staff').upsert(payload)
         if (error) throw error
       }
+      await bumpAvailabilityCacheVersion()
       await refreshStaffTableState('staff')
       if (!silentSuccess) toast.success('已儲存目前服務供應者')
     } catch (error) {
@@ -1024,6 +920,7 @@ export default function Admin() {
         if (error) throw error
       }
 
+      await bumpAvailabilityCacheVersion()
       await loadBaseData({ showLoading: false })
       await loadServiceRelationsData()
       toast.success('已儲存服務')
@@ -1086,7 +983,7 @@ export default function Admin() {
       const rows = Array.isArray(payloadOrRows) ? payloadOrRows : payloadOrRows?.coupons || []
       await saveCollection('coupons', rows)
       await loadCouponsData({ force: true })
-      toast.success('已儲存優惠券')
+      toast.success('已儲存優惠碼')
     } catch (error) {
       toast.error('優惠碼儲存失敗：' + (error?.message || '未知錯誤'))
     } finally {
@@ -1099,8 +996,9 @@ export default function Admin() {
     try {
       const updates = Object.keys(newSettings).map((key) => supabase.from('settings').upsert({ key, value: newSettings[key] }))
       await Promise.all(updates)
+      await bumpAvailabilityCacheVersion()
       setSettings(newSettings)
-      toast.success('儲存成功')
+      toast.success('已儲存設定')
     } catch (error) {
       toast.error('設定儲存失敗：' + (error?.message || '未知錯誤'))
     } finally {
@@ -1111,7 +1009,7 @@ export default function Admin() {
   const updateStatus = async (id, status) => {
     await supabase.from('bookings').update({ status }).eq('id', id)
     setBookings((current) => current.map((booking) => (booking.id === id ? { ...booking, status } : booking)))
-    toast.success('儲存成功')
+    toast.success('已更新預約狀態')
   }
 
   const updateBookingStaff = async (id, staffId) => {
@@ -1130,7 +1028,7 @@ export default function Admin() {
       setBookings((current) =>
         current.map((booking) => (booking.id === id ? { ...booking, staff_id: null, staff_name: null } : booking))
       )
-      toast.success('儲存成功')
+      toast.success('已儲存預約')
       return true
     }
 
@@ -1184,7 +1082,7 @@ export default function Admin() {
             : booking
         )
       )
-      toast.success('儲存成功')
+      toast.success('已更新預約')
       return true
     } catch (error) {
       toast.error('可用時段檢查失敗：' + (error?.message || '未知錯誤'))
@@ -1213,7 +1111,7 @@ export default function Admin() {
   }
 
   const deleteStaff = async (id) => {
-    if (!confirm('確定要刪除此服務供應者？')) return
+    if (!confirm('確定要刪除這位服務供應者嗎？')) return
     await supabase.from('staff').delete().eq('id', id)
     setStaff((current) => current.filter((item) => item.id !== id))
   }
@@ -1263,7 +1161,7 @@ export default function Admin() {
   const updateCustomer = async (id, updates) => {
     await supabase.from('customers').update(updates).eq('id', id)
     setUsers((current) => current.map((item) => (item.id === id ? { ...item, ...updates } : item)))
-    toast.success('儲存成功')
+    toast.success('已儲存顧客資料')
   }
 
   const handleLogout = async () => {
@@ -1285,13 +1183,21 @@ export default function Admin() {
     activeTickets: userTickets.filter((ticket) => Number(ticket?.remaining_count || 0) > 0).length,
   }
 
-  const activeTabMeta = tabMeta[activeTab] || {
+    const activeTabMeta = tabMeta[activeTab] || {
     title: '管理後台',
-    eyebrow: '營運管理',
-    description: '管理營運資料、預約規則與網站設定。',
+    eyebrow: '營運控制台',
+    description: '管理預約、排班、銷售、顧客與內容設定。',
   }
 
   const renderActiveContent = () => {
+    if (baseLoaded && tabLoadingState[activeTab] && !tabDataLoaded[activeTab]) {
+      return (
+        <div className="admin-card" style={{ padding: '28px', textAlign: 'center', color: 'var(--text-light)' }}>
+          {tabLoadingMessage}
+        </div>
+      )
+    }
+
     if (activeTab === 'dashboard') return <DashboardTab stats={stats} bookings={bookings} orders={orders} transactions={transactions} customers={users} userTickets={userTickets} onOpenTab={setActiveTab} />
     if (activeTab === 'analytics') return <AnalyticsTab bookings={bookings} orders={orders} transactions={transactions} users={users} userTickets={userTickets} reviews={reviews} />
     if (activeTab === 'orders') return <OrdersTab orders={orders} bookings={bookings} customers={users} transactions={transactions} locations={locations} providerGroups={providerGroups} saving={saving} />
@@ -1349,29 +1255,29 @@ export default function Admin() {
     return null
   }
 
-  if (!authChecked || loading) return <div style={{ padding: '100px', textAlign: 'center' }}>載入中...</div>
-  if (!isAuthenticated) return <div style={{ padding: '100px', textAlign: 'center' }}>Checking admin access...</div>
+  if (!authChecked || loading) return <div style={{ padding: '100px', textAlign: 'center' }}>載入管理後台中…</div>
+  if (!isAuthenticated) return <div style={{ padding: '100px', textAlign: 'center' }}>正在檢查管理權限…</div>
 
   return (
     <div style={{ minHeight: '100vh', background: '#f8f9fa' }}>
       <header style={{ background: '#3D3D3D', color: '#fff', padding: '12px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h2 style={{ fontSize: '18px', margin: 0 }}>VIVA SALON Admin</h2>
+        <h2 style={{ fontSize: '18px', margin: 0 }}>VIVA HAIR 管理後台</h2>
         <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
           <button onClick={fetchData} style={{ padding: '6px 12px', background: '#555', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>
-            Refresh
+            重新整理
           </button>
           <button onClick={handleLogout} style={{ padding: '6px 12px', background: 'transparent', color: '#fff', border: '1px solid #666', borderRadius: '6px', cursor: 'pointer' }}>
-            Logout
+            登出
           </button>
         </div>
       </header>
 
       <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '20px', display: 'flex', gap: '20px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
         <aside className="admin-card" style={{ width: '280px', padding: '18px', position: 'sticky', top: '20px', alignSelf: 'flex-start', flexShrink: 0 }}>
-          <div style={{ fontSize: '12px', fontWeight: 800, letterSpacing: '0.08em', color: '#A68B6A' }}>ADMIN NAVIGATION</div>
-          <h3 style={{ margin: '8px 0 0', fontSize: '20px', fontWeight: 800 }}>Operations Console</h3>
+          <div style={{ fontSize: '12px', fontWeight: 800, letterSpacing: '0.08em', color: '#A68B6A' }}>管理導航</div>
+          <h3 style={{ margin: '8px 0 0', fontSize: '20px', fontWeight: 800 }}>營運控制台</h3>
           <p style={{ margin: '10px 0 18px', fontSize: '13px', lineHeight: 1.6, color: 'var(--text-light)' }}>
-            Use grouped navigation for bookings, commerce, scheduling, operations, and content instead of one long tab strip.
+            以分組方式管理預約、排班、營運、內容與系統設定，避免全部功能擠在同一條長分頁列。
           </p>
 
           <div style={{ display: 'grid', gap: '16px' }}>
@@ -1422,3 +1328,4 @@ export default function Admin() {
     </div>
   )
 }
+
