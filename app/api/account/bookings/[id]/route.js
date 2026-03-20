@@ -144,8 +144,18 @@ export async function PATCH(request, { params }) {
 
     const body = await request.json()
     const action = body?.action || 'reschedule'
+    const requestHost = (() => {
+      try {
+        return new URL(request.url).hostname
+      } catch {
+        return ''
+      }
+    })()
+    const shouldAllowSmokeFault =
+      process.env.ALLOW_SMOKE_FAULTS === '1' ||
+      ((requestHost === 'localhost' || requestHost === '127.0.0.1') && /@example\.com$/i.test(String(user?.email || '')))
     const shouldForceAllocationFailure =
-      process.env.ALLOW_SMOKE_FAULTS === '1' && request.headers.get('x-smoke-force-allocation-fail') === '1'
+      shouldAllowSmokeFault && request.headers.get('x-smoke-force-allocation-fail') === '1'
 
     if (action === 'cancel') {
       await restoreTicketIfNeeded(supabase, existingBooking)
