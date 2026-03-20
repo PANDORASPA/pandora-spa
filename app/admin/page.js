@@ -219,6 +219,7 @@ export default function AdminPage() {
   const [serviceProviderGroups, setServiceProviderGroups] = useState([])
   const [serviceResources, setServiceResources] = useState([])
   const [settings, setSettings] = useState({})
+  const [memberProfiles, setMemberProfiles] = useState([])
   const [availableTables, setAvailableTables] = useState({
       locations: false,
       providerGroups: false,
@@ -457,6 +458,14 @@ export default function AdminPage() {
     markTabsLoaded(['coupons'])
   }
 
+  const loadAdminProfilesData = async () => {
+    const profiles = await safeTableResult(
+      supabase.from('member_profiles').select('id,email,full_name,phone,is_admin').order('email')
+    )
+    setMemberProfiles(profiles.data || [])
+    markTabsLoaded(['settings'])
+  }
+
   const loadTabData = async (tabId, { force = false } = {}) => {
     if (!tabId || !isAuthenticated) return
     if (tabDataLoaded[tabId] && !force) return
@@ -479,6 +488,8 @@ export default function AdminPage() {
         await loadContentData()
       } else if (tabId === 'coupons') {
         await loadCouponsData()
+      } else if (tabId === 'settings') {
+        await loadAdminProfilesData()
       } else {
         markTabsLoaded([tabId])
       }
@@ -655,6 +666,9 @@ export default function AdminPage() {
           }
           return payload
         })
+      const normalizedDeletedIds = (deletedIds || [])
+        .map((value) => Number(value))
+        .filter((value) => Number.isInteger(value) && value > 0 && value <= 2147483647)
 
       const { issues } = analyzeScheduleRows({ table, rows: normalizedRows, bookings })
       if (issues.length > 0) {
@@ -663,15 +677,29 @@ export default function AdminPage() {
 
       setSaving(true)
       if (normalizedRows.length > 0) {
-        const query = onConflict
-          ? supabase.from(table).upsert(normalizedRows, { onConflict })
-          : supabase.from(table).upsert(normalizedRows)
-        const { error } = await query
-        if (error) throw error
+        if (onConflict) {
+          const { error } = await supabase.from(table).upsert(normalizedRows, { onConflict })
+          if (error) throw error
+        } else {
+          const rowsWithId = normalizedRows.filter((row) => Number.isInteger(Number(row.id)) && Number(row.id) > 0)
+          const rowsWithoutId = normalizedRows.filter((row) => !Number.isInteger(Number(row.id)) || Number(row.id) <= 0)
+
+          for (const row of rowsWithId) {
+            const { id, ...payload } = row
+            const { error } = await supabase.from(table).update(payload).eq('id', id)
+            if (error) throw error
+          }
+
+          if (rowsWithoutId.length > 0) {
+            const insertPayload = rowsWithoutId.map(({ id, ...payload }) => payload)
+            const { error } = await supabase.from(table).insert(insertPayload)
+            if (error) throw error
+          }
+        }
       }
 
-      if (deletedIds.length > 0) {
-        const { error } = await supabase.from(table).delete().in('id', deletedIds)
+      if (normalizedDeletedIds.length > 0) {
+        const { error } = await supabase.from(table).delete().in('id', normalizedDeletedIds)
         if (error) throw error
       }
 
@@ -1007,6 +1035,31 @@ export default function AdminPage() {
     }
   }
 
+  const saveAdminProfiles = async (profiles) => {
+    setSaving(true)
+    try {
+      const payload = (profiles || []).map((profile) => ({
+        id: profile.id,
+        email: profile.email || null,
+        full_name: profile.full_name || null,
+        phone: profile.phone || null,
+        is_admin: profile.is_admin === true,
+      }))
+
+      if (payload.length > 0) {
+        const { error } = await supabase.from('member_profiles').upsert(payload, { onConflict: 'id' })
+        if (error) throw error
+      }
+
+      await loadAdminProfilesData()
+      toast.success('已儲存管理員帳號設定')
+    } catch (error) {
+      toast.error('管理員帳號儲存失敗：' + (error?.message || '未知錯誤'))
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const updateStatus = async (id, status) => {
     await supabase.from('bookings').update({ status }).eq('id', id)
     setBookings((current) => current.map((booking) => (booking.id === id ? { ...booking, status } : booking)))
@@ -1252,7 +1305,17 @@ export default function AdminPage() {
     if (activeTab === 'articles') return <ArticlesTab articles={articles} />
     if (activeTab === 'faqs') return <FaqsTab faqs={faqs} />
     if (activeTab === 'customers') return <CustomersTab users={users} bookings={bookings} orders={orders} transactions={transactions} userTickets={userTickets} servicePackages={servicePackages} onUpdateCustomer={updateCustomer} />
-    if (activeTab === 'settings') return <SettingsTab settings={settings} saveSettings={saveSettings} saving={saving} />
+    if (activeTab === 'settings') {
+      return (
+        <SettingsTab
+          settings={settings}
+          saveSettings={saveSettings}
+          saving={saving}
+          memberProfiles={memberProfiles}
+          saveAdminProfiles={saveAdminProfiles}
+        />
+      )
+    }
     return null
   }
 
