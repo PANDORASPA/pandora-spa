@@ -4,7 +4,6 @@ import {
   buildDateSummaries,
   getTodayISO,
   normalizeDateISO,
-  parseOptionalNumber,
   parsePositiveInt,
 } from '../_summary'
 
@@ -18,8 +17,6 @@ export async function GET(request) {
     const staffId = parsePositiveInt(url.searchParams.get('staffId'), null)
     const startDate = normalizeDateISO(url.searchParams.get('startDate')) || getTodayISO()
     const days = Math.min(parsePositiveInt(url.searchParams.get('days'), DEFAULT_DAYS), MAX_DAYS)
-    const locationId = parseOptionalNumber(url.searchParams.get('locationId'))
-
     if (!serviceId || !staffId) {
       return NextResponse.json({ error: 'Missing serviceId or staffId.' }, { status: 400 })
     }
@@ -31,7 +28,8 @@ export async function GET(request) {
       days,
       serviceId,
       staffId,
-      locationId,
+      locationId: null,
+      ignoreLocationProviderRules: true,
     })
 
     return NextResponse.json({ dates }, { status: 200 })
