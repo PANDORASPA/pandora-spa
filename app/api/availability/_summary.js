@@ -88,8 +88,8 @@ export const getMonthWindow = (referenceDateISO) => {
   }
 }
 
-const buildMonthSummaryCacheKey = ({ referenceDateISO, serviceId, staffId, locationId, cacheVersion }) =>
-  [referenceDateISO, serviceId, staffId, locationId || 'none', cacheVersion || 'v0'].join(':')
+const buildMonthSummaryCacheKey = ({ referenceDateISO, serviceId, staffId, locationId, cacheVersion, ignoreLocationProviderRules = false }) =>
+  [referenceDateISO, serviceId, staffId, locationId || 'none', cacheVersion || 'v0', ignoreLocationProviderRules ? 'public' : 'strict'].join(':')
 
 const readCachedMonthSummary = (cacheKey) => {
   const cached = monthSummaryCache.get(cacheKey)
@@ -133,6 +133,7 @@ const buildMonthlyContext = async ({
   serviceId,
   requestedStaffId,
   requestedLocationId,
+  ignoreLocationProviderRules = false,
 }) => {
   const serviceRes = await supabase
     .from('services')
@@ -182,7 +183,7 @@ const buildMonthlyContext = async ({
   const allowedLocationRows = (serviceLocationsRes.data || []).filter((row) => row?.enabled !== false)
   const allowedLocationIds = allowedLocationRows.map((row) => Number(row.location_id)).filter(Number.isFinite)
 
-  if (requestedLocationId && allowedLocationIds.length > 0 && !allowedLocationIds.includes(Number(requestedLocationId))) {
+  if (!ignoreLocationProviderRules && requestedLocationId && allowedLocationIds.length > 0 && !allowedLocationIds.includes(Number(requestedLocationId))) {
     throw new Phase2Error('This service is not available at the selected location.', {
       code: 'location_mismatch',
       status: 400,
@@ -191,19 +192,23 @@ const buildMonthlyContext = async ({
   }
 
   const defaultLocationId = normalizeOptionalNumber(service?.default_location_id)
-  const resolvedLocationId =
-    normalizeOptionalNumber(requestedLocationId) ||
-    (allowedLocationIds.length === 1 ? allowedLocationIds[0] : defaultLocationId)
-  const locationSelectionRequired =
-    !normalizeOptionalNumber(requestedLocationId) &&
-    allowedLocationIds.length > 1 &&
-    !defaultLocationId
+  const resolvedLocationId = ignoreLocationProviderRules
+    ? null
+    : normalizeOptionalNumber(requestedLocationId) ||
+      (allowedLocationIds.length === 1 ? allowedLocationIds[0] : defaultLocationId)
+  const locationSelectionRequired = ignoreLocationProviderRules
+    ? false
+    : !normalizeOptionalNumber(requestedLocationId) &&
+      allowedLocationIds.length > 1 &&
+      !defaultLocationId
 
-  const requiredProviderGroupIds = (serviceProviderGroupsRes.data || [])
-    .map((row) => Number(row.provider_group_id))
-    .filter(Number.isFinite)
+  const requiredProviderGroupIds = ignoreLocationProviderRules
+    ? []
+    : (serviceProviderGroupsRes.data || [])
+        .map((row) => Number(row.provider_group_id))
+        .filter(Number.isFinite)
   const defaultProviderGroupId = normalizeOptionalNumber(service?.default_provider_group_id)
-  if (requiredProviderGroupIds.length === 0 && defaultProviderGroupId) {
+  if (!ignoreLocationProviderRules && requiredProviderGroupIds.length === 0 && defaultProviderGroupId) {
     requiredProviderGroupIds.push(defaultProviderGroupId)
   }
 
@@ -227,8 +232,8 @@ const buildMonthlyContext = async ({
   const eligibleStaff = staffList.filter(
     (staff) =>
       staffCanDoService(staff, serviceId) &&
-      staffMatchesLocation(staff, resolvedLocationId) &&
-      staffMatchesProviderGroups(staff, requiredProviderGroupIds, staffProviderGroupMap),
+      (ignoreLocationProviderRules || staffMatchesLocation(staff, resolvedLocationId)) &&
+      (ignoreLocationProviderRules || staffMatchesProviderGroups(staff, requiredProviderGroupIds, staffProviderGroupMap)),
   )
   const staffIds = staffList.map((staff) => Number(staff.id)).filter(Number.isFinite)
 
@@ -332,6 +337,7 @@ const buildMonthlyContext = async ({
       return map
     }, new Map()),
     breaks: breaksRes.data || [],
+    ignoreLocationProviderRules,
   }
 }
 
@@ -409,9 +415,9 @@ const buildDateSummaryFromMonthlyContext = ({ monthlyContext, dateISO, staffId }
 
   const reason = !hasWorkingHours
     ? 'off'
-    : !evaluation.locationSelectionRequired && !evaluation.requestedStaffEligible
+    : !monthlyContext.ignoreLocationProviderRules && !evaluation.locationSelectionRequired && !evaluation.requestedStaffEligible
       ? 'provider_mismatch'
-      : evaluation.locationSelectionRequired
+      : !monthlyContext.ignoreLocationProviderRules && evaluation.locationSelectionRequired
         ? 'location_required'
         : availableCount > 0
           ? 'available'
@@ -432,13 +438,14 @@ const buildDateSummaryFromMonthlyContext = ({ monthlyContext, dateISO, staffId }
   }
 }
 
-export const buildDateSummary = async ({ supabase, dateISO, serviceId, staffId, locationId }) => {
+export const buildDateSummary = async ({ supabase, dateISO, serviceId, staffId, locationId, ignoreLocationProviderRules = false }) => {
   const context = await loadPhase2Context({
     supabase,
     dateISO,
     serviceId,
     requestedLocationId: locationId,
     requestedStaffId: staffId,
+    ignoreLocationProviderRules,
   })
 
   const staff =
@@ -502,9 +509,9 @@ export const buildDateSummary = async ({ supabase, dateISO, serviceId, staffId, 
 
   const reason = !hasWorkingHours
     ? 'off'
-    : !evaluation.locationSelectionRequired && !evaluation.requestedStaffEligible
+    : !ignoreLocationProviderRules && !evaluation.locationSelectionRequired && !evaluation.requestedStaffEligible
       ? 'provider_mismatch'
-      : evaluation.locationSelectionRequired
+      : !ignoreLocationProviderRules && evaluation.locationSelectionRequired
         ? 'location_required'
         : availableCount > 0
           ? 'available'
@@ -532,6 +539,7 @@ export const buildDateSummaries = async ({
   serviceId,
   staffId,
   locationId,
+  ignoreLocationProviderRules = false,
 }) => {
   const normalizedStartDate = normalizeDateISO(startDate) || getTodayISO()
   const safeDays = Math.min(parsePositiveInt(days, DEFAULT_DAYS), MAX_DAYS)
@@ -543,6 +551,7 @@ export const buildDateSummaries = async ({
         serviceId,
         staffId,
         locationId,
+        ignoreLocationProviderRules,
       }),
     ),
   )
@@ -561,8 +570,9 @@ export const buildMonthSummaries = async ({
   staffId,
   locationId,
   cacheVersion,
+  ignoreLocationProviderRules = false,
 }) => {
-  const cacheKey = buildMonthSummaryCacheKey({ referenceDateISO, serviceId, staffId, locationId, cacheVersion })
+  const cacheKey = buildMonthSummaryCacheKey({ referenceDateISO, serviceId, staffId, locationId, cacheVersion, ignoreLocationProviderRules })
   const cached = readCachedMonthSummary(cacheKey)
   if (cached) return cached
 
@@ -574,6 +584,7 @@ export const buildMonthSummaries = async ({
     serviceId,
     requestedStaffId: staffId,
     requestedLocationId: locationId,
+    ignoreLocationProviderRules,
   })
   const dates = Array.from({ length: daysInMonth }, (_, index) =>
     buildDateSummaryFromMonthlyContext({
