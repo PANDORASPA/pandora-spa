@@ -326,6 +326,26 @@ const buildMonthGrid = (monthKey) => {
   })
 }
 
+const normalizeSlotValue = (slot) => {
+  if (typeof slot === 'string') {
+    const value = slot.slice(0, 5).trim()
+    return value ? { time: value } : null
+  }
+  if (!slot || typeof slot !== 'object') return null
+  const value = String(slot.time || slot.startTime || slot.start_time || '').slice(0, 5).trim()
+  return value ? { ...slot, time: value } : null
+}
+
+const normalizeSlotList = (slots) =>
+  Array.from(
+    new Map(
+      (Array.isArray(slots) ? slots : [])
+        .map(normalizeSlotValue)
+        .filter(Boolean)
+        .map((slot) => [slot.time, slot]),
+    ).values(),
+  ).sort((left, right) => left.time.localeCompare(right.time))
+
 const formatDateLabel = (dateISO) => {
   if (!dateISO) return ''
   return new Intl.DateTimeFormat('zh-HK', {
@@ -638,7 +658,7 @@ export default function BookingStaffPage() {
 
     const dailySlotsKey = [staffId, serviceId, selectedDate, availabilityVersion || 'v0'].join(':')
     const monthSummaryKey = [staffId, serviceId, monthKey, availabilityVersion || 'v0'].join(':')
-    const cachedSlots = readCached(dailySlotsCache, dailySlotsKey, DAILY_SLOTS_CACHE_TTL_MS)
+    const cachedSlots = normalizeSlotList(readCached(dailySlotsCache, dailySlotsKey, DAILY_SLOTS_CACHE_TTL_MS))
     if (cachedSlots) {
       setSlots(cachedSlots)
       setLoadingSlots(false)
@@ -658,11 +678,12 @@ export default function BookingStaffPage() {
       })
         .then((payload) => {
           if (cancelled) return
-          const nextSlots = Array.isArray(payload?.slots)
+          const rawSlots = Array.isArray(payload?.slots)
             ? payload.slots
             : Array.isArray(payload?.slotMatrix)
               ? payload.slotMatrix.flat().filter(Boolean)
               : []
+          const nextSlots = normalizeSlotList(rawSlots)
           if (!nextSlots.length) {
             const nextReason = payload?.dateSummaryReason || daySummary?.reason || 'no_bookable_slots'
             setMonthSummary((current) => {
@@ -913,7 +934,7 @@ export default function BookingStaffPage() {
                     >
                       <option value="">{timePlaceholder}</option>
                     {slots.map((slot) => {
-                      const time = String(slot?.time || slot?.startTime || slot?.start_time || '').slice(0, 5)
+                      const time = String(slot?.time || '').slice(0, 5)
                       if (!time) return null
                       return (
                         <option key={time} value={time}>
