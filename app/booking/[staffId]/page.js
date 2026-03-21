@@ -540,7 +540,7 @@ export default function BookingStaffPage() {
     setLoadingSummary(true)
     setError('')
 
-    const monthSummaryKey = [staffId, serviceId, staff?.location_id || 'none', monthKey, availabilityVersion || 'v0'].join(':')
+    const monthSummaryKey = [staffId, serviceId, monthKey, availabilityVersion || 'v0'].join(':')
     const cachedMonthSummary = readCached(monthSummaryCache, monthSummaryKey, MONTH_SUMMARY_CACHE_TTL_MS)
     if (cachedMonthSummary) {
       setMonthSummary(cachedMonthSummary)
@@ -554,10 +554,6 @@ export default function BookingStaffPage() {
       year: monthKey.slice(0, 4),
       month: monthKey.slice(5, 7),
     })
-    if (staff?.location_id != null && staff.location_id !== '') {
-      summaryParams.set('locationId', String(staff.location_id))
-    }
-
     fetch(`/api/availability/month-summary?${summaryParams.toString()}`)
       .then(async (response) => {
         const payload = await response.json().catch(() => ({}))
@@ -640,8 +636,8 @@ export default function BookingStaffPage() {
     setLoadingSlots(true)
     setError('')
 
-    const dailySlotsKey = [staffId, serviceId, staff?.location_id || 'none', selectedDate, availabilityVersion || 'v0'].join(':')
-    const monthSummaryKey = [staffId, serviceId, staff?.location_id || 'none', monthKey, availabilityVersion || 'v0'].join(':')
+    const dailySlotsKey = [staffId, serviceId, selectedDate, availabilityVersion || 'v0'].join(':')
+    const monthSummaryKey = [staffId, serviceId, monthKey, availabilityVersion || 'v0'].join(':')
     const cachedSlots = readCached(dailySlotsCache, dailySlotsKey, DAILY_SLOTS_CACHE_TTL_MS)
     if (cachedSlots) {
       setSlots(cachedSlots)
@@ -654,10 +650,6 @@ export default function BookingStaffPage() {
       serviceId: String(serviceId),
       staffId: String(staffId),
     })
-    if (staff?.location_id != null && staff.location_id !== '') {
-      slotParams.set('locationId', String(staff.location_id))
-    }
-
     fetch(`/api/availability?${slotParams.toString()}`)
       .then(async (response) => {
         const payload = await response.json().catch(() => ({}))
@@ -727,7 +719,7 @@ export default function BookingStaffPage() {
           serviceId: Number(serviceId),
           staffId,
           startTime: selectedTime,
-          locationId: staff?.location_id || null,
+          locationId: null,
           customerName: effectiveCustomerName,
           customerPhone: effectiveCustomerPhone,
         }),
