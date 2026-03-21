@@ -8,7 +8,6 @@ export async function GET(request) {
     const dateISO = url.searchParams.get('date')
     const serviceId = Number(url.searchParams.get('serviceId'))
     const staffId = normalizeOptionalNumber(url.searchParams.get('staffId'))
-    const requestedLocationId = normalizeOptionalNumber(url.searchParams.get('locationId'))
 
     if (!dateISO || !/^\d{4}-\d{2}-\d{2}$/.test(dateISO)) {
       return NextResponse.json({ error: 'Invalid appointment date.' }, { status: 400 })
@@ -22,8 +21,9 @@ export async function GET(request) {
       supabase,
       dateISO,
       serviceId,
-      requestedLocationId,
+      requestedLocationId: null,
       requestedStaffId: staffId,
+      ignoreLocationProviderRules: true,
     })
 
     const evaluation = evaluatePhase2Availability(context, { requestedStaffId: staffId })
@@ -31,11 +31,7 @@ export async function GET(request) {
     const availableCount = Number(dateSummary.availableCount || 0)
     const workingCount = Number(dateSummary.workingCount || 0)
     const resourceBlockedCount = Number(dateSummary.resourceBlockedCount || 0)
-    const dateSummaryReason = evaluation.locationSelectionRequired
-      ? 'location_required'
-      : staffId && !evaluation.requestedStaffEligible
-        ? 'provider_mismatch'
-        : availableCount > 0
+    const dateSummaryReason = availableCount > 0
           ? 'available'
           : resourceBlockedCount > 0
             ? 'resource_full'
