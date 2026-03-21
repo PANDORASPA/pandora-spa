@@ -3,7 +3,6 @@ import { getServiceClient } from '../../../../lib/supabase/service'
 import {
   buildMonthSummaries,
   normalizeDateISO,
-  parseOptionalNumber,
   parsePositiveInt,
   resolveMonthReferenceISO,
 } from '../_summary'
@@ -13,7 +12,6 @@ export async function GET(request) {
     const url = new URL(request.url)
     const serviceId = parsePositiveInt(url.searchParams.get('serviceId'), null)
     const staffId = parsePositiveInt(url.searchParams.get('staffId'), null)
-    const locationId = parseOptionalNumber(url.searchParams.get('locationId'))
     const referenceDateISO = resolveMonthReferenceISO({
       startDate: normalizeDateISO(url.searchParams.get('startDate')),
       year: url.searchParams.get('year'),
@@ -36,8 +34,9 @@ export async function GET(request) {
       referenceDateISO,
       serviceId,
       staffId,
-      locationId,
+      locationId: null,
       cacheVersion: String(versionRow?.value || ''),
+      ignoreLocationProviderRules: true,
     })
 
     return NextResponse.json(monthSummary, { status: 200 })
