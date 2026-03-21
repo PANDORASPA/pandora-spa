@@ -232,13 +232,27 @@ export default function AdminPage() {
       serviceResources: false,
     })
 
+  const normalizeDaysOff = (value) => {
+    if (Array.isArray(value)) {
+      return value.map((entry) => String(entry || '').trim()).filter((entry) => /^[0-6]$/.test(entry))
+    }
+    const text = String(value || '').trim()
+    if (!text) return []
+    try {
+      const parsed = JSON.parse(text)
+      if (Array.isArray(parsed)) {
+        return parsed.map((entry) => String(entry || '').trim()).filter((entry) => /^[0-6]$/.test(entry))
+      }
+    } catch {}
+    return text
+      .split(',')
+      .map((entry) => String(entry || '').trim())
+      .filter((entry) => /^[0-6]$/.test(entry))
+  }
+
   const normalizeStaffRow = (row) => ({
     ...row,
-    daysOff: Array.isArray(row?.daysOff)
-      ? row.daysOff
-      : Array.isArray(row?.daysoff)
-        ? row.daysoff
-        : [],
+    daysOff: normalizeDaysOff(row?.daysOff ?? row?.daysoff),
   })
 
   const normalizeScheduleRow = (row) => ({
