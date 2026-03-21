@@ -5,7 +5,6 @@ import {
   buildBookingPayload,
   buildResourceAllocationPayload,
   loadPhase2Context,
-  normalizeOptionalNumber,
   Phase2Error,
   validatePhase2Selection,
 } from '../../../../lib/booking/phase2'
@@ -25,7 +24,6 @@ export async function POST(request) {
     const dateISO = body?.date
     const serviceId = Number(body?.serviceId)
     const staffIdInput = body?.staffId == null || body?.staffId === '' ? null : Number(body.staffId)
-    const locationIdInput = normalizeOptionalNumber(body?.locationId)
     const startTime = String(body?.startTime || '')
     let customerName = String(body?.customerName || '').trim()
     let customerPhone = String(body?.customerPhone || '').trim()
@@ -62,8 +60,9 @@ export async function POST(request) {
       supabase,
       dateISO,
       serviceId,
-      requestedLocationId: locationIdInput,
+      requestedLocationId: null,
       requestedStaffId: staffIdInput,
+      ignoreLocationProviderRules: true,
     })
     const { chosenStaff } = validatePhase2Selection(context, { startTime, requestedStaffId: staffIdInput })
 
