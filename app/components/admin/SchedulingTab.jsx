@@ -136,11 +136,23 @@ const normalizeOptionalNumber = (value) => {
   return Number.isFinite(parsed) ? parsed : null
 }
 
-const normalizeDayList = (value) =>
-  String(value || '')
+const normalizeDayList = (value) => {
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item || '').trim()).filter((item) => /^[0-6]$/.test(item))
+  }
+  const text = String(value || '').trim()
+  if (!text) return []
+  try {
+    const parsed = JSON.parse(text)
+    if (Array.isArray(parsed)) {
+      return parsed.map((item) => String(item || '').trim()).filter((item) => /^[0-6]$/.test(item))
+    }
+  } catch {}
+  return text
     .split(',')
     .map((item) => String(item || '').trim())
     .filter((item) => /^[0-6]$/.test(item))
+}
 
 const holidayMatchesPreviewScope = (holiday, { dateISO, locationId, staffId, providerGroupIds = [] }) => {
   const holidayDate = normalizeDateValue(holiday?.holiday_date)
@@ -174,7 +186,8 @@ const getSelectedDatePlan = ({
   if (!dateISO || !staff) return null
   const dayOfWeek = String(new Date(`${dateISO}T00:00:00Z`).getUTCDay())
   const override = (shiftRows || []).find((row) => normalizeDateValue(row.date) === dateISO)
-  const isDayOff = (staff?.daysOff || staff?.daysoff || []).map(String).includes(dayOfWeek)
+  const normalizedStaffDaysOff = normalizeDayList(staff?.daysOff ?? staff?.daysoff)
+  const isDayOff = normalizedStaffDaysOff.includes(dayOfWeek)
   const baseline = staff?.schedule?.[dayOfWeek] || {}
   const baselineWindow =
     baseline.start && baseline.end
@@ -340,7 +353,7 @@ export default function SchedulingTab({
 
   const selectedStaff = useMemo(() => staff.find((item) => Number(item.id) === Number(selectedStaffId)) || staff[0] || null, [selectedStaffId, staff])
   const selectedStaffDaysOff = useMemo(
-    () => (selectedStaff?.daysOff || selectedStaff?.daysoff || []),
+    () => normalizeDayList(selectedStaff?.daysOff ?? selectedStaff?.daysoff),
     [selectedStaff?.daysOff, selectedStaff?.daysoff],
   )
   const selectedStaffServicesKey = useMemo(
