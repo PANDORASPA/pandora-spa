@@ -340,8 +340,12 @@ export default function SchedulingTab({
   const [previewDates, setPreviewDates] = useState([])
   const [previewLoading, setPreviewLoading] = useState(false)
   const [previewError, setPreviewError] = useState('')
+  const [selectedAvailabilityDebug, setSelectedAvailabilityDebug] = useState(null)
+  const [selectedAvailabilityLoading, setSelectedAvailabilityLoading] = useState(false)
+  const [selectedAvailabilityError, setSelectedAvailabilityError] = useState('')
   const [previewNonce, setPreviewNonce] = useState(0)
   const previewControllerRef = useRef(null)
+  const availabilityDebugControllerRef = useRef(null)
   const [shiftRows, setShiftRows] = useState([])
   const [shiftDeletedIds, setShiftDeletedIds] = useState([])
   const [breakRows, setBreakRows] = useState([])
@@ -519,6 +523,55 @@ export default function SchedulingTab({
       previewDates.find((entry) => entry?.status === 'off')
     setSelectedPreviewDate(firstPreferred?.date || '')
   }, [previewDates, previewMap, previewMonth, selectedPreviewDate])
+
+  useEffect(() => {
+    if (!selectedStaff?.id || !previewServiceId || !selectedPreviewDate) {
+      setSelectedAvailabilityDebug(null)
+      setSelectedAvailabilityError('')
+      setSelectedAvailabilityLoading(false)
+      return
+    }
+
+    availabilityDebugControllerRef.current?.abort?.()
+    const controller = new AbortController()
+    availabilityDebugControllerRef.current = controller
+    setSelectedAvailabilityLoading(true)
+    setSelectedAvailabilityError('')
+
+    const params = new URLSearchParams({
+      staffId: String(selectedStaff.id),
+      serviceId: String(previewServiceId),
+      date: selectedPreviewDate,
+      debug: '1',
+    })
+
+    fetch(`/api/availability?${params.toString()}`, { signal: controller.signal })
+      .then(async (response) => {
+        const payload = await response.json().catch(() => ({}))
+        if (!response.ok) throw new Error(payload?.error || bookingOpsCopy.loadFailed)
+        return payload
+      })
+      .then((payload) => {
+        if (controller.signal.aborted) return
+        setSelectedAvailabilityDebug({
+          slots: Array.isArray(payload?.slots) ? payload.slots : [],
+          slotMatrix: Array.isArray(payload?.slotMatrix) ? payload.slotMatrix : [],
+          dateSummaryReason: payload?.dateSummaryReason || '',
+          debug: payload?.debug || null,
+        })
+      })
+      .catch((error) => {
+        if (error?.name !== 'AbortError') {
+          setSelectedAvailabilityDebug(null)
+          setSelectedAvailabilityError(error?.message || bookingOpsCopy.loadFailed)
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setSelectedAvailabilityLoading(false)
+      })
+
+    return () => controller.abort()
+  }, [previewServiceId, selectedPreviewDate, selectedStaff?.id])
   const removeRow = (setRows, setDeletedIds, id) => {
     setRows((current) => current.filter((row) => row.id !== id))
     if (Number(id) > 0) setDeletedIds((current) => [...current, Number(id)])
@@ -1022,7 +1075,7 @@ export default function SchedulingTab({
                       </div>
                     </div>
 
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
                       <div>
                         <div style={{ fontSize: '12px', color: '#6B7280', fontWeight: 700 }}>當日上班時間</div>
                       <div style={{ marginTop: '4px', fontWeight: 800 }}>
@@ -1082,6 +1135,67 @@ export default function SchedulingTab({
                         </div>
                         <div style={{ marginTop: '4px', fontSize: '12px', color: '#6B7280' }}>
                           服務群組：{selectedDatePlan?.selectedServiceProviderGroupIds?.length ? selectedDatePlan.selectedServiceProviderGroupIds.join(', ') : '不限'} / 員工群組：{selectedDatePlan?.resolvedProviderGroupId || '-'}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'grid', gap: '10px', paddingTop: '8px', borderTop: '1px solid #E5E7EB' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+                        <div>
+                          <div style={{ fontSize: '12px', color: '#A68B6A', fontWeight: 800, letterSpacing: '0.08em' }}>單日真實時段 debug</div>
+                          <div style={{ marginTop: '4px', fontSize: '15px', fontWeight: 900 }}>直接查看這一天實際 availability</div>
+                        </div>
+                        {selectedAvailabilityLoading ? <Pill tone="muted">載入中</Pill> : null}
+                      </div>
+                      {selectedAvailabilityError ? <div style={{ color: '#B91C1C', fontSize: '13px' }}>{selectedAvailabilityError}</div> : null}
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
+                        <div>
+                          <div style={{ fontSize: '12px', color: '#6B7280', fontWeight: 700 }}>單日判定原因</div>
+                          <div style={{ marginTop: '4px', fontWeight: 800 }}>{selectedAvailabilityDebug?.dateSummaryReason || '-'}</div>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '12px', color: '#6B7280', fontWeight: 700 }}>實際可預約時段</div>
+                          <div style={{ marginTop: '4px', fontWeight: 800 }}>{selectedAvailabilityDebug?.slots?.length || 0}</div>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '12px', color: '#6B7280', fontWeight: 700 }}>候選時段總數</div>
+                          <div style={{ marginTop: '4px', fontWeight: 800 }}>{Number(selectedAvailabilityDebug?.debug?.candidateCount || 0)}</div>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '12px', color: '#6B7280', fontWeight: 700 }}>有班可工作時段</div>
+                          <div style={{ marginTop: '4px', fontWeight: 800 }}>{Number(selectedAvailabilityDebug?.debug?.workingSlotCount || 0)}</div>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '12px', color: '#6B7280', fontWeight: 700 }}>基礎阻擋次數</div>
+                          <div style={{ marginTop: '4px', fontWeight: 800 }}>{Number(selectedAvailabilityDebug?.debug?.baseBlockedCount || 0)}</div>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '12px', color: '#6B7280', fontWeight: 700 }}>資源阻擋次數</div>
+                          <div style={{ marginTop: '4px', fontWeight: 800 }}>{Number(selectedAvailabilityDebug?.debug?.resourceBlockedCount || 0)}</div>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '12px', color: '#6B7280', fontWeight: 700 }}>假期命中</div>
+                          <div style={{ marginTop: '4px', fontWeight: 800 }}>{selectedAvailabilityDebug?.debug?.holidayBlocked ? '是' : '否'}</div>
+                        </div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '12px', color: '#6B7280', fontWeight: 700 }}>可預約時段名單</div>
+                        <div style={{ marginTop: '6px', fontSize: '13px', color: '#374151', lineHeight: 1.7 }}>
+                          {selectedAvailabilityDebug?.slots?.length ? selectedAvailabilityDebug.slots.join(', ') : '沒有可預約時段'}
+                        </div>
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '12px' }}>
+                        <div>
+                          <div style={{ fontSize: '12px', color: '#6B7280', fontWeight: 700 }}>基礎阻擋時段</div>
+                          <div style={{ marginTop: '6px', fontSize: '13px', color: '#374151', lineHeight: 1.7 }}>
+                            {selectedAvailabilityDebug?.debug?.baseBlockedTimes?.length ? selectedAvailabilityDebug.debug.baseBlockedTimes.join(', ') : '沒有'}
+                          </div>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '12px', color: '#6B7280', fontWeight: 700 }}>資源阻擋時段</div>
+                          <div style={{ marginTop: '6px', fontSize: '13px', color: '#374151', lineHeight: 1.7 }}>
+                            {selectedAvailabilityDebug?.debug?.resourceBlockedTimes?.length ? selectedAvailabilityDebug.debug.resourceBlockedTimes.join(', ') : '沒有'}
+                          </div>
                         </div>
                       </div>
                     </div>
