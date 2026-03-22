@@ -93,6 +93,7 @@ export default function ServicesTab({
   serviceProviderGroups = [],
   serviceResources = [],
   availableTables = {},
+  compact = false,
 }) {
   const [services, setServices] = useState([])
   const [locationLinks, setLocationLinks] = useState([])
@@ -258,7 +259,7 @@ export default function ServicesTab({
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(360px, 420px) minmax(0, 1fr)', gap: '18px', alignItems: 'start' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : 'minmax(360px, 420px) minmax(0, 1fr)', gap: '18px', alignItems: 'start' }}>
         <div className="admin-card" style={{ padding: '18px', border: '1px solid rgba(166, 139, 106, 0.16)' }}>
           {visibleServices.length === 0 ? (
             <EmptyState title="尚未建立服務" description="請先新增服務，再設定價格、時長與關聯規則。" />
@@ -330,7 +331,7 @@ export default function ServicesTab({
             </div>
 
             <AdminSection eyebrow="基本資料" title="服務資訊" description="管理前台顯示名稱、分類、介紹與圖片。">
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
                 <SectionField label="服務名稱">
                   <input value={selectedService.name || ''} onChange={(event) => updateService(selectedService.id, (item) => ({ ...item, name: event.target.value }))} style={fieldStyle} />
                 </SectionField>
@@ -423,7 +424,7 @@ export default function ServicesTab({
                   <div style={{ display: 'grid', gap: '10px' }}>
                     {currentLocationLinks.map((row) => (
                       <RelationRow key={row.id} meta={`目前地點：${row.location_id ? lookupLabel(locationLookup, row.location_id) : '未指定'}`}>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 120px 120px auto', gap: '10px', alignItems: 'end' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : 'minmax(0, 1fr) 120px 120px auto', gap: '10px', alignItems: 'end' }}>
                           <SectionField label="地點">
                             <select value={row.location_id} onChange={(event) => updateRelation(setLocationLinks, row.id, { location_id: event.target.value === '' ? '' : Number(event.target.value) })} style={fieldStyle}>
                               <option value="">選擇地點</option>
@@ -456,7 +457,7 @@ export default function ServicesTab({
                   <div style={{ display: 'grid', gap: '10px' }}>
                     {currentProviderGroupLinks.map((row) => (
                       <RelationRow key={row.id} meta={`目前群組：${row.provider_group_id ? lookupLabel(providerGroupLookup, row.provider_group_id) : '未指定'}`}>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 140px auto', gap: '10px', alignItems: 'end' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : 'minmax(0, 1fr) 140px auto', gap: '10px', alignItems: 'end' }}>
                           <SectionField label="服務供應者群組">
                             <select value={row.provider_group_id} onChange={(event) => updateRelation(setProviderGroupLinks, row.id, { provider_group_id: event.target.value === '' ? '' : Number(event.target.value) })} style={fieldStyle}>
                               <option value="">選擇群組</option>
@@ -488,7 +489,7 @@ export default function ServicesTab({
                 <div style={{ display: 'grid', gap: '10px' }}>
                   {currentResourceLinks.map((row) => (
                     <RelationRow key={row.id} meta={`目前資源：${row.resource_id ? lookupLabel(resourceLookup, row.resource_id) : '未指定'} x${row.quantity}`}>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 100px 120px auto', gap: '10px', alignItems: 'end' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : 'minmax(0, 1fr) 100px 120px auto', gap: '10px', alignItems: 'end' }}>
                         <SectionField label="資源設備">
                           <select value={row.resource_id} onChange={(event) => updateRelation(setResourceLinks, row.id, { resource_id: event.target.value === '' ? '' : Number(event.target.value) })} style={fieldStyle}>
                             <option value="">選擇資源</option>
