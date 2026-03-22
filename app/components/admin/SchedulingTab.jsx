@@ -325,6 +325,7 @@ export default function SchedulingTab({
   onSaveTimeOff,
   onSaveBlockedSlots,
   saving = false,
+  compact = false,
 }) {
   const locations = operationalContext?.locations || []
   const providerGroups = operationalContext?.providerGroups || []
@@ -631,7 +632,7 @@ export default function SchedulingTab({
         }
       />
 
-      <div style={{ display: 'grid', gridTemplateColumns: '280px minmax(0, 1fr)', gap: '18px', alignItems: 'start' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : '280px minmax(0, 1fr)', gap: '18px', alignItems: 'start' }}>
         <div className="admin-card" style={{ padding: '16px', border: '1px solid #E5E7EB', display: 'grid', gap: '10px' }}>
           {staff.map((item) => {
             const selected = Number(item.id) === Number(selectedStaff?.id)
@@ -664,7 +665,7 @@ export default function SchedulingTab({
         {selectedStaff ? (
           <div style={{ display: 'grid', gap: '18px' }}>
             <div className="admin-card" style={{ ...cardStyle, display: 'grid', gap: '14px' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
                 <label style={{ display: 'grid', gap: '8px' }}>
                   <span style={{ fontSize: '13px', fontWeight: 800 }}>姓名</span>
                   <input value={selectedStaff.name || ''} onChange={(event) => onUpdateField(selectedStaff.id, 'name', event.target.value)} style={fieldStyle} />
@@ -759,7 +760,7 @@ export default function SchedulingTab({
                 </div>
               </div>
               <div style={{ overflowX: 'auto', paddingBottom: '4px' }}>
-                <div style={{ minWidth: '1180px', display: 'grid', gridTemplateColumns: 'repeat(7, minmax(160px, 1fr))', gap: '12px' }}>
+          <div style={{ minWidth: compact ? 'auto' : '1180px', display: 'grid', gridTemplateColumns: compact ? '1fr' : 'repeat(7, minmax(160px, 1fr))', gap: '12px' }}>
                   {WEEK_DAYS.map((day) => {
                     const schedule = selectedStaff.schedule?.[day.key] || {}
                     const isOff = selectedStaffDaysOff.some((value) => String(value) === day.key)
