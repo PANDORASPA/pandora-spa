@@ -8,6 +8,7 @@ export async function GET(request) {
     const dateISO = url.searchParams.get('date')
     const serviceId = Number(url.searchParams.get('serviceId'))
     const staffId = normalizeOptionalNumber(url.searchParams.get('staffId'))
+    const includeDebug = url.searchParams.get('debug') === '1'
 
     if (!dateISO || !/^\d{4}-\d{2}-\d{2}$/.test(dateISO)) {
       return NextResponse.json({ error: 'Invalid appointment date.' }, { status: 400 })
@@ -40,15 +41,34 @@ export async function GET(request) {
               : 'staff_unavailable'
 
     if (staffId) {
+      const staffSlotMatrix = evaluation.staffSlotMatrix[staffId] || []
+      const staffDiagnostics = evaluation.staffDiagnostics?.[staffId] || {}
+      const resourceBlockedTimes = Array.isArray(staffDiagnostics.resourceBlockedTimes) ? staffDiagnostics.resourceBlockedTimes : []
+      const baseBlockedTimes = Array.isArray(staffDiagnostics.baseBlockedTimes) ? staffDiagnostics.baseBlockedTimes : []
+      const availableTimes = evaluation.staffAvailability[staffId] || []
       return NextResponse.json(
         {
-          slots: evaluation.staffAvailability[staffId] || [],
-          slotMatrix: evaluation.staffSlotMatrix[staffId] || [],
+          slots: availableTimes,
+          slotMatrix: staffSlotMatrix,
           locationId: evaluation.locationId,
           locationSelectionRequired: evaluation.locationSelectionRequired,
           requestedStaffEligible: evaluation.requestedStaffEligible,
           dateSummary,
           dateSummaryReason,
+          ...(includeDebug
+            ? {
+                debug: {
+                  candidateCount: staffSlotMatrix.length,
+                  availableSlotCount: availableTimes.length,
+                  workingSlotCount: availableTimes.length + resourceBlockedTimes.length,
+                  baseBlockedCount: baseBlockedTimes.length,
+                  resourceBlockedCount: resourceBlockedTimes.length,
+                  holidayBlocked: Boolean(staffDiagnostics.holidayBlocked),
+                  baseBlockedTimes,
+                  resourceBlockedTimes,
+                },
+              }
+            : {}),
         },
         { status: 200 }
       )
