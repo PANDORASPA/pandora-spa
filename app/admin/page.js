@@ -1104,8 +1104,13 @@ const normalizeNullableNumber = (value) => {
       }))
 
       if (payload.length > 0) {
-        const { error } = await supabase.from('member_profiles').upsert(payload, { onConflict: 'id' })
-        if (error) throw error
+        const response = await fetch('/api/admin/member-profiles', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ profiles: payload }),
+        })
+        const result = await response.json().catch(() => ({}))
+        if (!response.ok) throw new Error(result?.error || '未知錯誤')
       }
 
       await loadAdminProfilesData()
