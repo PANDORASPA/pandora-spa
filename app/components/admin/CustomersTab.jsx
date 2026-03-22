@@ -1,519 +1,337 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
-import { EmptyState, Pill, RecordFilterBar, SectionHeader, fieldStyle, formatMoney, smallFieldStyle } from './opsUi'
+import { useMemo, useState } from 'react'
+import { EmptyState, Pill, RecordFilterBar, SectionHeader, SummaryPill, fieldStyle, formatMoney } from './opsUi'
 
-const getCustomerName = (user) => user?.name || user?.full_name || user?.display_name || '會員'
-const getCustomerPhone = (user) => user?.phone || user?.mobile || user?.customer_phone || '-'
-const getBookingPhone = (booking) => booking?.phone || booking?.customer_phone || ''
-const getBookingDate = (booking) => booking?.appointment_date || booking?.date || ''
-const getBookingTime = (booking) => booking?.start_time || booking?.time || ''
-const getBookingService = (booking) => booking?.service_name || booking?.service || '-'
-const getOrderDate = (order) => order?.created_at || order?.ordered_at || order?.date || ''
-const getOrderLabel = (order) => order?.ref || order?.order_no || order?.order_number || order?.id || '-'
-const getTransactionDate = (transaction) => transaction?.occurred_at || transaction?.created_at || transaction?.date || ''
-const getTransactionLabel = (transaction) => transaction?.ref || transaction?.payment_ref || transaction?.id || '-'
-const getTicketLabel = (ticket, servicePackages = []) => {
-  const packageName =
-    ticket?.package_name ||
-    ticket?.service_package_name ||
-    servicePackages.find((item) => String(item?.id) === String(ticket?.service_package_id || ticket?.package_id))?.name ||
-    ''
-  return ticket?.name || ticket?.ticket_name || ticket?.title || packageName || `票券 #${ticket?.id || '-'}`
-}
-
-const toSortTimestamp = (value) => {
-  if (!value) return 0
-  const timestamp = Date.parse(value)
-  return Number.isFinite(timestamp) ? timestamp : 0
-}
-
-const formatActivityWhen = (value) => {
+const formatDate = (value) => {
   if (!value) return '-'
   const timestamp = Date.parse(value)
   if (!Number.isFinite(timestamp)) return String(value)
   return new Date(timestamp).toLocaleString()
 }
 
-const getActivityKindLabel = (kind) => {
-  switch (kind) {
-    case 'booking':
-      return '預約'
-    case 'order':
-      return '訂單'
-    case 'transaction':
-      return '交易'
-    default:
-      return '紀錄'
+const normalizeText = (value) => String(value || '').trim()
+
+const getStatusMeta = (profile) => {
+  const hasAuth = profile?.auth_user_exists === true
+  const hasProfileCore = Boolean(profile?.full_name && profile?.phone && (profile?.email || profile?.auth_email))
+
+  if (!hasAuth) {
+    return { label: '未完成註冊', tone: 'warning', description: '只有會員資料，未找到對應登入帳號。' }
   }
+  if (!hasProfileCore) {
+    return { label: '缺少 Profile', tone: 'danger', description: '已有登入帳號，但姓名、電話或電郵未完整。' }
+  }
+  return { label: '已啟用', tone: 'success', description: '會員帳號與登入帳號已對上。' }
 }
 
-const deriveTier = (spend) => {
-  if (spend >= 10000) return 'VIP'
-  if (spend >= 5000) return 'Gold'
-  if (spend >= 2000) return 'Silver'
-  return 'Regular'
+const authDiagnostic = (profile) => {
+  if (!profile?.id) return '缺少會員資料列'
+  if (!profile?.auth_user_exists) return '找不到對應登入帳號'
+  if (profile?.auth_email && profile?.email && profile.auth_email !== profile.email) {
+    return `登入電郵為 ${profile.auth_email}，會員資料電郵為 ${profile.email}`
+  }
+  return '已找到對應登入帳號'
 }
 
-const getTierLabel = (tier) =>
-  ({
-    VIP: 'VIP',
-    Gold: '金級',
-    Silver: '銀級',
-    Regular: '一般',
-  })[tier] || tier || '一般'
+const matchesByProfile = (row, profile) => {
+  const profileId = String(profile?.id || '')
+  const profilePhone = normalizeText(profile?.phone)
+  const profileEmail = normalizeText(profile?.auth_email || profile?.email).toLowerCase()
+  const rowUserId = normalizeText(row?.member_user_id || row?.user_id || row?.profile_id)
+  const rowCustomerId = normalizeText(row?.customer_id)
+  const rowPhone = normalizeText(row?.phone || row?.customer_phone || row?.mobile || row?.user_phone)
+  const rowEmail = normalizeText(row?.email || row?.customer_email || row?.user_email).toLowerCase()
 
-export default function CustomersTab({ users = [], bookings = [], orders = [], transactions = [], userTickets = [], servicePackages = [], onUpdateCustomer }) {
-  const [selectedCustomerId, setSelectedCustomerId] = useState(null)
+  return (
+    (profileId && rowUserId === profileId) ||
+    (profileId && rowCustomerId === profileId) ||
+    (profilePhone && rowPhone && rowPhone === profilePhone) ||
+    (profileEmail && rowEmail && rowEmail === profileEmail)
+  )
+}
+
+const matchesLegacyCustomer = (legacy, profile) => {
+  const legacyId = String(legacy?.id || '')
+  const profileId = String(profile?.id || '')
+  const legacyPhone = normalizeText(legacy?.phone || legacy?.mobile || legacy?.customer_phone)
+  const legacyEmail = normalizeText(legacy?.email || legacy?.customer_email).toLowerCase()
+  const profilePhone = normalizeText(profile?.phone)
+  const profileEmail = normalizeText(profile?.auth_email || profile?.email).toLowerCase()
+
+  return (
+    (legacyId && profileId && legacyId === profileId) ||
+    (legacyPhone && profilePhone && legacyPhone === profilePhone) ||
+    (legacyEmail && profileEmail && legacyEmail === profileEmail)
+  )
+}
+
+const buildRecentActivity = ({ bookings = [], orders = [], transactions = [] }) =>
+  [
+    ...bookings.map((item) => ({
+      kind: '預約',
+      when: item?.appointment_date || item?.date || item?.created_at,
+      title: item?.service_name || item?.service || `預約 #${item?.id || '-'}`,
+      amount: Number(item?.final_price || item?.service_price || 0),
+      status: item?.status || 'pending',
+    })),
+    ...orders.map((item) => ({
+      kind: '訂單',
+      when: item?.created_at || item?.ordered_at || item?.date,
+      title: item?.ref || item?.order_no || item?.order_number || `訂單 #${item?.id || '-'}`,
+      amount: Number(item?.total || 0),
+      status: item?.status || item?.payment_status || 'pending',
+    })),
+    ...transactions.map((item) => ({
+      kind: '交易',
+      when: item?.occurred_at || item?.created_at || item?.date,
+      title: item?.ref || item?.payment_ref || `交易 #${item?.id || '-'}`,
+      amount: Number(item?.amount || 0),
+      status: item?.status || 'completed',
+    })),
+  ]
+    .filter((item) => item.when)
+    .sort((a, b) => Date.parse(b.when || '') - Date.parse(a.when || ''))
+    .slice(0, 6)
+
+export default function CustomersTab({
+  memberProfiles = [],
+  users = [],
+  bookings = [],
+  orders = [],
+  transactions = [],
+  userTickets = [],
+  compact = false,
+}) {
+  const [selectedProfileId, setSelectedProfileId] = useState(null)
   const [searchTerm, setSearchTerm] = useState('')
-  const [tierFilter, setTierFilter] = useState('all')
-  const [activityFilter, setActivityFilter] = useState('all')
-  const [notesDraft, setNotesDraft] = useState({})
-  const [savingNotesId, setSavingNotesId] = useState(null)
-  const [notesStatus, setNotesStatus] = useState({})
+  const [statusFilter, setStatusFilter] = useState('all')
+  const [adminFilter, setAdminFilter] = useState('all')
 
-  const customerRows = useMemo(() => {
-    return (users || []).map((user) => {
-      const phone = getCustomerPhone(user)
-      const matchedBookings = (bookings || []).filter((booking) => {
-        const bookingPhone = getBookingPhone(booking)
-        const userIdMatch = booking?.user_id && user?.id && String(booking.user_id) === String(user.id)
-        return (bookingPhone && phone && bookingPhone === phone) || userIdMatch
+  const accountRows = useMemo(() => {
+    return (memberProfiles || []).map((profile) => {
+      const matchedBookings = (bookings || []).filter((item) => matchesByProfile(item, profile))
+      const matchedOrders = (orders || []).filter((item) => matchesByProfile(item, profile))
+      const matchedTransactions = (transactions || []).filter((item) => {
+        if (matchesByProfile(item, profile)) return true
+        return matchedOrders.some((order) => String(order?.id) === String(item?.order_id)) || matchedBookings.some((booking) => String(booking?.id) === String(item?.booking_id))
       })
-      const matchedOrders = (orders || []).filter((order) => {
-        const userIdMatch = order?.member_user_id && user?.id && String(order.member_user_id) === String(user.id)
-        const orderPhone = order?.phone || order?.user_phone || ''
-        return userIdMatch || (orderPhone && phone && orderPhone === phone)
-      })
-      const matchedTransactions = (transactions || []).filter((transaction) => {
-        const userIdMatch = transaction?.member_user_id && user?.id && String(transaction.member_user_id) === String(user.id)
-        const customerIdMatch = transaction?.customer_id && user?.id && String(transaction.customer_id) === String(user.id)
-        const transactionPhone = transaction?.phone || transaction?.customer_phone || ''
-        const viaOrder = matchedOrders.some((order) => String(order?.id) === String(transaction?.order_id))
-        const viaBooking = matchedBookings.some((booking) => String(booking?.id) === String(transaction?.booking_id))
-        return userIdMatch || customerIdMatch || (transactionPhone && phone && transactionPhone === phone) || viaOrder || viaBooking
-      })
-      const matchedTickets = (userTickets || []).filter((ticket) => {
-        const userIdMatch = ticket?.member_user_id && user?.id && String(ticket.member_user_id) === String(user.id)
-        const customerIdMatch = ticket?.customer_id && user?.id && String(ticket.customer_id) === String(user.id)
-        const ticketPhone = ticket?.phone || ticket?.customer_phone || ''
-        return userIdMatch || customerIdMatch || (ticketPhone && phone && ticketPhone === phone)
-      })
-      const bookingSpend = matchedBookings.reduce((sum, booking) => sum + Number(booking.final_price || booking.service_price || 0), 0)
-      const orderSpend = matchedOrders.reduce((sum, order) => sum + Number(order.total || 0), 0)
-      const totalSpend = bookingSpend + orderSpend
-      const recentActivity = [
-        ...matchedBookings.map((booking) => ({
-          kind: 'booking',
-          when: booking.created_at || booking.updated_at || getBookingDate(booking),
-          title: getBookingService(booking),
-          detail: `${getBookingDate(booking)} ${getBookingTime(booking)}`.trim(),
-          reference: booking.ref || booking.id || '',
-          amount: booking.final_price || booking.service_price || 0,
-          status: booking.status || 'pending',
-        })),
-        ...matchedOrders.map((order) => ({
-          kind: 'order',
-          when: getOrderDate(order),
-          title: getOrderLabel(order),
-          detail: order?.status || order?.payment_status || '訂單',
-          reference: order?.ref || order?.order_no || order?.order_number || order?.id || '',
-          amount: order?.total || 0,
-          status: order?.status || order?.payment_status || 'pending',
-        })),
-        ...matchedTransactions.map((transaction) => ({
-          kind: 'transaction',
-          when: getTransactionDate(transaction),
-          title: getTransactionLabel(transaction),
-          detail: transaction?.payment_method || transaction?.kind || '交易',
-          reference: transaction?.payment_ref || transaction?.ref || transaction?.id || '',
-          amount: transaction?.amount || 0,
-          status: transaction?.status || 'completed',
-        })),
-      ]
-        .filter((item) => item.when)
-        .sort((a, b) => toSortTimestamp(b.when) - toSortTimestamp(a.when))
-        .slice(0, 4)
+      const matchedTickets = (userTickets || []).filter((item) => matchesByProfile(item, profile))
+      const matchedLegacyCustomers = (users || []).filter((item) => matchesLegacyCustomer(item, profile))
+      const totalSpend =
+        matchedBookings.reduce((sum, item) => sum + Number(item?.final_price || item?.service_price || 0), 0) +
+        matchedOrders.reduce((sum, item) => sum + Number(item?.total || 0), 0)
+      const status = getStatusMeta(profile)
 
       return {
-        ...user,
+        ...profile,
+        __status: status,
         __bookings: matchedBookings,
         __orders: matchedOrders,
         __transactions: matchedTransactions,
         __tickets: matchedTickets,
+        __legacyCustomers: matchedLegacyCustomers,
         __spend: totalSpend,
-        __tier: user.membership_level || user.tier || deriveTier(totalSpend),
-        __recent: recentActivity,
+        __recent: buildRecentActivity({
+          bookings: matchedBookings,
+          orders: matchedOrders,
+          transactions: matchedTransactions,
+        }),
       }
     })
-  }, [users, bookings, orders, transactions, userTickets])
+  }, [memberProfiles, bookings, orders, transactions, userTickets, users])
 
-  const filteredCustomers = useMemo(() => {
-    const needle = searchTerm.toLowerCase().trim()
-    return customerRows.filter((user) => {
-      const haystack = [
-        getCustomerName(user),
-        getCustomerPhone(user),
-        user.__tier,
-        user.notes,
-        String(user.__spend || 0),
-        String(user.__transactions?.length || 0),
-      ]
-        .filter(Boolean)
-        .join(' ')
-        .toLowerCase()
-      const matchesTier = tierFilter === 'all' || String(user.__tier || '') === tierFilter
-      const matchesActivity =
-        activityFilter === 'all' ||
-        (activityFilter === 'bookings' && (user.__bookings?.length || 0) > 0) ||
-        (activityFilter === 'orders' && (user.__orders?.length || 0) > 0) ||
-        (activityFilter === 'transactions' && (user.__transactions?.length || 0) > 0) ||
-        (activityFilter === 'tickets' && (user.__tickets?.length || 0) > 0)
+  const orphanLegacyCustomers = useMemo(() => {
+    return (users || []).filter((legacy) => !accountRows.some((profile) => matchesLegacyCustomer(legacy, profile)))
+  }, [users, accountRows])
 
-      return (!needle || haystack.includes(needle)) && matchesTier && matchesActivity
+  const filteredAccounts = useMemo(() => {
+    const needle = searchTerm.trim().toLowerCase()
+    return accountRows.filter((profile) => {
+      const statusLabel = profile.__status?.label || ''
+      const haystack = [profile?.full_name, profile?.email, profile?.auth_email, profile?.phone, profile?.id, statusLabel].filter(Boolean).join(' ').toLowerCase()
+      const matchesSearch = !needle || haystack.includes(needle)
+      const matchesStatus = statusFilter === 'all' || statusLabel === statusFilter
+      const matchesAdmin = adminFilter === 'all' || (adminFilter === 'admin' ? profile?.is_admin === true : profile?.is_admin !== true)
+      return matchesSearch && matchesStatus && matchesAdmin
     })
-  }, [customerRows, searchTerm, tierFilter, activityFilter])
+  }, [accountRows, searchTerm, statusFilter, adminFilter])
 
-  const selectedCustomer = filteredCustomers.find((item) => item.id === selectedCustomerId) || filteredCustomers[0] || null
-
-  useEffect(() => {
-    if (!selectedCustomer) return
-    setNotesDraft((current) => {
-      const currentDraft = current[selectedCustomer.id]
-      const nextValue = selectedCustomer.notes || ''
-      if (currentDraft === nextValue) return current
-      return { ...current, [selectedCustomer.id]: nextValue }
-    })
-  }, [selectedCustomer?.id, selectedCustomer?.notes])
-
-  const updateCustomer = (id, patch) => {
-    if (!onUpdateCustomer) return
-    setSavingNotesId(id)
-    setNotesStatus((current) => ({ ...current, [id]: { state: 'saving', message: '正在儲存備註...' } }))
-    Promise.resolve(onUpdateCustomer(id, patch))
-      .then(() => {
-        const nextNotes = patch?.notes
-        if (typeof nextNotes === 'string') {
-          setNotesDraft((current) => ({ ...current, [id]: nextNotes }))
-        }
-        setNotesStatus((current) => ({ ...current, [id]: { state: 'saved', message: '備註已儲存' } }))
-      })
-      .catch((error) => {
-        setNotesStatus((current) => ({ ...current, [id]: { state: 'error', message: error?.message || '備註儲存失敗' } }))
-      })
-      .finally(() => {
-        setSavingNotesId((current) => (current === id ? null : current))
-      })
-  }
-
-  const getNotesDraft = (customer) => notesDraft[customer.id] ?? customer.notes ?? ''
-  const setNotesDraftForCustomer = (customerId, value) => {
-    setNotesDraft((current) => ({ ...current, [customerId]: value }))
-  }
+  const selectedAccount = filteredAccounts.find((item) => item.id === selectedProfileId) || filteredAccounts[0] || null
 
   return (
     <div style={{ display: 'grid', gap: '20px' }}>
       <SectionHeader
         eyebrow="顧客"
-        title="顧客檔案"
-        description="從營運角度查看消費、預約、等級與備註。"
-        actions={<Pill>{filteredCustomers.length} 可見</Pill>}
+        title="會員帳號管理"
+        description="以會員帳號為主，查看姓名、電郵、電話、登入狀態、管理員權限，以及相關預約與交易摘要。"
+        actions={<Pill>{filteredAccounts.length} 位會員</Pill>}
       />
 
-      <RecordFilterBar columns="1.2fr repeat(2, minmax(160px, 220px))">
+      <RecordFilterBar columns={compact ? '1fr' : 'minmax(220px, 1.4fr) repeat(2, minmax(180px, 220px))'}>
         <input
           type="text"
-          placeholder="搜尋姓名、電話、等級、備註或消費..."
           value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
+          onChange={(event) => setSearchTerm(event.target.value)}
+          placeholder="搜尋姓名、電郵、電話或 Profile ID"
           style={fieldStyle}
         />
-        <select value={tierFilter} onChange={(e) => setTierFilter(e.target.value)} style={fieldStyle}>
-          <option value="all">全部等級</option>
-                          <option value="Regular">一般</option>
-                          <option value="Silver">銀級</option>
-                          <option value="Gold">金級</option>
-                          <option value="VIP">VIP</option>
+        <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} style={fieldStyle}>
+          <option value="all">全部帳號狀態</option>
+          <option value="已啟用">已啟用</option>
+          <option value="未完成註冊">未完成註冊</option>
+          <option value="缺少 Profile">缺少 Profile</option>
         </select>
-        <select value={activityFilter} onChange={(e) => setActivityFilter(e.target.value)} style={fieldStyle}>
-          <option value="all">全部紀錄</option>
-          <option value="bookings">有預約</option>
-          <option value="orders">有訂單</option>
-          <option value="transactions">有交易</option>
-          <option value="tickets">有票券</option>
+        <select value={adminFilter} onChange={(event) => setAdminFilter(event.target.value)} style={fieldStyle}>
+          <option value="all">全部權限</option>
+          <option value="admin">管理員</option>
+          <option value="member">一般會員</option>
         </select>
       </RecordFilterBar>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
-        <SummaryCard label="可見顧客" value={filteredCustomers.length} />
-        <SummaryCard label="可見消費" value={formatMoney(filteredCustomers.reduce((sum, user) => sum + Number(user.__spend || 0), 0), '')} />
-        <SummaryCard label="預約" value={filteredCustomers.reduce((sum, user) => sum + (user.__bookings?.length || 0), 0)} />
-        <SummaryCard label="訂單" value={filteredCustomers.reduce((sum, user) => sum + (user.__orders?.length || 0), 0)} />
-        <SummaryCard label="交易" value={filteredCustomers.reduce((sum, user) => sum + (user.__transactions?.length || 0), 0)} />
-        <SummaryCard label="票券 / 套餐" value={filteredCustomers.reduce((sum, user) => sum + (user.__tickets?.length || 0), 0)} />
-      </div>
-      <div style={{ marginTop: '-4px', fontSize: '12px', color: 'var(--text-light)' }}>
-        可見消費目前只計算預約與訂單總額，方便同此頁營運數字保持一致。
+      <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : 'repeat(4, minmax(0, 1fr))', gap: '12px' }}>
+        <SummaryPill label="會員帳號" value={accountRows.length} />
+        <SummaryPill label="已啟用" value={accountRows.filter((item) => item.__status?.label === '已啟用').length} tone="success" />
+        <SummaryPill label="未完成註冊" value={accountRows.filter((item) => item.__status?.label === '未完成註冊').length} tone="warning" />
+        <SummaryPill label="未綁定舊客戶資料" value={orphanLegacyCustomers.length} tone={orphanLegacyCustomers.length ? 'warning' : 'default'} />
       </div>
 
-      <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
-        <div className="admin-card" style={{ overflow: 'hidden', flex: selectedCustomer ? '1 1 660px' : '1 1 100%' }}>
-          <div className="hide-scrollbar" style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', minWidth: '760px' }}>
-              <thead>
-                <tr style={{ background: '#FAF8F5', borderBottom: '1px solid var(--gray)' }}>
-                  <th style={{ padding: '16px 12px', textAlign: 'left', color: 'var(--text-light)' }}>顧客</th>
-                  <th style={{ padding: '16px 12px', textAlign: 'left', color: 'var(--text-light)' }}>等級</th>
-                  <th style={{ padding: '16px 12px', textAlign: 'left', color: 'var(--text-light)' }}>消費</th>
-                  <th style={{ padding: '16px 12px', textAlign: 'left', color: 'var(--text-light)' }}>預約</th>
-                  <th style={{ padding: '16px 12px', textAlign: 'left', color: 'var(--text-light)' }}>交易</th>
-                  {!selectedCustomer && <th style={{ padding: '16px 12px', textAlign: 'left', color: 'var(--text-light)' }}>備註</th>}
-                </tr>
-              </thead>
-              <tbody>
-                {filteredCustomers.length === 0 ? (
-                  <tr>
-                    <td colSpan={selectedCustomer ? 5 : 6}>
-                      <EmptyState title="未找到顧客" description="可嘗試更改搜尋字詞或清除篩選。" />
-                    </td>
-                  </tr>
-                ) : (
-                  filteredCustomers.map((user) => {
-                    const active = selectedCustomer?.id === user.id
-                    return (
-                      <tr
-                        key={user.id}
-                        className="admin-table-row"
-                        style={{
-                          borderBottom: '1px solid #f6f6f6',
-                          background: active ? 'rgba(166, 139, 106, 0.05)' : '#fff',
-                          borderLeft: active ? '4px solid var(--primary)' : '4px solid transparent',
-                        }}
-                        onClick={() => setSelectedCustomerId(user.id)}
-                      >
-                        <td style={{ padding: '14px 12px' }}>
-                          <div style={{ fontWeight: 800, fontSize: '14px' }}>{getCustomerName(user)}</div>
-                          <div style={{ fontSize: '12px', color: 'var(--text-light)', marginTop: '3px' }}>{getCustomerPhone(user)}</div>
-                        </td>
-                        <td style={{ padding: '14px 12px' }}>
-                          <select
-                            value={user.__tier}
-                            onChange={(event) => updateCustomer(user.id, { membership_level: event.target.value })}
-                            onClick={(event) => event.stopPropagation()}
-                            style={smallFieldStyle}
-                          >
-                            <option value="Regular">一般</option>
-                            <option value="Silver">銀級</option>
-                            <option value="Gold">金級</option>
-                            <option value="VIP">VIP</option>
-                          </select>
-                        </td>
-                        <td style={{ padding: '14px 12px' }}>
-                          <div style={{ fontWeight: 800, color: 'var(--primary)' }}>{formatMoney(user.__spend, '')}</div>
-                          <div style={{ fontSize: '11px', color: 'var(--text-light)', marginTop: '3px' }}>{(user.__orders?.length || 0) + (user.__bookings?.length || 0)} 筆總紀錄</div>
-                        </td>
-                        <td style={{ padding: '14px 12px' }}>
-                          <div style={{ fontWeight: 800 }}>{user.__bookings?.length || 0}</div>
-                          <div style={{ fontSize: '11px', color: 'var(--text-light)', marginTop: '3px' }}>已連結預約</div>
-                        </td>
-                        <td style={{ padding: '14px 12px' }}>
-                          <div style={{ fontWeight: 800 }}>{user.__transactions?.length || 0}</div>
-                          <div style={{ fontSize: '11px', color: 'var(--text-light)', marginTop: '3px' }}>帳目紀錄</div>
-                        </td>
-                        {!selectedCustomer && (
-                          <td style={{ padding: '14px 12px' }}>
-                            <div style={{ display: 'grid', gap: '6px' }}>
-                              <input
-                                type="text"
-                                value={getNotesDraft(user)}
-                                placeholder="內部備註"
-                                onChange={(event) => setNotesDraftForCustomer(user.id, event.target.value)}
-                                onBlur={(event) => updateCustomer(user.id, { notes: event.target.value })}
-                                onClick={(event) => event.stopPropagation()}
-                                style={{ ...smallFieldStyle, background: '#f9fafb' }}
-                              />
-                              {notesStatus[user.id]?.message && (
-                                <div
-                                  style={{
-                                    fontSize: '11px',
-                                    color: notesStatus[user.id]?.state === 'error' ? '#DC2626' : notesStatus[user.id]?.state === 'saved' ? '#047857' : 'var(--text-light)',
-                                  }}
-                                >
-                                  {savingNotesId === user.id ? '正在儲存備註...' : notesStatus[user.id].message}
-                                </div>
-                              )}
-                            </div>
-                          </td>
-                        )}
-                      </tr>
-                    )
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
+      <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : 'minmax(320px, 420px) minmax(0, 1fr)', gap: '20px', alignItems: 'start' }}>
+        <div className="admin-card" style={{ padding: '16px', border: '1px solid var(--gray)', display: 'grid', gap: '12px' }}>
+          {filteredAccounts.length === 0 ? (
+            <EmptyState title="找不到會員帳號" description="請調整搜尋條件，或先建立會員帳號後再回來查看。" />
+          ) : (
+            filteredAccounts.map((profile) => {
+              const active = selectedAccount?.id === profile.id
+              const primaryEmail = profile?.auth_email || profile?.email || '-'
+
+              return (
+                <button
+                  key={profile.id}
+                  type="button"
+                  onClick={() => setSelectedProfileId(profile.id)}
+                  className="btn btn-interactive"
+                  style={{
+                    width: '100%',
+                    textAlign: 'left',
+                    background: active ? 'rgba(166, 139, 106, 0.08)' : '#fff',
+                    border: active ? '1px solid rgba(166, 139, 106, 0.35)' : '1px solid var(--gray)',
+                    borderRadius: '16px',
+                    padding: '14px',
+                    display: 'grid',
+                    gap: '8px',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'flex-start' }}>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--text)' }}>{profile?.full_name || '未命名會員'}</div>
+                      <div style={{ marginTop: '4px', fontSize: '12px', color: 'var(--text-light)', wordBreak: 'break-all' }}>{primaryEmail}</div>
+                    </div>
+                    {profile?.is_admin ? <Pill tone="warning">管理員</Pill> : <Pill tone="muted">一般會員</Pill>}
+                  </div>
+                  <div style={{ fontSize: '13px', color: 'var(--text-light)' }}>{profile?.phone || '未填電話'}</div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                    <Pill tone={profile.__status?.tone}>{profile.__status?.label}</Pill>
+                    <Pill tone={profile?.auth_user_exists ? 'success' : 'danger'}>{profile?.auth_user_exists ? '可登入' : '無登入帳號'}</Pill>
+                  </div>
+                </button>
+              )
+            })
+          )}
         </div>
 
-        {selectedCustomer && (
-          <div className="admin-card" style={{ flex: '1 1 360px', minWidth: '340px', padding: '24px', position: 'sticky', top: '20px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
+        {selectedAccount ? (
+          <div className="admin-card" style={{ padding: '20px', border: '1px solid var(--gray)', display: 'grid', gap: '18px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '16px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
               <div>
-                <div style={{ fontSize: '12px', fontWeight: 800, color: '#A68B6A', letterSpacing: '0.08em' }}>顧客檔案</div>
-                <h3 style={{ fontSize: '18px', fontWeight: 800, margin: '6px 0 0' }}>{getCustomerName(selectedCustomer)}</h3>
+                <div style={{ fontSize: '12px', fontWeight: 800, color: '#A68B6A', letterSpacing: '0.08em' }}>會員帳號</div>
+                <div style={{ marginTop: '6px', fontSize: '22px', fontWeight: 800 }}>{selectedAccount?.full_name || '未命名會員'}</div>
+                <div style={{ marginTop: '6px', fontSize: '13px', color: 'var(--text-light)', wordBreak: 'break-all' }}>{selectedAccount?.auth_email || selectedAccount?.email || '未填電郵'}</div>
               </div>
-              <button type="button" onClick={() => setSelectedCustomerId(null)} style={{ background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer', color: '#999' }}>
-                x
-              </button>
-            </div>
-
-            <div style={{ textAlign: 'center', marginBottom: '20px' }}>
-              <div style={{ width: '80px', height: '80px', borderRadius: '50%', background: 'linear-gradient(135deg, var(--primary), var(--primary-dark))', color: '#fff', fontSize: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px', fontWeight: 800 }}>
-                {getCustomerName(selectedCustomer).charAt(0)}
-              </div>
-              <div style={{ fontSize: '14px', color: 'var(--text-light)' }}>{getCustomerPhone(selectedCustomer)}</div>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '12px', marginBottom: '18px' }}>
-              <div className="admin-card" style={{ padding: '12px', border: '1px solid var(--gray)', textAlign: 'center' }}>
-                <div style={{ fontSize: '12px', color: 'var(--text-light)' }}>等級</div>
-                <div style={{ fontSize: '18px', fontWeight: 800 }}>{getTierLabel(selectedCustomer.__tier)}</div>
-              </div>
-              <div className="admin-card" style={{ padding: '12px', border: '1px solid var(--gray)', textAlign: 'center' }}>
-                <div style={{ fontSize: '12px', color: 'var(--text-light)' }}>消費</div>
-                <div style={{ fontSize: '18px', fontWeight: 800, color: 'var(--primary)' }}>{formatMoney(selectedCustomer.__spend, '')}</div>
-              </div>
-              <div className="admin-card" style={{ padding: '12px', border: '1px solid var(--gray)', textAlign: 'center' }}>
-                <div style={{ fontSize: '12px', color: 'var(--text-light)' }}>預約</div>
-                <div style={{ fontSize: '18px', fontWeight: 800 }}>{selectedCustomer.__bookings?.length || 0}</div>
-              </div>
-              <div className="admin-card" style={{ padding: '12px', border: '1px solid var(--gray)', textAlign: 'center' }}>
-                <div style={{ fontSize: '12px', color: 'var(--text-light)' }}>交易</div>
-                <div style={{ fontSize: '18px', fontWeight: 800 }}>{selectedCustomer.__transactions?.length || 0}</div>
-              </div>
-              <div className="admin-card" style={{ padding: '12px', border: '1px solid var(--gray)', textAlign: 'center' }}>
-                <div style={{ fontSize: '12px', color: 'var(--text-light)' }}>加入日期</div>
-                <div style={{ fontSize: '14px', fontWeight: 700 }}>{selectedCustomer.created_at ? new Date(selectedCustomer.created_at).toLocaleDateString() : '-'}</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                <Pill tone={selectedAccount.__status?.tone}>{selectedAccount.__status?.label}</Pill>
+                {selectedAccount?.is_admin ? <Pill tone="warning">管理員</Pill> : <Pill tone="muted">一般會員</Pill>}
               </div>
             </div>
 
-            <div style={{ marginBottom: '18px' }}>
-              <label style={{ fontSize: '13px', fontWeight: 800, marginBottom: '8px', display: 'block' }}>等級</label>
-              <select
-                value={selectedCustomer.__tier}
-                onChange={(event) => updateCustomer(selectedCustomer.id, { membership_level: event.target.value })}
-                style={fieldStyle}
-              >
-                <option value="Regular">一般</option>
-                <option value="Silver">銀級</option>
-                <option value="Gold">金級</option>
-                <option value="VIP">VIP</option>
-              </select>
+            <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : 'repeat(4, minmax(0, 1fr))', gap: '12px' }}>
+              <SummaryPill label="預約" value={selectedAccount.__bookings.length} />
+              <SummaryPill label="訂單" value={selectedAccount.__orders.length} />
+              <SummaryPill label="交易" value={selectedAccount.__transactions.length} />
+              <SummaryPill label="累計消費" value={formatMoney(selectedAccount.__spend, '')} />
             </div>
 
-            <div style={{ marginBottom: '18px' }}>
-              <label style={{ fontSize: '13px', fontWeight: 800, marginBottom: '8px', display: 'block' }}>員工備註</label>
-              <textarea
-                value={getNotesDraft(selectedCustomer)}
-                onChange={(event) => setNotesDraftForCustomer(selectedCustomer.id, event.target.value)}
-                placeholder="輸入內部備註"
-                style={{ ...fieldStyle, minHeight: '92px', resize: 'vertical' }}
-              />
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', marginTop: '8px', alignItems: 'center' }}>
-                <div style={{ fontSize: '12px', color: notesStatus[selectedCustomer.id]?.state === 'error' ? '#DC2626' : notesStatus[selectedCustomer.id]?.state === 'saved' ? '#047857' : 'var(--text-light)' }}>
-                  {notesStatus[selectedCustomer.id]?.message || '草稿只會先保留在畫面，請按「儲存備註」。'}
+            <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : 'repeat(2, minmax(0, 1fr))', gap: '12px' }}>
+              <DetailCard label="Profile ID" value={selectedAccount?.id || '-'} mono />
+              <DetailCard label="電話" value={selectedAccount?.phone || '未填寫'} />
+              <DetailCard label="會員資料電郵" value={selectedAccount?.email || '未填寫'} />
+              <DetailCard label="登入帳號電郵" value={selectedAccount?.auth_email || '找不到對應登入帳號'} />
+              <DetailCard label="建立日期" value={formatDate(selectedAccount?.created_at)} />
+              <DetailCard label="帳號診斷" value={authDiagnostic(selectedAccount)} />
+            </div>
+
+            <div className="admin-card" style={{ padding: '16px', border: '1px solid var(--gray)' }}>
+              <div style={{ fontSize: '14px', fontWeight: 800, marginBottom: '10px' }}>附屬營運資料</div>
+              <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : 'repeat(4, minmax(0, 1fr))', gap: '10px' }}>
+                <DetailCard label="套票 / 票券" value={selectedAccount.__tickets.length} />
+                <DetailCard label="舊顧客資料列" value={selectedAccount.__legacyCustomers.length} />
+                <DetailCard label="可登入" value={selectedAccount?.auth_user_exists ? '是' : '否'} />
+                <DetailCard label="管理員權限" value={selectedAccount?.is_admin ? '是' : '否'} />
+              </div>
+            </div>
+
+            <div className="admin-card" style={{ padding: '16px', border: '1px solid var(--gray)' }}>
+              <div style={{ fontSize: '14px', fontWeight: 800, marginBottom: '10px' }}>最近互動</div>
+              {selectedAccount.__recent.length ? (
+                <div style={{ display: 'grid', gap: '10px' }}>
+                  {selectedAccount.__recent.map((item, index) => (
+                    <div key={`${item.kind}-${index}`} style={{ display: 'grid', gap: '4px', padding: '12px', borderRadius: '12px', background: '#FAF8F5' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+                        <div style={{ fontWeight: 700 }}>{item.title}</div>
+                        <div style={{ color: 'var(--primary)', fontWeight: 800 }}>{formatMoney(item.amount, '')}</div>
+                      </div>
+                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                        <Pill tone="muted">{item.kind}</Pill>
+                        <Pill tone="muted">{item.status}</Pill>
+                      </div>
+                      <div style={{ fontSize: '12px', color: 'var(--text-light)' }}>{formatDate(item.when)}</div>
+                    </div>
+                  ))}
                 </div>
-                <button
-                  type="button"
-                  onClick={() => updateCustomer(selectedCustomer.id, { notes: getNotesDraft(selectedCustomer) })}
-                  className="btn btn-small btn-interactive"
-                  disabled={savingNotesId === selectedCustomer.id}
-                  style={{ minWidth: '120px' }}
-                >
-                  {savingNotesId === selectedCustomer.id ? '儲存中...' : '儲存備註'}
-                </button>
-              </div>
-            </div>
-
-            <div>
-              <h4 style={{ fontSize: '14px', fontWeight: 800, marginBottom: '12px' }}>最近活動</h4>
-              <div style={{ maxHeight: '280px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }} className="hide-scrollbar">
-                {selectedCustomer.__recent.length ? (
-                  selectedCustomer.__recent.map((entry, index) => (
-                    <div key={`${entry.kind}-${entry.title}-${index}`} className="admin-card" style={{ padding: '12px', border: '1px solid var(--gray)' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', marginBottom: '4px' }}>
-                        <span style={{ fontWeight: 700 }}>
-                          <span className="badge badge-outline" style={{ marginRight: '8px', fontSize: '10px', padding: '2px 6px' }}>
-                            {getActivityKindLabel(entry.kind)}
-                          </span>
-                          {entry.title}
-                        </span>
-                        <span style={{ color: 'var(--primary)', fontWeight: 800 }}>{formatMoney(entry.amount || 0, '')}</span>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', color: 'var(--text-light)' }}>
-                        <span style={{ display: 'grid', gap: '2px' }}>
-                          <span>{entry.detail || '-'}</span>
-                          <span>{formatActivityWhen(entry.when)}</span>
-                          {entry.reference && <span style={{ fontSize: '11px' }}>參考編號：{entry.reference}</span>}
-                        </span>
-                        <span className="badge badge-outline" style={{ fontSize: '10px', padding: '2px 6px' }}>
-                          {entry.status || 'pending'}
-                        </span>
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <EmptyState title="沒有最近活動" description="此顧客暫時未有預約、訂單或交易紀錄。" />
-                )}
-              </div>
-            </div>
-
-            <div style={{ marginTop: '18px' }}>
-              <h4 style={{ fontSize: '14px', fontWeight: 800, marginBottom: '12px' }}>票券 / 套餐</h4>
-              <div style={{ display: 'grid', gap: '8px' }}>
-                {selectedCustomer.__tickets.length ? (
-                  selectedCustomer.__tickets.slice(0, 4).map((ticket) => (
-                    <div key={ticket.id} className="admin-card" style={{ padding: '12px', border: '1px solid var(--gray)', display: 'grid', gap: '8px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', alignItems: 'flex-start' }}>
-                        <div style={{ minWidth: 0 }}>
-                          <div style={{ fontWeight: 800, lineHeight: 1.35 }}>{getTicketLabel(ticket, servicePackages)}</div>
-                          <div style={{ fontSize: '11px', color: 'var(--text-light)', marginTop: '3px' }}>
-                            {ticket.code || ticket.ref || ticket.ticket_code || ticket.id ? `#${ticket.code || ticket.ref || ticket.ticket_code || ticket.id}` : '會員權益'}
-                          </div>
-                        </div>
-                        <span style={{ color: 'var(--primary)', fontWeight: 800, whiteSpace: 'nowrap' }}>{formatMoney(ticket.price || ticket.amount || 0, '')}</span>
-                      </div>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
-                        <span className="badge badge-outline" style={{ fontSize: '10px', padding: '2px 6px' }}>
-                          {ticket.status || ticket.state || '啟用中'}
-                        </span>
-                        {ticket.remaining_uses != null && <span style={{ fontSize: '11px', color: 'var(--text-light)' }}>尚餘 {ticket.remaining_uses} 次</span>}
-                        {ticket.used_count != null && <span style={{ fontSize: '11px', color: 'var(--text-light)' }}>已使用 {ticket.used_count} 次</span>}
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', color: 'var(--text-light)', fontSize: '12px' }}>
-                        <span>{ticket.expires_at ? `到期日 ${new Date(ticket.expires_at).toLocaleDateString()}` : ticket.valid_until ? `有效至 ${new Date(ticket.valid_until).toLocaleDateString()}` : '未設定到期日'}</span>
-                        <span>{ticket.issued_at ? `發出日期 ${new Date(ticket.issued_at).toLocaleDateString()}` : ticket.created_at ? `建立日期 ${new Date(ticket.created_at).toLocaleDateString()}` : ''}</span>
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <div className="admin-card" style={{ padding: '12px', border: '1px solid var(--gray)', color: 'var(--text-light)' }}>
-                    此會員未連結任何票券或套餐紀錄。
-                  </div>
-                )}
-              </div>
+              ) : (
+                <EmptyState title="暫時沒有相關記錄" description="這位會員暫時未有預約、訂單或交易資料。" />
+              )}
             </div>
           </div>
+        ) : null}
+      </div>
+
+      <div className="admin-card" style={{ padding: '18px', border: '1px solid var(--gray)' }}>
+        <div style={{ fontSize: '14px', fontWeight: 800, marginBottom: '12px' }}>未綁定帳號的舊顧客資料</div>
+        {orphanLegacyCustomers.length ? (
+          <div style={{ display: 'grid', gap: '10px' }}>
+            {orphanLegacyCustomers.slice(0, 12).map((legacy) => (
+              <div key={legacy.id} style={{ display: 'grid', gap: '3px', padding: '12px', borderRadius: '12px', background: '#FAF8F5' }}>
+                <div style={{ fontWeight: 700 }}>{legacy?.name || legacy?.full_name || `舊顧客 #${legacy?.id || '-'}`}</div>
+                <div style={{ fontSize: '12px', color: 'var(--text-light)' }}>
+                  {[legacy?.email || '未填電郵', legacy?.phone || legacy?.mobile || '未填電話'].join(' / ')}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <EmptyState title="所有可見顧客資料都已綁定會員帳號" description="目前沒有額外的舊顧客資料需要人工對照。" />
         )}
       </div>
     </div>
   )
 }
 
-function SummaryCard({ label, value }) {
+function DetailCard({ label, value, mono = false }) {
   return (
     <div className="admin-card" style={{ padding: '14px 16px', border: '1px solid var(--gray)' }}>
       <div style={{ fontSize: '12px', fontWeight: 800, color: '#A68B6A', marginBottom: '6px' }}>{label}</div>
-      <div style={{ fontSize: '22px', fontWeight: 800 }}>{value}</div>
+      <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text)', wordBreak: 'break-word', fontFamily: mono ? 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace' : 'inherit' }}>{value}</div>
     </div>
   )
 }
