@@ -116,9 +116,9 @@ const tabMeta = {
     description: '持續更新常見問題內容，方便顧客快速理解預約與服務流程。',
   },
   customers: {
-    title: '顧客',
-    eyebrow: '會員營運',
-    description: '集中查看顧客資料、預約記錄、交易紀錄與會員互動。',
+    title: '會員帳號管理',
+    eyebrow: '會員帳號',
+    description: '集中查看會員資料、登入狀態、管理員權限，以及相關預約、訂單與交易摘要。',
   },
   settings: {
     title: '設定',
@@ -186,6 +186,7 @@ export default function AdminPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [authChecked, setAuthChecked] = useState(false)
   const [activeTab, setActiveTab] = useState('dashboard')
+  const [isCompactAdmin, setIsCompactAdmin] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [baseLoaded, setBaseLoaded] = useState(false)
@@ -304,6 +305,13 @@ export default function AdminPage() {
     checkAdmin()
   }, [router])
 
+  useEffect(() => {
+    const syncViewport = () => setIsCompactAdmin(window.innerWidth < 960)
+    syncViewport()
+    window.addEventListener('resize', syncViewport)
+    return () => window.removeEventListener('resize', syncViewport)
+  }, [])
+
   const reduceSettingsRows = (rows = []) =>
     (rows || []).reduce((acc, item) => {
       if (!item?.key) return acc
@@ -408,13 +416,27 @@ export default function AdminPage() {
   }
 
   const loadCustomersData = async () => {
-    const [cust, b, o, tx, ut, sp] = await Promise.all([
+    const profilesPromise = fetch('/api/admin/member-profiles', { credentials: 'include' })
+      .then(async (response) => {
+        const payload = await response.json().catch(() => ({}))
+        if (!response.ok) {
+          throw new Error(payload?.error || '會員帳號資料載入失敗')
+        }
+        return Array.isArray(payload?.profiles) ? payload.profiles : []
+      })
+      .catch((error) => {
+        toast.error('會員帳號資料載入失敗：' + (error?.message || '未知錯誤'))
+        return []
+      })
+
+    const [cust, b, o, tx, ut, sp, profiles] = await Promise.all([
       supabase.from('customers').select('*').order('created_at', { ascending: false }),
       supabase.from('bookings').select('*').order('created_at', { ascending: false }),
       supabase.from('orders').select('*').order('created_at', { ascending: false }),
       safeTableResult(supabase.from('transactions').select('*').order('created_at', { ascending: false })),
       safeTableResult(supabase.from('user_tickets').select('*').order('created_at', { ascending: false })),
       supabase.from('service_packages').select('*'),
+      profilesPromise,
     ])
 
     if (cust.data) setUsers(cust.data)
@@ -423,6 +445,7 @@ export default function AdminPage() {
     setTransactions(tx.data || [])
     setUserTickets(ut.data || [])
     if (sp.data) setServicePackages(sp.data)
+    setMemberProfiles(profiles)
     setAvailableTables((current) => ({ ...current, transactions: Boolean(tx.available) }))
     markTabsLoaded(['customers'])
   }
@@ -474,10 +497,17 @@ export default function AdminPage() {
   }
 
   const loadAdminProfilesData = async () => {
-    const profiles = await safeTableResult(
-      supabase.from('member_profiles').select('id,email,full_name,phone,is_admin').order('email')
-    )
-    setMemberProfiles(profiles.data || [])
+    try {
+      const response = await fetch('/api/admin/member-profiles', { cache: 'no-store' })
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error(payload?.error || '管理員帳號資料載入失敗')
+      }
+      setMemberProfiles(Array.isArray(payload?.profiles) ? payload.profiles : [])
+    } catch (error) {
+      toast.error('管理員帳號資料載入失敗：' + (error?.message || '未知錯誤'))
+      setMemberProfiles([])
+    }
     markTabsLoaded(['settings'])
   }
 
@@ -1348,7 +1378,7 @@ const normalizeNullableNumber = (value) => {
     if (activeTab === 'dashboard') return <DashboardTab stats={stats} bookings={bookings} orders={orders} transactions={transactions} customers={users} userTickets={userTickets} onOpenTab={setActiveTab} />
     if (activeTab === 'analytics') return <AnalyticsTab bookings={bookings} orders={orders} transactions={transactions} users={users} userTickets={userTickets} reviews={reviews} />
     if (activeTab === 'orders') return <OrdersTab orders={orders} bookings={bookings} customers={users} transactions={transactions} locations={locations} providerGroups={providerGroups} saving={saving} />
-    if (activeTab === 'bookings') return <BookingsTab bookings={bookings} staff={staff} services={services} locations={locations} providerGroups={providerGroups} resources={resources} transactions={transactions} orders={orders} bookingResourceAllocations={bookingResourceAllocations} onUpdateStatus={updateStatus} onUpdateBookingStaff={updateBookingStaff} />
+    if (activeTab === 'bookings') return <BookingsTab bookings={bookings} staff={staff} services={services} locations={locations} providerGroups={providerGroups} resources={resources} transactions={transactions} orders={orders} bookingResourceAllocations={bookingResourceAllocations} onUpdateStatus={updateStatus} onUpdateBookingStaff={updateBookingStaff} compact={isCompactAdmin} />
       if (activeTab === 'staff') {
         return (
           <SchedulingTab
@@ -1379,6 +1409,7 @@ const normalizeNullableNumber = (value) => {
           onSaveTimeOff={saveStaffTimeOff}
           onSaveBlockedSlots={saveBlockedSlots}
           saving={saving}
+          compact={isCompactAdmin}
         />
       )
     }
@@ -1394,6 +1425,7 @@ const normalizeNullableNumber = (value) => {
           serviceProviderGroups={serviceProviderGroups}
           serviceResources={serviceResources}
           availableTables={availableTables}
+          compact={isCompactAdmin}
         />
       )
     }
@@ -1405,7 +1437,20 @@ const normalizeNullableNumber = (value) => {
     if (activeTab === 'coupons') return <CouponsTab coupons={coupons} saveCoupons={saveCoupons} />
     if (activeTab === 'articles') return <ArticlesTab articles={articles} />
     if (activeTab === 'faqs') return <FaqsTab faqs={faqs} />
-    if (activeTab === 'customers') return <CustomersTab users={users} bookings={bookings} orders={orders} transactions={transactions} userTickets={userTickets} servicePackages={servicePackages} onUpdateCustomer={updateCustomer} />
+    if (activeTab === 'customers') {
+      return (
+        <CustomersTab
+          memberProfiles={memberProfiles}
+          users={users}
+          bookings={bookings}
+          orders={orders}
+          transactions={transactions}
+          userTickets={userTickets}
+          servicePackages={servicePackages}
+          compact={isCompactAdmin}
+        />
+      )
+    }
     if (activeTab === 'settings') {
       return (
         <SettingsTab
@@ -1414,6 +1459,7 @@ const normalizeNullableNumber = (value) => {
           saving={saving}
           memberProfiles={memberProfiles}
           saveAdminProfiles={saveAdminProfiles}
+          compact={isCompactAdmin}
         />
       )
     }
@@ -1425,7 +1471,7 @@ const normalizeNullableNumber = (value) => {
 
   return (
     <div style={{ minHeight: '100vh', background: '#f8f9fa' }}>
-      <header style={{ background: '#3D3D3D', color: '#fff', padding: '12px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <header style={{ background: '#3D3D3D', color: '#fff', padding: '12px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
         <h2 style={{ fontSize: '18px', margin: 0 }}>VIVA HAIR 管理後台</h2>
         <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
           <button onClick={fetchData} style={{ padding: '6px 12px', background: '#555', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>
@@ -1437,8 +1483,8 @@ const normalizeNullableNumber = (value) => {
         </div>
       </header>
 
-      <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '20px', display: 'flex', gap: '20px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
-        <aside className="admin-card" style={{ width: '280px', padding: '18px', position: 'sticky', top: '20px', alignSelf: 'flex-start', flexShrink: 0 }}>
+      <div style={{ maxWidth: '1400px', margin: '0 auto', padding: isCompactAdmin ? '14px' : '20px', display: 'flex', gap: '20px', alignItems: 'flex-start', flexWrap: 'wrap', flexDirection: isCompactAdmin ? 'column' : 'row' }}>
+        <aside className="admin-card" style={{ width: isCompactAdmin ? '100%' : '280px', padding: '18px', position: isCompactAdmin ? 'static' : 'sticky', top: '20px', alignSelf: 'flex-start', flexShrink: 0 }}>
           <div style={{ fontSize: '12px', fontWeight: 800, letterSpacing: '0.08em', color: '#A68B6A' }}>管理導航</div>
           <h3 style={{ margin: '8px 0 0', fontSize: '20px', fontWeight: 800 }}>營運控制台</h3>
           <p style={{ margin: '10px 0 18px', fontSize: '13px', lineHeight: 1.6, color: 'var(--text-light)' }}>
@@ -1449,7 +1495,7 @@ const normalizeNullableNumber = (value) => {
             {tabGroups.map((group) => (
               <div key={group.name}>
                 <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.1em', color: '#9A8A78', marginBottom: '8px', textTransform: 'uppercase' }}>{group.name}</div>
-                <div style={{ display: 'grid', gap: '6px' }}>
+                <div style={{ display: isCompactAdmin ? 'flex' : 'grid', gap: '6px', overflowX: isCompactAdmin ? 'auto' : 'visible', paddingBottom: isCompactAdmin ? '4px' : 0 }}>
                   {group.tabs.map((tab) => {
                     const isActive = activeTab === tab.id
                     return (
@@ -1461,6 +1507,7 @@ const normalizeNullableNumber = (value) => {
                         style={{
                           textAlign: 'left',
                           padding: '11px 12px',
+                          minWidth: isCompactAdmin ? '116px' : 'auto',
                           borderRadius: '12px',
                           border: isActive ? '1px solid rgba(166, 139, 106, 0.35)' : '1px solid transparent',
                           background: isActive ? '#FBF6EF' : 'transparent',
@@ -1480,10 +1527,10 @@ const normalizeNullableNumber = (value) => {
           </div>
         </aside>
 
-        <main style={{ flex: '1 1 900px', minWidth: 0 }}>
+        <main style={{ flex: '1 1 900px', minWidth: 0, width: isCompactAdmin ? '100%' : 'auto' }}>
           <div className="admin-card" style={{ padding: '22px', marginBottom: '20px', border: '1px solid rgba(166, 139, 106, 0.18)', background: 'linear-gradient(135deg, #fff, #FBF8F4)' }}>
             <div style={{ fontSize: '12px', fontWeight: 800, letterSpacing: '0.08em', color: '#A68B6A' }}>{activeTabMeta.eyebrow}</div>
-            <div style={{ marginTop: '6px', fontSize: '24px', fontWeight: 800, color: 'var(--text)' }}>{activeTabMeta.title}</div>
+            <div style={{ marginTop: '6px', fontSize: isCompactAdmin ? '20px' : '24px', fontWeight: 800, color: 'var(--text)' }}>{activeTabMeta.title}</div>
             <div style={{ marginTop: '8px', maxWidth: '760px', fontSize: '14px', lineHeight: 1.7, color: 'var(--text-light)' }}>{activeTabMeta.description}</div>
           </div>
 
