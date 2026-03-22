@@ -304,6 +304,13 @@ export default function AdminPage() {
     checkAdmin()
   }, [router])
 
+  const reduceSettingsRows = (rows = []) =>
+    (rows || []).reduce((acc, item) => {
+      if (!item?.key) return acc
+      acc[item.key] = item.value
+      return acc
+    }, {})
+
   const loadBaseData = async ({ showLoading = true } = {}) => {
     if (showLoading) setLoading(true)
 
@@ -338,13 +345,7 @@ export default function AdminPage() {
       holidays: Boolean(hol.available),
       resources: Boolean(res.available),
     }))
-    if (setRows.data) {
-      const nextSettings = setRows.data.reduce((acc, item) => {
-        acc[item.key] = item.value
-        return acc
-      }, {})
-      setSettings(nextSettings)
-    }
+    if (setRows.data) setSettings(reduceSettingsRows(setRows.data))
 
     setBaseLoaded(true)
     if (showLoading) setLoading(false)
@@ -1080,10 +1081,12 @@ const normalizeNullableNumber = (value) => {
   const saveSettings = async (newSettings) => {
     setSaving(true)
     try {
-      const updates = Object.keys(newSettings).map((key) => supabase.from('settings').upsert({ key, value: newSettings[key] }))
+      const updates = Object.keys(newSettings).map((key) =>
+        supabase.from('settings').upsert({ key, value: newSettings[key] }, { onConflict: 'key' }),
+      )
       await Promise.all(updates)
       await bumpAvailabilityCacheVersion()
-      setSettings(newSettings)
+      await loadBaseData({ showLoading: false })
       toast.success('已儲存設定')
     } catch (error) {
       toast.error('設定儲存失敗：' + (error?.message || '未知錯誤'))
