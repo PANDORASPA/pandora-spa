@@ -64,12 +64,15 @@ function RegisterInner() {
       const supabase = getBrowserClient()
       const trimmedName = String(fullName).trim()
       const trimmedPhone = String(phone).trim()
-      const trimmedEmail = String(email).trim()
+      const trimmedEmail = String(email).trim().toLowerCase()
+      const origin = typeof window !== 'undefined' ? window.location.origin : ''
+      const emailRedirectTo = origin ? `${origin}/auth/callback?next=${encodeURIComponent(redirectTo)}` : undefined
 
       const { data, error } = await supabase.auth.signUp({
         email: trimmedEmail,
         password,
         options: {
+          emailRedirectTo,
           data: {
             full_name: trimmedName,
             phone: trimmedPhone,
@@ -79,20 +82,26 @@ function RegisterInner() {
 
       if (error) throw error
 
-      if (data?.user) {
-        const { error: profileError } = await supabase.from('member_profiles').upsert({
-          id: data.user.id,
-          email: trimmedEmail,
-          full_name: trimmedName,
-          phone: trimmedPhone,
-        })
+      if (data?.user?.id) {
+        const { error: profileError } = await supabase.from('member_profiles').upsert(
+          {
+            id: data.user.id,
+            email: trimmedEmail,
+            full_name: trimmedName,
+            phone: trimmedPhone,
+          },
+          { onConflict: 'id' },
+        )
         if (profileError) throw profileError
-        toast.success('註冊成功')
-      } else {
-        toast.success('註冊成功，請先完成電郵驗證')
       }
 
-      router.replace(redirectTo)
+      if (data?.session) {
+        toast.success('註冊成功，正在進入會員中心')
+        router.replace(redirectTo)
+      } else {
+        toast.success('註冊成功，請到電郵完成確認。確認後會自動進入會員中心。')
+        router.replace(`/login?redirectTo=${encodeURIComponent(redirectTo)}`)
+      }
     } catch (error) {
       toast.error(`註冊失敗：${error?.message || '請稍後再試'}`)
     } finally {
@@ -175,7 +184,7 @@ function RegisterInner() {
                 type="password"
                 value={confirmPassword}
                 onChange={(event) => setConfirmPassword(event.target.value)}
-                placeholder="再次輸入密碼"
+                placeholder="請再次輸入密碼"
                 required
                 style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #e5e5e5' }}
               />
@@ -187,11 +196,12 @@ function RegisterInner() {
               className="btn btn-interactive"
               style={{ width: '100%', background: '#A68B6A', color: '#fff', padding: '12px', borderRadius: '12px', fontWeight: 700 }}
             >
-              {loading ? '註冊中...' : '註冊'}
+              {loading ? '註冊中…' : '註冊'}
             </button>
           </form>
 
-          <div style={{ marginTop: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '14px' }}>
+          <div style={{ marginTop: '16px', display: 'grid', gap: '10px', fontSize: '14px', color: '#6B7280' }}>
+            <div>註冊成功後，請到電郵完成確認。確認連結會把你帶回會員中心。</div>
             <Link href={`/login?redirectTo=${encodeURIComponent(redirectTo)}`} style={{ color: '#A68B6A', fontWeight: 700 }}>
               返回登入
             </Link>
