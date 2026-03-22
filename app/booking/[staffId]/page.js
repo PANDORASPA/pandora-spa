@@ -659,7 +659,7 @@ export default function BookingStaffPage() {
     const dailySlotsKey = [staffId, serviceId, selectedDate, availabilityVersion || 'v0'].join(':')
     const monthSummaryKey = [staffId, serviceId, monthKey, availabilityVersion || 'v0'].join(':')
     const cachedSlots = normalizeSlotList(readCached(dailySlotsCache, dailySlotsKey, DAILY_SLOTS_CACHE_TTL_MS))
-    if (cachedSlots) {
+    if (cachedSlots.length > 0) {
       setSlots(cachedSlots)
       setLoadingSlots(false)
       return
@@ -702,7 +702,11 @@ export default function BookingStaffPage() {
             return next
           })
         }
-        writeCached(dailySlotsCache, dailySlotsKey, nextSlots)
+        if (nextSlots.length > 0) {
+          writeCached(dailySlotsCache, dailySlotsKey, nextSlots)
+        } else {
+          dailySlotsCache.delete(dailySlotsKey)
+        }
         setSlots(nextSlots)
       })
       .catch((fetchError) => {
