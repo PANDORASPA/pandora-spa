@@ -9,6 +9,90 @@ import {
   validatePhase2Selection,
 } from '../../../../lib/booking/phase2'
 
+const loadTicketSnapshot = async (supabase, ticketId) => {
+  const normalizedId = Number(ticketId)
+  if (!Number.isFinite(normalizedId) || normalizedId <= 0) return null
+  const { data, error } = await supabase.from('user_tickets').select('id,remaining_count').eq('id', normalizedId).maybeSingle()
+  if (error) throw error
+  return data || null
+}
+
+const updateTicketRemainingCount = async (supabase, ticketId, nextCount) => {
+  const normalizedId = Number(ticketId)
+  if (!Number.isFinite(normalizedId) || normalizedId <= 0) return null
+  const { data, error } = await supabase
+    .from('user_tickets')
+    .update({ remaining_count: Number(nextCount || 0) })
+    .eq('id', normalizedId)
+    .select('id,remaining_count')
+    .single()
+  if (error) throw error
+  return data
+}
+
+const rollbackCreateBooking = async ({ supabase, bookingId, ticketSnapshot }) => {
+  const details = {
+    bookingDeleted: false,
+    allocationsDeleted: false,
+    ticketRestored: ticketSnapshot ? false : null,
+  }
+
+  const allocationDeleteRes = await supabase.from('booking_resource_allocations').delete().eq('booking_id', bookingId)
+  if (allocationDeleteRes.error) {
+    return { ok: false, stage: 'delete_allocations', error: allocationDeleteRes.error.message, details }
+  }
+  details.allocationsDeleted = true
+
+  const bookingDeleteRes = await supabase.from('bookings').delete().eq('id', bookingId)
+  if (bookingDeleteRes.error) {
+    return { ok: false, stage: 'delete_booking', error: bookingDeleteRes.error.message, details }
+  }
+  details.bookingDeleted = true
+
+  if (ticketSnapshot?.id) {
+    try {
+      await updateTicketRemainingCount(supabase, ticketSnapshot.id, ticketSnapshot.remaining_count)
+      details.ticketRestored = true
+    } catch (error) {
+      return { ok: false, stage: 'restore_ticket', error: error?.message || 'Failed to restore ticket.', details }
+    }
+  }
+
+  const verifyAllocationsRes = await supabase.from('booking_resource_allocations').select('id').eq('booking_id', bookingId)
+  if (verifyAllocationsRes.error) {
+    return { ok: false, stage: 'verify_allocations', error: verifyAllocationsRes.error.message, details }
+  }
+  if ((verifyAllocationsRes.data || []).length > 0) {
+    return { ok: false, stage: 'verify_allocations', error: 'Booking allocations still exist after rollback.', details }
+  }
+
+  const verifyBookingRes = await supabase.from('bookings').select('id').eq('id', bookingId).maybeSingle()
+  if (verifyBookingRes.error) {
+    return { ok: false, stage: 'verify_booking', error: verifyBookingRes.error.message, details }
+  }
+  if (verifyBookingRes.data) {
+    return { ok: false, stage: 'verify_booking', error: 'Booking still exists after rollback.', details }
+  }
+
+  if (ticketSnapshot?.id) {
+    const verifyTicket = await loadTicketSnapshot(supabase, ticketSnapshot.id)
+    if (!verifyTicket || Number(verifyTicket.remaining_count || 0) !== Number(ticketSnapshot.remaining_count || 0)) {
+      return {
+        ok: false,
+        stage: 'verify_ticket',
+        error: 'Ticket restore verification failed.',
+        details: {
+          ...details,
+          expectedTicketRemaining: Number(ticketSnapshot.remaining_count || 0),
+          actualTicketRemaining: Number(verifyTicket?.remaining_count || 0),
+        },
+      }
+    }
+  }
+
+  return { ok: true, details }
+}
+
 export async function POST(request) {
   try {
     const authSupabase = getServerClient()
@@ -104,6 +188,7 @@ export async function POST(request) {
     }
 
     let userTicket = null
+    let originalTicketSnapshot = null
     if (userTicketId) {
       const ticketRes = await supabase
         .from('user_tickets')
@@ -124,6 +209,7 @@ export async function POST(request) {
       if (Number.isFinite(ticketServiceId) && ticketServiceId !== Number(context.service.id)) {
         return NextResponse.json({ error: 'Ticket does not match this service.' }, { status: 400 })
       }
+      originalTicketSnapshot = await loadTicketSnapshot(supabase, userTicket.id)
       finalPrice = 0
     }
 
@@ -156,13 +242,37 @@ export async function POST(request) {
     }
 
     if (userTicket) {
-      const { error: ticketUpdateError } = await supabase
-        .from('user_tickets')
-        .update({ remaining_count: Number(userTicket.remaining_count || 0) - 1 })
-        .eq('id', userTicket.id)
-      if (ticketUpdateError) {
-        await supabase.from('bookings').delete().eq('id', inserted.id)
-        return NextResponse.json({ error: 'Ticket deduction failed: ' + ticketUpdateError.message }, { status: 500 })
+      try {
+        await updateTicketRemainingCount(supabase, userTicket.id, Number(userTicket.remaining_count || 0) - 1)
+      } catch (ticketUpdateError) {
+        const rollbackResult = await rollbackCreateBooking({
+          supabase,
+          bookingId: inserted.id,
+          ticketSnapshot: originalTicketSnapshot,
+        })
+        if (!rollbackResult.ok) {
+          return NextResponse.json(
+            {
+              error: 'Ticket deduction failed and rollback could not be fully verified.',
+              code: 'create_rollback_failed',
+              details: {
+                originalError: ticketUpdateError?.message || 'Ticket deduction failed.',
+                rollbackStage: rollbackResult.stage,
+                rollbackError: rollbackResult.error,
+                rollbackDetails: rollbackResult.details,
+              },
+            },
+            { status: 500 },
+          )
+        }
+        return NextResponse.json(
+          {
+            error: 'Ticket deduction failed: ' + (ticketUpdateError?.message || 'Unknown error'),
+            code: 'ticket_deduction_failed',
+            details: { rollbackVerified: true },
+          },
+          { status: 500 },
+        )
       }
     }
 
@@ -174,27 +284,65 @@ export async function POST(request) {
     if (allocationPayload.length > 0) {
       const { error: allocationError } = await supabase.from('booking_resource_allocations').insert(allocationPayload)
       if (allocationError) {
-        await supabase.from('bookings').delete().eq('id', inserted.id)
-        if (userTicket) {
-          await supabase
-            .from('user_tickets')
-            .update({ remaining_count: Number(userTicket.remaining_count || 0) })
-            .eq('id', userTicket.id)
+        const rollbackResult = await rollbackCreateBooking({
+          supabase,
+          bookingId: inserted.id,
+          ticketSnapshot: originalTicketSnapshot,
+        })
+        if (!rollbackResult.ok) {
+          return NextResponse.json(
+            {
+              error: 'Resource allocation failed and rollback could not be fully verified.',
+              code: 'create_rollback_failed',
+              details: {
+                originalError: allocationError.message,
+                rollbackStage: rollbackResult.stage,
+                rollbackError: rollbackResult.error,
+                rollbackDetails: rollbackResult.details,
+              },
+            },
+            { status: 500 },
+          )
         }
-        return NextResponse.json({ error: 'Resource allocation failed: ' + allocationError.message, code: 'resource_full' }, { status: 500 })
+        return NextResponse.json({ error: 'Resource allocation failed: ' + allocationError.message, code: 'resource_full', details: { rollbackVerified: true } }, { status: 500 })
       }
 
       const verifyAllocationsRes = await supabase.from('booking_resource_allocations').select('id').eq('booking_id', inserted.id)
       if (verifyAllocationsRes.error || (verifyAllocationsRes.data || []).length < allocationPayload.length) {
-        await supabase.from('booking_resource_allocations').delete().eq('booking_id', inserted.id)
-        await supabase.from('bookings').delete().eq('id', inserted.id)
-        if (userTicket) {
-          await supabase
-            .from('user_tickets')
-            .update({ remaining_count: Number(userTicket.remaining_count || 0) })
-            .eq('id', userTicket.id)
+        const rollbackResult = await rollbackCreateBooking({
+          supabase,
+          bookingId: inserted.id,
+          ticketSnapshot: originalTicketSnapshot,
+        })
+        if (!rollbackResult.ok) {
+          return NextResponse.json(
+            {
+              error: 'Resource allocation verification failed and rollback could not be fully verified.',
+              code: 'create_rollback_failed',
+              details: {
+                originalError: verifyAllocationsRes.error?.message || 'Resource allocation verification failed.',
+                rollbackStage: rollbackResult.stage,
+                rollbackError: rollbackResult.error,
+                rollbackDetails: rollbackResult.details,
+                expectedAllocationCount: allocationPayload.length,
+                actualAllocationCount: (verifyAllocationsRes.data || []).length,
+              },
+            },
+            { status: 500 },
+          )
         }
-        return NextResponse.json({ error: 'Resource allocation verification failed.', code: 'resource_full' }, { status: 500 })
+        return NextResponse.json(
+          {
+            error: 'Resource allocation verification failed.',
+            code: 'resource_full',
+            details: {
+              rollbackVerified: true,
+              expectedAllocationCount: allocationPayload.length,
+              actualAllocationCount: (verifyAllocationsRes.data || []).length,
+            },
+          },
+          { status: 500 },
+        )
       }
     }
 
