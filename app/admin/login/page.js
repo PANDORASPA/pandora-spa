@@ -44,7 +44,6 @@ function AdminLoginInner() {
 
     try {
       const supabase = getBrowserClient()
-
       const {
         data: signInData,
         error: signInError,
@@ -54,7 +53,7 @@ function AdminLoginInner() {
 
       const signedInUser = signInData?.user
       if (!signedInUser) {
-        throw new Error('登入成功，但未取得使用者 session。')
+        throw new Error('登入成功，但未取得有效的使用者 session。')
       }
 
       const { data: profile, error: profileError } = await supabase
@@ -92,7 +91,7 @@ function AdminLoginInner() {
     <>
       <section style={{ padding: '40px 16px', background: '#F4EFE8', textAlign: 'center' }}>
         <h1 style={{ fontSize: '30px', marginBottom: '8px' }}>管理員登入</h1>
-        <p style={{ color: '#666' }}>只有已開通管理員權限的帳號可以進入後台。</p>
+        <p style={{ color: '#666' }}>只有已開通管理員權限的帳號才可以進入後台。</p>
       </section>
 
       <section style={{ padding: '32px 16px' }}>
@@ -126,7 +125,7 @@ function AdminLoginInner() {
               className="btn btn-interactive"
               style={{ width: '100%', background: '#3D3D3D', color: '#fff', padding: '12px', borderRadius: '12px', fontWeight: 700 }}
             >
-              {loading ? '登入中…' : '登入後台'}
+              {loading ? '登入中...' : '登入後台'}
             </button>
           </form>
 
