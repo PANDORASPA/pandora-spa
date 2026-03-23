@@ -25,7 +25,7 @@ function LoginInner() {
     }
 
     if (message === 'confirm_failed') {
-      toast.error('電郵確認失敗，請重新開啟確認信或再次登入。')
+      toast.error('電郵確認失敗，請重新點擊確認信後再登入。')
     }
 
     supabase.auth.getUser().then(({ data }) => {
@@ -38,12 +38,15 @@ function LoginInner() {
     setLoading(true)
     try {
       const supabase = getBrowserClient()
-      const { error } = await supabase.auth.signInWithPassword({ email: String(email).trim(), password })
+      const { error } = await supabase.auth.signInWithPassword({
+        email: String(email).trim(),
+        password,
+      })
       if (error) throw error
       toast.success('登入成功')
       router.replace(redirectTo)
     } catch (error) {
-      toast.error('登入失敗：' + (error?.message || '請稍後再試'))
+      toast.error(`登入失敗：${error?.message || '請稍後再試。'}`)
     } finally {
       setLoading(false)
     }
@@ -53,7 +56,7 @@ function LoginInner() {
     <>
       <section style={{ padding: '30px 16px', background: '#FAF8F5', textAlign: 'center' }}>
         <h1 style={{ fontSize: '28px' }}>
-          登入<span style={{ color: '#A68B6A' }}>會員</span>
+          登入<span style={{ color: '#A68B6A' }}>帳號</span>
         </h1>
       </section>
 
@@ -70,7 +73,7 @@ function LoginInner() {
         >
           <form onSubmit={handleLogin} style={{ display: 'grid', gap: '14px' }}>
             <div>
-              <label style={{ display: 'block', fontWeight: 600, marginBottom: '6px' }}>電郵</label>
+              <label style={{ display: 'block', fontWeight: 600, marginBottom: '6px' }}>電郵地址</label>
               <input
                 type="email"
                 value={email}
@@ -99,7 +102,7 @@ function LoginInner() {
               className="btn btn-interactive"
               style={{ width: '100%', background: '#A68B6A', color: '#fff', padding: '12px', borderRadius: '12px', fontWeight: 700 }}
             >
-              {loading ? '登入中…' : '登入'}
+              {loading ? '登入中...' : '登入'}
             </button>
           </form>
 
