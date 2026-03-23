@@ -53,16 +53,21 @@ const enrichProfilesWithAuth = async (serviceSupabase, profiles = []) => {
       try {
         const authResult = await serviceSupabase.auth.admin.getUserById(profile.id)
         const authUser = authResult?.data?.user || null
+        const hasProfileCore = Boolean(profile?.full_name && profile?.phone && (profile?.email || authUser?.email))
         return {
           ...profile,
           auth_user_exists: Boolean(authUser?.id),
           auth_email: authUser?.email || null,
+          account_status: !authUser?.id ? 'profile_only' : hasProfileCore ? 'ready' : 'profile_incomplete',
+          can_access_admin: Boolean(authUser?.id) && profile?.is_admin === true,
         }
       } catch {
         return {
           ...profile,
           auth_user_exists: false,
           auth_email: null,
+          account_status: 'profile_only',
+          can_access_admin: false,
         }
       }
     }),
