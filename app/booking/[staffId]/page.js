@@ -544,11 +544,13 @@ export default function BookingStaffPage() {
       }
     }
 
+    const syncTimer = window.setInterval(syncAvailabilityVersion, 30_000)
     window.addEventListener('focus', syncAvailabilityVersion)
     document.addEventListener('visibilitychange', handleVisibility)
 
     return () => {
       disposed = true
+      window.clearInterval(syncTimer)
       window.removeEventListener('focus', syncAvailabilityVersion)
       document.removeEventListener('visibilitychange', handleVisibility)
     }
