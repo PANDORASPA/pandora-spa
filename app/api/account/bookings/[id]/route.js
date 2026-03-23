@@ -42,6 +42,12 @@ const restoreTicketIfNeeded = async (supabase, booking) => {
   if (updateRes.error) throw updateRes.error
 }
 
+const revertCancelledStatusIfNeeded = async (supabase, bookingId, userId, previousStatus) => {
+  const nextStatus = String(previousStatus || '').trim() || 'pending'
+  const { error } = await supabase.from('bookings').update({ status: nextStatus }).eq('id', bookingId).eq('user_id', userId)
+  if (error) throw error
+}
+
 const normalizeAllocationRows = (rows) =>
   (rows || []).map((row) => ({
     booking_id: row.booking_id,
@@ -158,8 +164,6 @@ export async function PATCH(request, { params }) {
       shouldAllowSmokeFault && request.headers.get('x-smoke-force-allocation-fail') === '1'
 
     if (action === 'cancel') {
-      await restoreTicketIfNeeded(supabase, existingBooking)
-
       const { data, error } = await supabase
         .from('bookings')
         .update({ status: 'cancelled' })
@@ -169,6 +173,34 @@ export async function PATCH(request, { params }) {
         .single()
 
       if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+      try {
+        await restoreTicketIfNeeded(supabase, existingBooking)
+      } catch (ticketRestoreError) {
+        try {
+          await revertCancelledStatusIfNeeded(supabase, bookingId, user.id, existingBooking.status)
+        } catch (revertError) {
+          return NextResponse.json(
+            {
+              error: 'Ticket restore failed after cancellation, and booking status could not be restored.',
+              code: 'cancel_rollback_failed',
+              details: {
+                originalError: ticketRestoreError?.message || 'Ticket restore failed.',
+                revertError: revertError?.message || 'Status revert failed.',
+              },
+            },
+            { status: 500 },
+          )
+        }
+
+        return NextResponse.json(
+          {
+            error: 'Ticket restore failed after cancellation.',
+            code: 'ticket_restore_failed',
+            details: { rollbackVerified: true, originalError: ticketRestoreError?.message || 'Ticket restore failed.' },
+          },
+          { status: 500 },
+        )
+      }
       return NextResponse.json({ booking: data }, { status: 200 })
     }
 
