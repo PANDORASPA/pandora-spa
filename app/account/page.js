@@ -71,7 +71,15 @@ export default async function Account() {
             <Link
               href="/services"
               className="btn btn-interactive"
-              style={{ background: '#fff', color: '#333', padding: '14px', borderRadius: '12px', fontWeight: 700, textAlign: 'center', border: '1px solid #e5e7eb' }}
+              style={{
+                background: '#fff',
+                color: '#333',
+                padding: '14px',
+                borderRadius: '12px',
+                fontWeight: 700,
+                textAlign: 'center',
+                border: '1px solid #e5e7eb',
+              }}
             >
               查看服務與套票
             </Link>
