@@ -33,23 +33,23 @@ function RegisterInner() {
 
   const validateForm = () => {
     if (!String(fullName).trim()) {
-      toast.error('請填寫姓名')
+      toast.error('請輸入姓名。')
       return false
     }
     if (!String(phone).trim()) {
-      toast.error('請填寫電話')
+      toast.error('請輸入電話。')
       return false
     }
     if (!String(email).trim()) {
-      toast.error('請填寫電郵')
+      toast.error('請輸入電郵。')
       return false
     }
     if (!String(password).trim()) {
-      toast.error('請填寫密碼')
+      toast.error('請輸入密碼。')
       return false
     }
     if (password !== confirmPassword) {
-      toast.error('兩次輸入的密碼不一致')
+      toast.error('兩次輸入的密碼不一致。')
       return false
     }
     return true
@@ -96,14 +96,14 @@ function RegisterInner() {
       }
 
       if (data?.session) {
-        toast.success('註冊成功，正在進入會員中心')
+        toast.success('註冊成功，正在進入會員中心。')
         router.replace(redirectTo)
       } else {
-        toast.success('註冊成功，請到電郵完成確認。確認後會自動進入會員中心。')
+        toast.success('註冊成功，請先完成電郵確認。確認後會自動回到會員中心。')
         router.replace(`/login?redirectTo=${encodeURIComponent(redirectTo)}`)
       }
     } catch (error) {
-      toast.error(`註冊失敗：${error?.message || '請稍後再試'}`)
+      toast.error(`註冊失敗：${error?.message || '請稍後再試。'}`)
     } finally {
       setLoading(false)
     }
@@ -113,8 +113,7 @@ function RegisterInner() {
     <>
       <section style={{ padding: '30px 16px', background: '#FAF8F5', textAlign: 'center' }}>
         <h1 style={{ fontSize: '28px' }}>
-          註冊
-          <span style={{ color: '#A68B6A' }}>會員</span>
+          註冊<span style={{ color: '#A68B6A' }}>帳號</span>
         </h1>
       </section>
 
@@ -155,7 +154,7 @@ function RegisterInner() {
             </div>
 
             <div>
-              <label style={{ display: 'block', fontWeight: 600, marginBottom: '6px' }}>電郵</label>
+              <label style={{ display: 'block', fontWeight: 600, marginBottom: '6px' }}>電郵地址</label>
               <input
                 type="email"
                 value={email}
@@ -196,12 +195,12 @@ function RegisterInner() {
               className="btn btn-interactive"
               style={{ width: '100%', background: '#A68B6A', color: '#fff', padding: '12px', borderRadius: '12px', fontWeight: 700 }}
             >
-              {loading ? '註冊中…' : '註冊'}
+              {loading ? '註冊中...' : '註冊'}
             </button>
           </form>
 
           <div style={{ marginTop: '16px', display: 'grid', gap: '10px', fontSize: '14px', color: '#6B7280' }}>
-            <div>註冊成功後，請到電郵完成確認。確認連結會把你帶回會員中心。</div>
+            <div>註冊成功後，請先完成電郵確認。確認後會自動返回會員中心。</div>
             <Link href={`/login?redirectTo=${encodeURIComponent(redirectTo)}`} style={{ color: '#A68B6A', fontWeight: 700 }}>
               返回登入
             </Link>
