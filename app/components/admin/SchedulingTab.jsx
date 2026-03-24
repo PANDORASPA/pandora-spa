@@ -42,6 +42,8 @@ const buildMonthGrid = (monthKey) => {
 }
 
 const formatTime = (value) => String(value || '').slice(0, 5)
+const DEFAULT_SHIFT_START = '11:00'
+const DEFAULT_SHIFT_END = '20:00'
 const CALENDAR_LIMITED_LABEL = '上班 / 規則限制'
 const CALENDAR_LIMITED_HINTS = {
   provider_mismatch: '目前所選服務與服務供應者設定未能對上，暫時不會顯示可預約時段。',
@@ -261,7 +263,7 @@ const getSelectedDatePlan = ({
   }
 }
 
-function RowsEditor({ title, description, emptyDescription, rows, onAdd, onRemove, renderRow, setRows }) {
+function RowsEditor({ title, description, emptyDescription, rows, onAdd, onRemove, renderRow, setRows, compact = false }) {
   return (
     <div className="admin-card" style={{ ...cardStyle, display: 'grid', gap: '14px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
@@ -283,9 +285,13 @@ function RowsEditor({ title, description, emptyDescription, rows, onAdd, onRemov
               key={row.id}
               style={{
                 display: 'grid',
-                gridTemplateColumns: 'minmax(130px, 1.2fr) repeat(3, minmax(110px, 0.9fr)) 88px',
+                gridTemplateColumns: compact ? '1fr' : 'minmax(130px, 1.2fr) repeat(3, minmax(110px, 0.9fr)) 88px',
                 gap: '10px',
                 alignItems: 'center',
+                padding: compact ? '12px' : '0',
+                border: compact ? '1px solid #E5E7EB' : 'none',
+                borderRadius: compact ? '14px' : '0',
+                background: compact ? '#FAFAF8' : 'transparent',
               }}
             >
               {renderRow(row, (patch) => setRows((current) => current.map((item) => (item.id === row.id ? { ...item, ...patch } : item))))}
@@ -293,7 +299,7 @@ function RowsEditor({ title, description, emptyDescription, rows, onAdd, onRemov
                 type="button"
                 className="btn btn-small btn-interactive"
                 onClick={() => onRemove(row.id)}
-                style={{ background: '#FEF2F2', color: '#B91C1C' }}
+                style={{ background: '#FEF2F2', color: '#B91C1C', width: compact ? '100%' : 'auto' }}
               >
                 刪除
               </button>
@@ -770,7 +776,7 @@ export default function SchedulingTab({
                         key={day.key}
                         style={{
                           ...cardStyle,
-                          minHeight: '240px',
+                          minHeight: compact ? 'auto' : '240px',
                           padding: '14px',
                           display: 'grid',
                           gap: '12px',
@@ -778,12 +784,12 @@ export default function SchedulingTab({
                           borderColor: isOff ? '#E5E7EB' : 'rgba(166, 139, 106, 0.18)',
                         }}
                       >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', alignItems: 'flex-start' }}>
+                        <div style={{ display: 'flex', flexDirection: compact ? 'column' : 'row', justifyContent: 'space-between', gap: '10px', alignItems: compact ? 'stretch' : 'flex-start' }}>
                           <div>
                             <div style={{ fontSize: '12px', color: '#A68B6A', fontWeight: 800 }}>{day.label}</div>
                             <div style={{ marginTop: '4px', fontSize: '18px', fontWeight: 900 }}>{day.label}</div>
                           </div>
-                          <div style={{ display: 'inline-flex', gap: '6px', alignItems: 'center' }}>
+                          <div style={{ display: 'inline-flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
                             <button type="button" onClick={() => onSetDailyMode(selectedStaff.id, day.key, 'work')} style={dayModeButtonStyle(!isOff)}>
                               上班
                             </button>
@@ -818,6 +824,7 @@ export default function SchedulingTab({
                             {isOff ? '前台不會顯示可預約時段' : hasWorkingHours ? `${formatTime(schedule.start)} - ${formatTime(schedule.end)}` : '請先設定上班與下班時間'}
                           </div>
                         </div>
+                        {compact ? <div style={{ fontSize: '12px', color: '#6B7280' }}>{isOff ? '休息時，前台不會顯示可預約時段。' : '手機版可先切換上班/休息，再設定時間。'}</div> : null}
                       </div>
                     )
                   })}
@@ -833,11 +840,12 @@ export default function SchedulingTab({
               onAdd={() =>
                 setShiftRows((current) => [
                   ...current,
-                  { id: nextTempId(), staff_id: selectedStaff.id, date: todayISO(), start_time: '11:00', end_time: '20:00', is_off: false },
+                  { id: nextTempId(), staff_id: selectedStaff.id, date: todayISO(), start_time: DEFAULT_SHIFT_START, end_time: DEFAULT_SHIFT_END, is_off: false },
                 ])
               }
               onRemove={(id) => removeRow(setShiftRows, setShiftDeletedIds, id)}
               setRows={setShiftRows}
+              compact={compact}
               renderRow={(row, update) => (
                 <>
                   <input type="date" value={row.date || ''} onChange={(event) => update({ date: event.target.value })} style={smallFieldStyle} />
@@ -863,6 +871,7 @@ export default function SchedulingTab({
               onAdd={() => setBreakRows((current) => [...current, { id: nextTempId(), staff_id: selectedStaff.id, day_of_week: '1', start_time: '13:00', end_time: '14:00', label: '', enabled: true }])}
               onRemove={(id) => removeRow(setBreakRows, setBreakDeletedIds, id)}
               setRows={setBreakRows}
+              compact={compact}
               renderRow={(row, update) => (
                 <>
                   <select value={row.day_of_week ?? '1'} onChange={(event) => update({ day_of_week: event.target.value })} style={smallFieldStyle}>
@@ -887,11 +896,12 @@ export default function SchedulingTab({
               onAdd={() =>
                 setTimeOffRows((current) => [
                   ...current,
-                  { id: nextTempId(), staff_id: selectedStaff.id, date: todayISO(), start_time: '11:00', end_time: '20:00', reason: '', is_all_day: false },
+                  { id: nextTempId(), staff_id: selectedStaff.id, date: todayISO(), start_time: DEFAULT_SHIFT_START, end_time: DEFAULT_SHIFT_END, reason: '', is_all_day: false },
                 ])
               }
               onRemove={(id) => removeRow(setTimeOffRows, setTimeOffDeletedIds, id)}
               setRows={setTimeOffRows}
+              compact={compact}
               renderRow={(row, update) => (
                 <>
                   <input type="date" value={row.date || ''} onChange={(event) => update({ date: event.target.value })} style={smallFieldStyle} />
@@ -905,12 +915,21 @@ export default function SchedulingTab({
                         update(
                           event.target.checked
                             ? { is_all_day: true, start_time: '00:00', end_time: '23:59' }
-                            : { is_all_day: false, start_time: row.start_time || '11:00', end_time: row.end_time || '20:00' }
+                            : {
+                                is_all_day: false,
+                                start_time: row.start_time && row.start_time !== '00:00' ? row.start_time : DEFAULT_SHIFT_START,
+                                end_time: row.end_time && row.end_time !== '23:59' ? row.end_time : DEFAULT_SHIFT_END,
+                              }
                         )
                       }
                     />
                     全天
                   </label>
+                  {compact ? (
+                    <div style={{ fontSize: '12px', color: '#6B7280' }}>
+                      {row.is_all_day ? '全天休假會固定儲存為 00:00 - 23:59。' : '請設定有效的開始與結束時間。'}
+                    </div>
+                  ) : null}
                 </>
               )}
             />
@@ -923,6 +942,7 @@ export default function SchedulingTab({
               onAdd={() => setBlockedRows((current) => [...current, { id: nextTempId(), staff_id: selectedStaff.id, date: todayISO(), start_time: '11:00', end_time: '12:00', reason: '', source: 'manual' }])}
               onRemove={(id) => removeRow(setBlockedRows, setBlockedDeletedIds, id)}
               setRows={setBlockedRows}
+              compact={compact}
               renderRow={(row, update) => (
                 <>
                   <input type="date" value={row.date || ''} onChange={(event) => update({ date: event.target.value })} style={smallFieldStyle} />
