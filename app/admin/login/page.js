@@ -44,10 +44,11 @@ function AdminLoginInner() {
 
     try {
       const supabase = getBrowserClient()
+      const normalizedEmail = String(email || '').trim().toLowerCase()
       const {
         data: signInData,
         error: signInError,
-      } = await supabase.auth.signInWithPassword({ email, password })
+      } = await supabase.auth.signInWithPassword({ email: normalizedEmail, password })
 
       if (signInError) throw signInError
 
