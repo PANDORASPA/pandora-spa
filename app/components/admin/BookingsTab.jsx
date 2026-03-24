@@ -295,47 +295,49 @@ export default function BookingsTab({
           </div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: '8px' }}>
-          {WEEKDAY_LABELS.map((label) => (
-            <div key={label} style={{ padding: '6px 8px', fontSize: '12px', fontWeight: 800, color: '#A68B6A', textAlign: 'center' }}>星期{label}</div>
-          ))}
-          {calendarCells.map((cell) => {
-            const daySummary = bookingsByDate[cell.iso]
-            const isSelected = dateFromFilter && dateToFilter && dateFromFilter === dateToFilter && dateFromFilter === cell.iso
-            return (
-              <button
-                key={cell.iso}
-                type="button"
-                onClick={() => { setDateFromFilter(cell.iso); setDateToFilter(cell.iso) }}
-                style={{
-                  minHeight: '112px',
-                  borderRadius: '14px',
-                  border: `1px solid ${isSelected ? 'rgba(166, 139, 106, 0.52)' : '#EEE7DE'}`,
-                  background: isSelected ? 'linear-gradient(180deg, #fff, #FBF8F4)' : '#fff',
-                  padding: '12px',
-                  textAlign: 'left',
-                  color: cell.inMonth ? 'var(--text)' : '#C8BFB3',
-                  cursor: 'pointer',
-                  display: 'grid',
-                  alignContent: 'space-between',
-                  gap: '10px',
-                }}
-              >
-                <div style={{ fontSize: '20px', fontWeight: 800 }}>{String(cell.day).padStart(2, '0')}</div>
-                {daySummary ? (
-                  <div style={{ display: 'grid', gap: '6px' }}>
-                    <div style={{ fontSize: '13px', fontWeight: 800 }}>{daySummary.total} 筆預約</div>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                      {daySummary.pending > 0 ? <Pill tone="warning">{daySummary.pending} 待處理</Pill> : null}
-                      {daySummary.confirmed > 0 ? <Pill tone="success">{daySummary.confirmed} 已確認</Pill> : null}
-                      {daySummary.completed > 0 ? <Pill>{daySummary.completed} 已完成</Pill> : null}
-                      {daySummary.cancelled > 0 ? <Pill tone="danger">{daySummary.cancelled} 已取消</Pill> : null}
+        <div className="hide-scrollbar" style={{ overflowX: 'auto', margin: '0 -18px', padding: '0 18px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(80px, 1fr))', gap: '8px', minWidth: '600px' }}>
+            {WEEKDAY_LABELS.map((label) => (
+              <div key={label} style={{ padding: '6px 4px', fontSize: '12px', fontWeight: 800, color: '#A68B6A', textAlign: 'center' }}>星期{label}</div>
+            ))}
+            {calendarCells.map((cell) => {
+              const daySummary = bookingsByDate[cell.iso]
+              const isSelected = dateFromFilter && dateToFilter && dateFromFilter === dateToFilter && dateFromFilter === cell.iso
+              return (
+                <button
+                  key={cell.iso}
+                  type="button"
+                  onClick={() => { setDateFromFilter(cell.iso); setDateToFilter(cell.iso) }}
+                  style={{
+                    minHeight: '112px',
+                    borderRadius: '14px',
+                    border: `1px solid ${isSelected ? 'rgba(166, 139, 106, 0.52)' : '#EEE7DE'}`,
+                    background: isSelected ? 'linear-gradient(180deg, #fff, #FBF8F4)' : '#fff',
+                    padding: '8px',
+                    textAlign: 'left',
+                    color: cell.inMonth ? 'var(--text)' : '#C8BFB3',
+                    cursor: 'pointer',
+                    display: 'grid',
+                    alignContent: 'space-between',
+                    gap: '8px',
+                  }}
+                >
+                  <div style={{ fontSize: '16px', fontWeight: 800 }}>{String(cell.day).padStart(2, '0')}</div>
+                  {daySummary ? (
+                    <div style={{ display: 'grid', gap: '4px' }}>
+                      <div style={{ fontSize: '11px', fontWeight: 800 }}>{daySummary.total} 筆</div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                        {daySummary.pending > 0 ? <Pill tone="warning">{daySummary.pending} 待處理</Pill> : null}
+                        {daySummary.confirmed > 0 ? <Pill tone="success">{daySummary.confirmed} 已確認</Pill> : null}
+                        {daySummary.completed > 0 ? <Pill>{daySummary.completed} 已完成</Pill> : null}
+                        {daySummary.cancelled > 0 ? <Pill tone="danger">{daySummary.cancelled} 已取消</Pill> : null}
+                      </div>
                     </div>
-                  </div>
-                ) : <div style={{ fontSize: '12px', color: 'var(--text-light)' }}>沒有預約</div>}
-              </button>
-            )
-          })}
+                  ) : <div style={{ fontSize: '11px', color: 'var(--text-light)' }}>沒有預約</div>}
+                </button>
+              )
+            })}
+          </div>
         </div>
       </div>
 
