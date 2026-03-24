@@ -327,8 +327,8 @@ export default function OrdersTab({
       </div>
 
       <div className="admin-card" style={{ overflow: 'hidden' }}>
-        <div className="hide-scrollbar" style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', minWidth: '1180px' }}>
+        <div className="hide-scrollbar" style={{ overflowX: 'auto', margin: '0', padding: '0' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', minWidth: '1000px' }}>
             <thead>
               <tr style={{ background: '#FAF8F5', borderBottom: '1px solid var(--gray)' }}>
                 <th style={{ padding: '14px 12px', textAlign: 'left', color: 'var(--text-light)' }}>日期</th>
