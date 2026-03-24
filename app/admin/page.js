@@ -613,8 +613,10 @@ const normalizeNullableNumber = (value) => {
         payload.start_time = '00:00'
         payload.end_time = '23:59'
       } else {
-        payload.start_time = payload.start_time ? String(payload.start_time).substring(0, 5) : null
-        payload.end_time = payload.end_time ? String(payload.end_time).substring(0, 5) : null
+        const nextStart = typeof payload.start_time === 'string' ? payload.start_time.trim() : payload.start_time
+        const nextEnd = typeof payload.end_time === 'string' ? payload.end_time.trim() : payload.end_time
+        payload.start_time = nextStart ? String(nextStart).substring(0, 5) : null
+        payload.end_time = nextEnd ? String(nextEnd).substring(0, 5) : null
       }
     }
 
@@ -627,7 +629,6 @@ const normalizeNullableNumber = (value) => {
   }
 
   const ensureValidTimeRange = ({ table, row, label }) => {
-    if (row?.is_off) return row
     if (table === 'staff_time_off' && row?.is_all_day) {
       return {
         ...row,
@@ -635,6 +636,7 @@ const normalizeNullableNumber = (value) => {
         end_time: '23:59',
       }
     }
+    if (row?.is_off) return row
 
     if (!row?.start_time || !row?.end_time) {
       throw new Error(`${label}需要同時設定開始與結束時間`)
@@ -724,18 +726,34 @@ const normalizeNullableNumber = (value) => {
     }
   }
 
-    const saveScheduleTable = async ({ table, rows = [], deletedIds = [], onConflict }, options = {}) => {
-      const silentSuccess = Boolean(options?.silentSuccess)
-      try {
-        const normalizedRows = (rows || [])
-          .filter((row) => !row?.__deleted)
-          .map((row) => {
-            const payload = normalizeScheduleTablePayload({ table, row: stripTransientFields({ ...row }) })
-            if (payload.staff_id != null && payload.staff_id !== '') payload.staff_id = Number(payload.staff_id)
-            if (payload.date) payload.date = String(payload.date).substring(0, 10)
-            if (payload.start_time) payload.start_time = String(payload.start_time).substring(0, 5)
-            else if (payload.start_time === '') payload.start_time = null
-            if (payload.end_time) payload.end_time = String(payload.end_time).substring(0, 5)
+  const saveScheduleTable = async ({ table, rows = [], deletedIds = [], onConflict }, options = {}) => {
+    const silentSuccess = Boolean(options?.silentSuccess)
+    try {
+      const normalizedRows = (rows || [])
+        .filter((row) => !row?.__deleted)
+        .map((row) => {
+          const payload = normalizeScheduleTablePayload({ table, row: stripTransientFields({ ...row }) })
+          if (table === 'staff_time_off') {
+            payload.is_all_day = Boolean(payload.is_all_day)
+            if (payload.is_all_day) {
+              payload.start_time = '00:00'
+              payload.end_time = '23:59'
+            } else {
+              payload.start_time =
+                typeof payload.start_time === 'string' && payload.start_time.trim()
+                  ? String(payload.start_time).substring(0, 5)
+                  : null
+              payload.end_time =
+                typeof payload.end_time === 'string' && payload.end_time.trim()
+                  ? String(payload.end_time).substring(0, 5)
+                  : null
+            }
+          }
+          if (payload.staff_id != null && payload.staff_id !== '') payload.staff_id = Number(payload.staff_id)
+          if (payload.date) payload.date = String(payload.date).substring(0, 10)
+          if (payload.start_time) payload.start_time = String(payload.start_time).substring(0, 5)
+          else if (payload.start_time === '') payload.start_time = null
+          if (payload.end_time) payload.end_time = String(payload.end_time).substring(0, 5)
           else if (payload.end_time === '') payload.end_time = null
           if (payload.day_of_week != null && payload.day_of_week !== '') payload.day_of_week = Number(payload.day_of_week)
           if (payload.is_off != null) payload.is_off = Boolean(payload.is_off)
