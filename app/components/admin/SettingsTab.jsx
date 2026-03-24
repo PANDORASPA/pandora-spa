@@ -153,7 +153,7 @@ export default function SettingsTab({
               <span style={{ fontSize: '13px', fontWeight: 800 }}>地址</span>
               <input type="text" value={draft.address || ''} onChange={(event) => updateSetting('address', event.target.value)} style={fieldStyle} placeholder="輸入完整店舖地址" />
             </label>
-            <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px', overflowX: 'auto' }}>
               <label style={{ display: 'grid', gap: '8px' }}>
                 <span style={{ fontSize: '13px', fontWeight: 800 }}>電話 / WhatsApp</span>
                 <input type="text" value={draft.phone || ''} onChange={(event) => updateSetting('phone', event.target.value)} style={fieldStyle} placeholder="+852 1234 5678" />
@@ -186,7 +186,7 @@ export default function SettingsTab({
                 />
               </div>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px', overflowX: 'auto' }}>
               <label style={{ display: 'grid', gap: '8px' }}>
                 <span style={{ fontSize: '13px', fontWeight: 800 }}>時段步幅（分鐘）</span>
                 <select value={String(draft.slot_step_min || '30')} onChange={(event) => updateSetting('slot_step_min', event.target.value)} style={fieldStyle}>
