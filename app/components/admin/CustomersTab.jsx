@@ -189,7 +189,7 @@ export default function CustomersTab({
         </select>
       </RecordFilterBar>
 
-      <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : 'repeat(4, minmax(0, 1fr))', gap: '12px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : 'repeat(4, minmax(0, 1fr))', gap: '12px', overflowX: 'auto', paddingBottom: '4px' }}>
         <SummaryPill label="會員帳號" value={accountRows.length} />
         <SummaryPill label="已啟用" value={accountRows.filter((item) => item.__status?.label === '已啟用').length} tone="success" />
         <SummaryPill label="未完成註冊" value={accountRows.filter((item) => item.__status?.label === '未完成註冊').length} tone="warning" />
