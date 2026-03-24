@@ -852,7 +852,11 @@ export default function SchedulingTab({
                   <input type="time" value={row.start_time || ''} onChange={(event) => update({ start_time: event.target.value })} style={smallFieldStyle} disabled={row.is_off} />
                   <input type="time" value={row.end_time || ''} onChange={(event) => update({ end_time: event.target.value })} style={smallFieldStyle} disabled={row.is_off} />
                   <div style={{ display: 'inline-flex', gap: '6px', alignItems: 'center' }}>
-                    <button type="button" onClick={() => update({ is_off: false })} style={dayModeButtonStyle(!row.is_off)}>
+                    <button
+                      type="button"
+                      onClick={() => update({ is_off: false, start_time: row.start_time || DEFAULT_SHIFT_START, end_time: row.end_time || DEFAULT_SHIFT_END })}
+                      style={dayModeButtonStyle(!row.is_off)}
+                    >
                       上班
                     </button>
                     <button type="button" onClick={() => update({ is_off: true, start_time: '', end_time: '' })} style={dayModeButtonStyle(Boolean(row.is_off))}>
