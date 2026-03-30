@@ -6,6 +6,13 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'react-hot-toast'
 import { getBrowserClient } from '../../lib/supabase/browser'
 
+const getSiteUrl = () => {
+  const configured = String(process.env.NEXT_PUBLIC_SITE_URL || '').trim()
+  if (configured) return configured.replace(/\/+$/, '')
+  if (typeof window !== 'undefined') return window.location.origin
+  return ''
+}
+
 function RegisterInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -33,23 +40,27 @@ function RegisterInner() {
 
   const validateForm = () => {
     if (!String(fullName).trim()) {
-      toast.error('請輸入姓名。')
+      toast.error('請輸入姓名')
       return false
     }
     if (!String(phone).trim()) {
-      toast.error('請輸入電話。')
+      toast.error('請輸入電話')
       return false
     }
     if (!String(email).trim()) {
-      toast.error('請輸入電郵。')
+      toast.error('請輸入電郵地址')
       return false
     }
     if (!String(password).trim()) {
-      toast.error('請輸入密碼。')
+      toast.error('請輸入密碼')
+      return false
+    }
+    if (String(password).length < 6) {
+      toast.error('密碼至少需要 6 個字元')
       return false
     }
     if (password !== confirmPassword) {
-      toast.error('兩次輸入的密碼不一致。')
+      toast.error('兩次輸入的密碼不一致')
       return false
     }
     return true
@@ -65,8 +76,8 @@ function RegisterInner() {
       const trimmedName = String(fullName).trim()
       const trimmedPhone = String(phone).trim()
       const trimmedEmail = String(email).trim().toLowerCase()
-      const origin = typeof window !== 'undefined' ? window.location.origin : ''
-      const emailRedirectTo = origin ? `${origin}/auth/callback?next=${encodeURIComponent(redirectTo)}` : undefined
+      const siteUrl = getSiteUrl()
+      const emailRedirectTo = siteUrl ? `${siteUrl}/auth/callback?next=${encodeURIComponent('/account')}` : undefined
 
       const { data, error } = await supabase.auth.signUp({
         email: trimmedEmail,
@@ -82,28 +93,21 @@ function RegisterInner() {
 
       if (error) throw error
 
-      if (data?.user?.id) {
-        const { error: profileError } = await supabase.from('member_profiles').upsert(
-          {
-            id: data.user.id,
-            email: trimmedEmail,
-            full_name: trimmedName,
-            phone: trimmedPhone,
-          },
-          { onConflict: 'id' },
-        )
-        if (profileError) throw profileError
+      if (data?.session) {
+        toast.success('註冊成功，正在進入會員中心')
+        router.replace('/account')
+        return
       }
 
-      if (data?.session) {
-        toast.success('註冊成功，正在進入會員中心。')
-        router.replace(redirectTo)
-      } else {
-        toast.success('註冊成功，請先完成電郵確認。確認後會自動回到會員中心。')
-        router.replace(`/login?redirectTo=${encodeURIComponent(redirectTo)}`)
-      }
+      toast.success('註冊成功，請到電郵完成確認，確認後會自動進入會員中心')
+      router.replace(`/login?redirectTo=${encodeURIComponent('/account')}`)
     } catch (error) {
-      toast.error(`註冊失敗：${error?.message || '請稍後再試。'}`)
+      const message = String(error?.message || '').toLowerCase()
+      if (message.includes('user already registered')) {
+        toast.error('這個電郵已經註冊，請直接登入')
+      } else {
+        toast.error(`註冊失敗：${error?.message || '請稍後再試'}`)
+      }
     } finally {
       setLoading(false)
     }
@@ -113,7 +117,7 @@ function RegisterInner() {
     <>
       <section style={{ padding: '30px 16px', background: '#FAF8F5', textAlign: 'center' }}>
         <h1 style={{ fontSize: '28px' }}>
-          註冊<span style={{ color: '#A68B6A' }}>帳號</span>
+          註冊<span style={{ color: '#A68B6A' }}>會員</span>
         </h1>
       </section>
 
@@ -200,7 +204,7 @@ function RegisterInner() {
           </form>
 
           <div style={{ marginTop: '16px', display: 'grid', gap: '10px', fontSize: '14px', color: '#6B7280' }}>
-            <div>註冊成功後，請先完成電郵確認。確認後會自動返回會員中心。</div>
+            <div>註冊後請到電郵完成確認，確認成功後會自動進入會員中心。</div>
             <Link href={`/login?redirectTo=${encodeURIComponent(redirectTo)}`} style={{ color: '#A68B6A', fontWeight: 700 }}>
               返回登入
             </Link>
