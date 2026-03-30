@@ -1,9 +1,35 @@
 import { NextResponse } from 'next/server'
 import { getServerClient } from '../../../lib/supabase/server'
+import { getServiceClient } from '../../../lib/supabase/service'
 
 const getSafeNextPath = (nextValue) => {
   if (!nextValue || typeof nextValue !== 'string') return '/account'
   return nextValue.startsWith('/') ? nextValue : '/account'
+}
+
+const syncMemberProfile = async (user) => {
+  if (!user?.id) return { ok: false }
+
+  const serviceSupabase = getServiceClient()
+  const metadata = user.user_metadata || {}
+  const fullName = String(metadata.full_name || '').trim()
+  const phone = String(metadata.phone || '').trim()
+
+  const { error } = await serviceSupabase.from('member_profiles').upsert(
+    {
+      id: user.id,
+      email: user.email || null,
+      full_name: fullName || null,
+      phone: phone || null,
+    },
+    { onConflict: 'id' },
+  )
+
+  if (error) {
+    return { ok: false, error }
+  }
+
+  return { ok: true }
 }
 
 export async function GET(request) {
@@ -23,11 +49,9 @@ export async function GET(request) {
         redirectUrl.pathname = '/login'
         redirectUrl.searchParams.set('redirectTo', nextPath)
         redirectUrl.searchParams.set('message', 'confirm_failed')
+        return NextResponse.redirect(redirectUrl)
       }
-      return NextResponse.redirect(redirectUrl)
-    }
-
-    if (tokenHash && type) {
+    } else if (tokenHash && type) {
       const { error } = await supabase.auth.verifyOtp({
         token_hash: tokenHash,
         type,
@@ -36,7 +60,25 @@ export async function GET(request) {
         redirectUrl.pathname = '/login'
         redirectUrl.searchParams.set('redirectTo', nextPath)
         redirectUrl.searchParams.set('message', 'confirm_failed')
+        return NextResponse.redirect(redirectUrl)
       }
+    }
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+
+    if (!user?.id) {
+      redirectUrl.pathname = '/login'
+      redirectUrl.searchParams.set('redirectTo', nextPath)
+      redirectUrl.searchParams.set('message', 'confirm_failed')
+      return NextResponse.redirect(redirectUrl)
+    }
+
+    const profileSync = await syncMemberProfile(user)
+    if (!profileSync.ok) {
+      redirectUrl.pathname = '/account'
+      redirectUrl.searchParams.set('message', 'profile_incomplete')
       return NextResponse.redirect(redirectUrl)
     }
   } catch {
