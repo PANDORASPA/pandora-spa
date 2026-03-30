@@ -25,7 +25,11 @@ function LoginInner() {
     }
 
     if (message === 'confirm_failed') {
-      toast.error('電郵確認失敗，請重新點擊確認信後再登入。')
+      toast.error('電郵確認失敗，請重新開啟確認信，或回到登入頁再試一次。')
+    }
+
+    if (message === 'profile_incomplete') {
+      toast.error('會員資料未完成同步，請先登入會員中心檢查資料。')
     }
 
     supabase.auth.getUser().then(({ data }) => {
@@ -39,14 +43,14 @@ function LoginInner() {
     try {
       const supabase = getBrowserClient()
       const { error } = await supabase.auth.signInWithPassword({
-        email: String(email).trim(),
+        email: String(email).trim().toLowerCase(),
         password,
       })
       if (error) throw error
       toast.success('登入成功')
       router.replace(redirectTo)
     } catch (error) {
-      toast.error(`登入失敗：${error?.message || '請稍後再試。'}`)
+      toast.error(`登入失敗：${error?.message || '請稍後再試'}`)
     } finally {
       setLoading(false)
     }
@@ -56,7 +60,7 @@ function LoginInner() {
     <>
       <section style={{ padding: '30px 16px', background: '#FAF8F5', textAlign: 'center' }}>
         <h1 style={{ fontSize: '28px' }}>
-          登入<span style={{ color: '#A68B6A' }}>帳號</span>
+          登入<span style={{ color: '#A68B6A' }}>會員</span>
         </h1>
       </section>
 
@@ -108,7 +112,7 @@ function LoginInner() {
 
           <div style={{ marginTop: '16px', display: 'grid', gap: '10px', fontSize: '14px' }}>
             <Link href={`/register?redirectTo=${encodeURIComponent(redirectTo)}`} style={{ color: '#A68B6A', fontWeight: 700 }}>
-              註冊新帳號
+              註冊新帳戶
             </Link>
             <span style={{ color: '#999' }}>如忘記密碼，可在 Supabase Auth 後台重設。</span>
           </div>
