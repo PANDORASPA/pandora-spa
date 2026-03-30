@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation'
 import { getServerClient } from '../../lib/supabase/server'
 import SignOutButton from './SignOutButton'
 
-export default async function Account() {
+export default async function Account({ searchParams }) {
   const supabase = getServerClient()
   const {
     data: { user },
@@ -17,6 +17,7 @@ export default async function Account() {
   const displayName = profile?.full_name || user.user_metadata?.full_name || user.email || '會員'
   const displayEmail = profile?.email || user.email || '-'
   const displayPhone = profile?.phone || user.user_metadata?.phone || ''
+  const message = searchParams?.message || ''
 
   return (
     <>
@@ -28,6 +29,22 @@ export default async function Account() {
 
       <section style={{ padding: '24px 16px' }}>
         <div style={{ maxWidth: '600px', margin: '0 auto' }}>
+          {message === 'profile_incomplete' ? (
+            <div
+              style={{
+                marginBottom: '16px',
+                border: '1px solid #F59E0B',
+                background: '#FFF7ED',
+                color: '#92400E',
+                borderRadius: '14px',
+                padding: '14px 16px',
+                lineHeight: 1.7,
+              }}
+            >
+              你的會員資料尚未完全同步，但帳號已成功確認。請檢查姓名與電話是否完整。
+            </div>
+          ) : null}
+
           <div
             style={{
               background: '#fff',
