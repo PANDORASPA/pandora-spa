@@ -620,8 +620,8 @@ const normalizeNullableNumber = (value) => {
     if (table === 'staff_time_off') {
       payload.is_all_day = Boolean(payload.is_all_day)
       if (payload.is_all_day) {
-        payload.start_time = '00:00'
-        payload.end_time = '23:59'
+        payload.start_time = null
+        payload.end_time = null
       } else {
         const nextStart = typeof payload.start_time === 'string' ? payload.start_time.trim() : payload.start_time
         const nextEnd = typeof payload.end_time === 'string' ? payload.end_time.trim() : payload.end_time
@@ -642,8 +642,8 @@ const normalizeNullableNumber = (value) => {
     if (table === 'staff_time_off' && row?.is_all_day) {
       return {
         ...row,
-        start_time: '00:00',
-        end_time: '23:59',
+        start_time: null,
+        end_time: null,
       }
     }
     if (row?.is_off) return row
@@ -674,8 +674,8 @@ const normalizeNullableNumber = (value) => {
       if (row?.is_all_day) {
         return {
           ...row,
-          start_time: '00:00',
-          end_time: '23:59',
+          start_time: null,
+          end_time: null,
         }
       }
       return validateTimeBoundRowStrict({ row, label })
@@ -790,8 +790,8 @@ const normalizeNullableNumber = (value) => {
           if (table === 'staff_time_off') {
             payload.is_all_day = Boolean(payload.is_all_day)
             if (payload.is_all_day) {
-              payload.start_time = '00:00'
-              payload.end_time = '23:59'
+              payload.start_time = null
+              payload.end_time = null
             } else {
               payload.start_time =
                 typeof payload.start_time === 'string' && payload.start_time.trim()
@@ -1247,9 +1247,14 @@ const normalizeNullableNumber = (value) => {
   }
 
   const updateStatus = async (id, status) => {
-    await supabase.from('bookings').update({ status }).eq('id', id)
+    const { error } = await supabase.from('bookings').update({ status }).eq('id', id)
+    if (error) {
+      toast.error(`預約狀態更新失敗：${error.message}`)
+      return false
+    }
     setBookings((current) => current.map((booking) => (booking.id === id ? { ...booking, status } : booking)))
     toast.success('已更新預約狀態')
+    return true
   }
 
   const updateBookingStaff = async (id, staffId) => {
@@ -1257,13 +1262,17 @@ const normalizeNullableNumber = (value) => {
     const targetBooking = bookings.find((booking) => booking.id === id)
 
     if (nextStaffId == null) {
-      await supabase
+      const { error } = await supabase
         .from('bookings')
         .update({
           staff_id: null,
           staff_name: null,
         })
         .eq('id', id)
+      if (error) {
+        toast.error(`預約服務供應者儲存失敗：${error.message}`)
+        return false
+      }
 
       setBookings((current) =>
         current.map((booking) => (booking.id === id ? { ...booking, staff_id: null, staff_name: null } : booking))
@@ -1307,13 +1316,14 @@ const normalizeNullableNumber = (value) => {
       }
 
       const matchedStaff = staff.find((item) => item.id.toString() === String(nextStaffId))
-      await supabase
+      const { error: updateError } = await supabase
         .from('bookings')
         .update({
           staff_id: nextStaffId,
           staff_name: matchedStaff ? matchedStaff.name : null,
         })
         .eq('id', id)
+      if (updateError) throw updateError
 
       setBookings((current) =>
         current.map((booking) =>
