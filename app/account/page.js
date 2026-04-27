@@ -3,6 +3,17 @@ import { redirect } from 'next/navigation'
 import { getServerClient } from '../../lib/supabase/server'
 import SignOutButton from './SignOutButton'
 
+const shellStyle = {
+  padding: '20px 16px max(36px, env(safe-area-inset-bottom))',
+}
+
+const cardStyle = {
+  background: '#fff',
+  borderRadius: '20px',
+  padding: 'clamp(18px, 4vw, 28px)',
+  boxShadow: '0 8px 30px rgba(0,0,0,0.06)',
+}
+
 export default async function Account({ searchParams }) {
   const supabase = getServerClient()
   const {
@@ -20,91 +31,82 @@ export default async function Account({ searchParams }) {
   const message = searchParams?.message || ''
 
   return (
-    <>
-      <section style={{ padding: '30px 16px', background: '#FAF8F5', textAlign: 'center' }}>
-        <h1 style={{ fontSize: '28px' }}>
-          會員<span style={{ color: '#A68B6A' }}>中心</span>
-        </h1>
-      </section>
+    <section style={shellStyle}>
+      <div style={{ maxWidth: '620px', margin: '0 auto' }}>
+        <div style={{ marginBottom: '18px' }}>
+          <h1 style={{ fontSize: 'clamp(26px, 6vw, 32px)', fontWeight: 800, lineHeight: 1.2, marginBottom: '10px' }}>
+            會員
+            <span style={{ color: '#A68B6A' }}>中心</span>
+          </h1>
+          <p style={{ color: '#6B7280', fontSize: '14px', lineHeight: 1.7 }}>你可以在這裡查看會員資料、我的預約和服務資訊。</p>
+        </div>
 
-      <section style={{ padding: '24px 16px' }}>
-        <div style={{ maxWidth: '600px', margin: '0 auto' }}>
-          {message === 'profile_incomplete' ? (
-            <div
-              style={{
-                marginBottom: '16px',
-                border: '1px solid #F59E0B',
-                background: '#FFF7ED',
-                color: '#92400E',
-                borderRadius: '14px',
-                padding: '14px 16px',
-                lineHeight: 1.7,
-              }}
-            >
-              你的會員資料尚未完全同步，但帳號已成功確認。請檢查姓名與電話是否完整。
-            </div>
-          ) : null}
-
+        {message === 'profile_incomplete' ? (
           <div
             style={{
-              background: '#fff',
-              borderRadius: '16px',
-              padding: '24px',
-              textAlign: 'center',
-              marginBottom: '20px',
-              boxShadow: '0 2px 10px rgba(0,0,0,0.05)',
+              marginBottom: '16px',
+              border: '1px solid #F59E0B',
+              background: '#FFF7ED',
+              color: '#92400E',
+              borderRadius: '14px',
+              padding: '14px 16px',
+              lineHeight: 1.7,
             }}
           >
-            <div
-              style={{
-                width: '70px',
-                height: '70px',
-                borderRadius: '50%',
-                background: 'linear-gradient(135deg, #A68B6A, #8B7355)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '28px',
-                color: '#fff',
-                margin: '0 auto 15px',
-                fontWeight: 800,
-              }}
-            >
-              {String(displayName).charAt(0)}
-            </div>
-            <h2 style={{ marginBottom: '5px' }}>{displayName}</h2>
-            <p style={{ color: '#666', fontSize: '14px', marginBottom: '6px' }}>{displayEmail}</p>
-            {displayPhone ? <p style={{ color: '#999', fontSize: '13px' }}>{displayPhone}</p> : null}
+            你的會員資料尚未完全同步，但帳號已成功確認。請檢查姓名及電話是否完整。
           </div>
+        ) : null}
 
-          <div style={{ display: 'grid', gap: '12px', marginBottom: '16px' }}>
-            <Link
-              href="/account/bookings"
-              className="btn btn-interactive"
-              style={{ background: '#A68B6A', color: '#fff', padding: '14px', borderRadius: '12px', fontWeight: 700, textAlign: 'center' }}
-            >
-              我的預約
-            </Link>
-            <Link
-              href="/services"
-              className="btn btn-interactive"
-              style={{
-                background: '#fff',
-                color: '#333',
-                padding: '14px',
-                borderRadius: '12px',
-                fontWeight: 700,
-                textAlign: 'center',
-                border: '1px solid #e5e7eb',
-              }}
-            >
-              查看服務與套票
-            </Link>
+        <div style={{ ...cardStyle, textAlign: 'center', marginBottom: '18px' }}>
+          <div
+            style={{
+              width: '72px',
+              height: '72px',
+              borderRadius: '50%',
+              background: 'linear-gradient(135deg, #A68B6A, #8B7355)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '28px',
+              color: '#fff',
+              margin: '0 auto 15px',
+              fontWeight: 800,
+            }}
+          >
+            {String(displayName).charAt(0).toUpperCase()}
           </div>
-
-          <SignOutButton />
+          <h2 style={{ marginBottom: '6px' }}>{displayName}</h2>
+          <p style={{ color: '#666', fontSize: '14px', marginBottom: '6px' }}>{displayEmail}</p>
+          {displayPhone ? <p style={{ color: '#999', fontSize: '13px' }}>{displayPhone}</p> : null}
         </div>
-      </section>
-    </>
+
+        <div style={{ display: 'grid', gap: '12px', marginBottom: '16px' }}>
+          <Link
+            href="/account/bookings"
+            className="btn btn-interactive"
+            style={{ background: '#A68B6A', color: '#fff', padding: '14px', borderRadius: '14px', fontWeight: 700, textAlign: 'center' }}
+          >
+            我的預約
+          </Link>
+          <Link
+            href="/services"
+            className="btn btn-interactive"
+            style={{
+              background: '#fff',
+              color: '#333',
+              padding: '14px',
+              borderRadius: '14px',
+              fontWeight: 700,
+              textAlign: 'center',
+              border: '1px solid #E5E7EB',
+            }}
+          >
+            查看服務及套票
+          </Link>
+        </div>
+
+        <SignOutButton />
+      </div>
+    </section>
   )
 }
