@@ -103,7 +103,13 @@ function LegendPill({ children, tone = 'default' }) {
 }
 
 const monthKeyFromDate = (value) => String(value || '').slice(0, 7)
-const todayISO = () => new Date().toISOString().slice(0, 10)
+const todayISO = () =>
+  new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Hong_Kong',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date())
 
 const addMonths = (monthKey, delta) => {
   const date = new Date(`${monthKey}-01T12:00:00Z`)
@@ -149,6 +155,7 @@ const normalizeSlotValue = (slot) => {
     return value ? { time: value } : null
   }
   if (!slot || typeof slot !== 'object') return null
+  if (slot.available === false) return null
   const value = extractTimeText(slot.time || slot.startTime || slot.start_time)
   return value ? { ...slot, time: value } : null
 }
