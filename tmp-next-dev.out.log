@@ -1,0 +1,48 @@
+
+> viva-hair@1.0.0 dev
+> next dev
+
+   ▲ Next.js 14.1.0
+   - Local:        http://localhost:3001
+   - Environments: .env.local
+
+ ✓ Ready in 7.5s
+ ○ Compiling /middleware ...
+ ✓ Compiled /middleware in 3.5s (114 modules)
+ ○ Compiling /api/public/availability-version ...
+ ✓ Compiled /api/public/availability-version in 1979ms (77 modules)
+ ✓ Compiled /api/availability in 362ms (82 modules)
+ ○ Compiling /account/bookings ...
+ ✓ Compiled /account/bookings in 12.4s (693 modules)
+ ✓ Compiled /api/availability/month-summary in 393ms (394 modules)
+ ✓ Compiled /api/bookings/create in 314ms (396 modules)
+ ○ Compiling /api/account/bookings/[id] ...
+ ✓ Compiled /api/account/bookings/[id] in 771ms (398 modules)
+ ○ Compiling /admin ...
+ ✓ Compiled /admin in 14.6s (1710 modules)
+ ✓ Compiled /api/public/availability-version in 394ms (82 modules)
+ ○ Compiling /account/bookings ...
+ ✓ Compiled /account/bookings in 596ms (391 modules)
+ ✓ Compiled /api/bookings/create in 165ms (393 modules)
+ ✓ Compiled /api/account/bookings/[id] in 247ms (395 modules)
+ ○ Compiling /api/availability/month-summary ...
+ ✓ Compiled /api/availability/month-summary in 715ms (392 modules)
+ ✓ Compiled /api/availability in 162ms (394 modules)
+ ✓ Compiled /api/bookings/create in 188ms (396 modules)
+ ✓ Compiled /api/account/bookings/[id] in 222ms (398 modules)
+ ○ Compiling /admin ...
+ ✓ Compiled /admin in 1706ms (899 modules)
+ ✓ Compiled /account/bookings in 412ms (919 modules)
+ ✓ Compiled /api/public/availability-version in 217ms (77 modules)
+ ✓ Compiled /account/bookings in 324ms (386 modules)
+ ○ Compiling /api/availability/month-summary ...
+ ✓ Compiled /api/availability/month-summary in 533ms (392 modules)
+ ✓ Compiled /api/availability in 210ms (394 modules)
+ ✓ Compiled /api/bookings/create in 426ms (396 modules)
+ ✓ Compiled /api/account/bookings/[id] in 514ms (398 modules)
+ ○ Compiling /admin ...
+ ✓ Compiled /admin in 1356ms (899 modules)
+ ✓ Compiled /account/bookings in 302ms (919 modules)
+ ✓ Compiled /api/public/availability-version in 339ms (82 modules)
+ ✓ Compiled /account/bookings in 419ms (391 modules)
+ ✓ Compiled /api/bookings/create in 237ms (393 modules)
