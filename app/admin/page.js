@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
@@ -7,6 +7,7 @@ import { toast } from 'react-hot-toast'
 import { supabase } from '../../lib/supabase'
 import { analyzeScheduleRows } from '../../lib/booking/admin-schedule'
 import { parseBusinessHours } from '../../lib/booking/availability'
+import { parseTimeToMinutes } from '../../lib/time'
 
 const ServicesTab = dynamic(() => import('../components/admin/ServicesTab'))
 const CustomersTab = dynamic(() => import('../components/admin/CustomersTab'))
@@ -32,6 +33,16 @@ const scheduleTableLabels = {
   blocked_slots: '封鎖時段',
 }
 
+const WEEKDAY_LABELS = {
+  '0': '星期日',
+  '1': '星期一',
+  '2': '星期二',
+  '3': '星期三',
+  '4': '星期四',
+  '5': '星期五',
+  '6': '星期六',
+}
+
 const tabLoadingMessage = '載入分頁資料中...'
 
 const tabGroups = [
@@ -48,7 +59,7 @@ const tabMeta = {
   dashboard: {
     title: '總覽',
     eyebrow: '營運儀表板',
-    description: '在同一個畫面掌握今日預約、銷售、顧客活動，以及營運最需要的快捷入口。',
+    description: '在同一個畫面掌握今日預約、銷售、顧客動態，以及營運最需要的快捷入口。',
   },
   analytics: {
     title: '數據分析',
@@ -63,17 +74,17 @@ const tabMeta = {
   orders: {
     title: '訂單管理',
     eyebrow: '銷售紀錄',
-    description: '管理商品與套票訂單，並一致查看配送、付款及訂單狀態。',
+    description: '管理商品與套票訂單，並一致查看配送、付款與訂單狀態。',
   },
   staff: {
     title: '服務供應者',
     eyebrow: '排班中心',
-    description: '管理服務供應者資料、每週時間表、指定日期安排、休息與休假時段。',
+    description: '管理服務供應者資料、每週時間表、指定日期安排、固定休息與休假時段。',
   },
   services: {
     title: '服務設定',
     eyebrow: '服務內容',
-    description: '設定服務項目、時間、價格，以及影響可預約時段的規則。',
+    description: '設定服務項目、時長、價格，以及會影響可預約時段的規則。',
   },
   inventory: {
     title: '庫存',
@@ -83,7 +94,7 @@ const tabMeta = {
   locations: {
     title: '地點',
     eyebrow: '營運據點',
-    description: '管理分店與地點設定，支援多地點預約流程。',
+    description: '管理分店與地點設定，支援多地點營運資料。',
   },
   holidays: {
     title: '假期',
@@ -108,7 +119,7 @@ const tabMeta = {
   articles: {
     title: '文章',
     eyebrow: '內容管理',
-    description: '管理用於前台與會員頁的教學及推廣內容。',
+    description: '管理用於前台與會員頁的教學、公告及推廣內容。',
   },
   faqs: {
     title: '常見問題',
@@ -123,10 +134,9 @@ const tabMeta = {
   settings: {
     title: '設定',
     eyebrow: '系統控制',
-    description: '管理全店營運時間、公共假日與會影響預約規則的系統設定。',
+    description: '管理全店營業時間、公休日與會影響預約規則的系統設定。',
   },
 }
-
 const normalizeDateValue = (value) => {
   if (!value) return ''
   return String(value).slice(0, 10)
@@ -425,7 +435,7 @@ export default function AdminPage() {
         return Array.isArray(payload?.profiles) ? payload.profiles : []
       })
       .catch((error) => {
-        toast.error('會員帳號資料載入失敗：' + (error?.message || '未知錯誤'))
+        toast.error(`會員帳號資料載入失敗：${error?.message || '未知錯誤'}`)
         return []
       })
 
@@ -505,7 +515,7 @@ export default function AdminPage() {
       }
       setMemberProfiles(Array.isArray(payload?.profiles) ? payload.profiles : [])
     } catch (error) {
-      toast.error('管理員帳號資料載入失敗：' + (error?.message || '未知錯誤'))
+      toast.error(`管理員帳號資料載入失敗：${error?.message || '未知錯誤'}`)
       setMemberProfiles([])
     }
     markTabsLoaded(['settings'])
@@ -647,6 +657,52 @@ const normalizeNullableNumber = (value) => {
     return row
   }
 
+  const validateTimeBoundRowStrict = ({ row, label }) => {
+    if (!row?.start_time || !row?.end_time) {
+      throw new Error(`${label}需要同時設定開始與結束時間`)
+    }
+    if (String(row.start_time) >= String(row.end_time)) {
+      throw new Error(`${label}的結束時間必須晚於開始時間`)
+    }
+    return row
+  }
+
+  const validateScheduleTableRowStrict = ({ table, row }) => {
+    const label = scheduleTableLabels[table] || '排班設定'
+
+    if (table === 'staff_time_off') {
+      if (row?.is_all_day) {
+        return {
+          ...row,
+          start_time: '00:00',
+          end_time: '23:59',
+        }
+      }
+      return validateTimeBoundRowStrict({ row, label })
+    }
+
+    if (table === 'staff_breaks' || table === 'blocked_slots') {
+      return validateTimeBoundRowStrict({ row, label })
+    }
+
+    if (table === 'staff_shifts' && row?.is_off) return row
+    return validateTimeBoundRowStrict({ row, label })
+  }
+
+  const validateAdminProfilesDraft = (profiles = []) => {
+    const invalidProfiles = (profiles || []).filter(
+      (profile) => profile?.is_admin === true && (!profile?.auth_user_exists || profile?.account_status !== 'ready'),
+    )
+
+    if (invalidProfiles.length === 0) return
+
+    const labels = invalidProfiles
+      .map((profile) => profile?.email || profile?.auth_email || profile?.full_name || profile?.id)
+      .filter(Boolean)
+
+    throw new Error(`以下帳號未完成註冊或沒有對應登入帳號，不能開通管理員：${labels.join('、')}`)
+  }
+
   const bumpAvailabilityCacheVersion = async () => {
     const { error } = await supabase
       .from('settings')
@@ -683,23 +739,19 @@ const normalizeNullableNumber = (value) => {
     try {
       const shifts = Array.isArray(payloadOrRows) ? payloadOrRows : payloadOrRows?.rows || []
       const deletedIds = Array.isArray(payloadOrRows?.deletedIds) ? payloadOrRows.deletedIds : []
-      const businessHours = parseBusinessHours(settings?.business_hours)
 
       const payload = (shifts || []).map((shift) => {
         const row = { ...shift }
-        const staffRow = staff.find((item) => item.id === row.staff_id)
-        const dayKey = row.date ? String(new Date(`${row.date}T00:00:00Z`).getUTCDay()) : null
-        const baselineStart = dayKey ? String(staffRow?.schedule?.[dayKey]?.start || businessHours.start).substring(0, 5) : businessHours.start
-        const baselineEnd = dayKey ? String(staffRow?.schedule?.[dayKey]?.end || businessHours.end).substring(0, 5) : businessHours.end
         row.date = row.date ? String(row.date).substring(0, 10) : row.date
         if (!Number.isInteger(Number(row.id)) || Number(row.id) <= 0 || Number(row.id) > 2147483647) {
           delete row.id
         } else {
           row.id = Number(row.id)
         }
+        if (row.staff_id != null && row.staff_id !== '') row.staff_id = Number(row.staff_id)
         row.is_off = Boolean(row.is_off)
-        row.start_time = row.is_off ? null : String(row.start_time || baselineStart).substring(0, 5)
-        row.end_time = row.is_off ? null : String(row.end_time || baselineEnd).substring(0, 5)
+        row.start_time = row.is_off ? null : (row.start_time ? String(row.start_time).substring(0, 5) : null)
+        row.end_time = row.is_off ? null : (row.end_time ? String(row.end_time).substring(0, 5) : null)
         return row
       }).filter((row) => row.date && row.staff_id)
 
@@ -719,8 +771,10 @@ const normalizeNullableNumber = (value) => {
       await bumpAvailabilityCacheVersion()
       await refreshStaffTableState('staff_shifts')
       if (!silentSuccess) toast.success('已儲存班次')
+      return { ok: true, rows: payload }
     } catch (error) {
-      toast.error('班次儲存失敗：' + (error?.message || '未知錯誤'))
+      toast.error(`班次儲存失敗：${error?.message || '未知錯誤'}`)
+      throw error
     } finally {
       setSaving(false)
     }
@@ -770,7 +824,7 @@ const normalizeNullableNumber = (value) => {
           }
 
           const label = scheduleTableLabels[table] || '排班設定'
-          return ensureValidTimeRange({ table, row: payload, label })
+          return validateScheduleTableRowStrict({ table, row: payload })
         })
       const normalizedDeletedIds = (deletedIds || [])
         .map((value) => Number(value))
@@ -812,8 +866,10 @@ const normalizeNullableNumber = (value) => {
       await bumpAvailabilityCacheVersion()
       await refreshStaffTableState(table)
       if (!silentSuccess) toast.success(`已儲存${scheduleTableLabels[table] || '排班設定'}`)
+      return { ok: true, rows: normalizedRows }
     } catch (error) {
       toast.error(`${scheduleTableLabels[table] || table}儲存失敗：${error?.message || '未知錯誤'}`)
+      throw error
     } finally {
       setSaving(false)
     }
@@ -852,7 +908,7 @@ const normalizeNullableNumber = (value) => {
       await loadBaseData({ showLoading: false })
       toast.success('已儲存地點')
     } catch (error) {
-      toast.error('地點儲存失敗：' + (error?.message || '未知錯誤'))
+      toast.error(`地點儲存失敗：${error?.message || '未知錯誤'}`)
     } finally {
       setSaving(false)
     }
@@ -879,7 +935,7 @@ const normalizeNullableNumber = (value) => {
       await loadBaseData({ showLoading: false })
       toast.success('已儲存假期')
     } catch (error) {
-      toast.error('假期儲存失敗：' + (error?.message || '未知錯誤'))
+      toast.error(`假期儲存失敗：${error?.message || '未知錯誤'}`)
     } finally {
       setSaving(false)
     }
@@ -902,7 +958,7 @@ const normalizeNullableNumber = (value) => {
       await loadBaseData({ showLoading: false })
       toast.success('已儲存資源設備')
     } catch (error) {
-      toast.error('資源設備儲存失敗：' + (error?.message || '未知錯誤'))
+      toast.error(`資源設備儲存失敗：${error?.message || '未知錯誤'}`)
     } finally {
       setSaving(false)
     }
@@ -912,16 +968,24 @@ const normalizeNullableNumber = (value) => {
     const silentSuccess = Boolean(options?.silentSuccess)
     setSaving(true)
     try {
-      const businessHours = parseBusinessHours(settings?.business_hours)
       const rowsToSave = targetStaffId == null ? staff : staff.filter((item) => item.id === targetStaffId)
+      const savedRows = []
       for (const item of rowsToSave) {
         const normalizedSchedule = Object.entries(item.schedule || {}).reduce((acc, [dayKey, value]) => {
           const start = String(value?.start || '').substring(0, 5)
           const end = String(value?.end || '').substring(0, 5)
           if (!start && !end) return acc
+          if (!start || !end) {
+            throw new Error(`${WEEKDAY_LABELS[dayKey] || `星期 ${dayKey}`} 必須同時設定上班與下班時間`)
+          }
+          const startMin = parseTimeToMinutes(start)
+          const endMin = parseTimeToMinutes(end)
+          if (startMin == null || endMin == null || startMin >= endMin) {
+            throw new Error(`${WEEKDAY_LABELS[dayKey] || `星期 ${dayKey}`} 的上班時間必須早於下班時間`)
+          }
           acc[dayKey] = {
-            start: start || businessHours.start,
-            end: end || businessHours.end,
+            start,
+            end,
           }
           return acc
         }, {})
@@ -944,14 +1008,17 @@ const normalizeNullableNumber = (value) => {
         } else {
           payload.id = Number(payload.id)
         }
-        const { error } = await supabase.from('staff').upsert(payload)
+        const { data, error } = await supabase.from('staff').upsert(payload).select().single()
         if (error) throw error
+        if (data) savedRows.push(data)
       }
       await bumpAvailabilityCacheVersion()
       await refreshStaffTableState('staff')
       if (!silentSuccess) toast.success('已儲存目前服務供應者')
+      return targetStaffId == null ? savedRows : savedRows[0] || null
     } catch (error) {
-      toast.error('服務供應者儲存失敗：' + (error?.message || '未知錯誤'))
+      toast.error(`服務供應者儲存失敗：${error?.message || '未知錯誤'}`)
+      throw error
     } finally {
       setSaving(false)
     }
@@ -1060,7 +1127,7 @@ const normalizeNullableNumber = (value) => {
       await loadServiceRelationsData()
       toast.success('已儲存服務')
     } catch (error) {
-      toast.error('服務儲存失敗：' + (error?.message || '未知錯誤'))
+      toast.error(`服務儲存失敗：${error?.message || '未知錯誤'}`)
     } finally {
       setSaving(false)
     }
@@ -1076,7 +1143,7 @@ const normalizeNullableNumber = (value) => {
       await loadInventoryData({ force: true })
       toast.success('已儲存庫存')
     } catch (error) {
-      toast.error('庫存儲存失敗：' + (error?.message || '未知錯誤'))
+      toast.error(`庫存儲存失敗：${error?.message || '未知錯誤'}`)
     } finally {
       setSaving(false)
     }
@@ -1106,7 +1173,7 @@ const normalizeNullableNumber = (value) => {
       }
       toast.success('已儲存交易紀錄')
     } catch (error) {
-      toast.error('交易紀錄儲存失敗：' + (error?.message || '未知錯誤'))
+      toast.error(`交易紀錄儲存失敗：${error?.message || '未知錯誤'}`)
     } finally {
       setSaving(false)
     }
@@ -1120,7 +1187,7 @@ const normalizeNullableNumber = (value) => {
       await loadCouponsData({ force: true })
       toast.success('已儲存優惠碼')
     } catch (error) {
-      toast.error('優惠碼儲存失敗：' + (error?.message || '未知錯誤'))
+      toast.error(`優惠碼儲存失敗：${error?.message || '未知錯誤'}`)
     } finally {
       setSaving(false)
     }
@@ -1129,15 +1196,20 @@ const normalizeNullableNumber = (value) => {
   const saveSettings = async (newSettings) => {
     setSaving(true)
     try {
-      const updates = Object.keys(newSettings).map((key) =>
-        supabase.from('settings').upsert({ key, value: newSettings[key] }, { onConflict: 'key' }),
-      )
-      await Promise.all(updates)
+      const entries = Object.entries(newSettings || {})
+
+      for (const [key, value] of entries) {
+        const { error } = await supabase.from('settings').upsert({ key, value }, { onConflict: 'key' })
+        if (error) {
+          await loadBaseData({ showLoading: false })
+          throw new Error(`設定 ${key} 儲存失敗：${error.message}`)
+        }
+      }
       await bumpAvailabilityCacheVersion()
       await loadBaseData({ showLoading: false })
       toast.success('已儲存設定')
     } catch (error) {
-      toast.error('設定儲存失敗：' + (error?.message || '未知錯誤'))
+      toast.error(`設定儲存失敗：${error?.message || '未知錯誤'}`)
     } finally {
       setSaving(false)
     }
@@ -1146,6 +1218,7 @@ const normalizeNullableNumber = (value) => {
   const saveAdminProfiles = async (profiles) => {
     setSaving(true)
     try {
+      validateAdminProfilesDraft(profiles)
       const payload = (profiles || []).map((profile) => ({
         id: profile.id,
         email: profile.email || null,
@@ -1167,7 +1240,7 @@ const normalizeNullableNumber = (value) => {
       await loadAdminProfilesData()
       toast.success('已儲存管理員帳號設定')
     } catch (error) {
-      toast.error('管理員帳號儲存失敗：' + (error?.message || '未知錯誤'))
+      toast.error(`管理員帳號儲存失敗：${error?.message || '未知錯誤'}`)
     } finally {
       setSaving(false)
     }
@@ -1252,13 +1325,14 @@ const normalizeNullableNumber = (value) => {
       toast.success('已更新預約')
       return true
     } catch (error) {
-      toast.error('可用時段檢查失敗：' + (error?.message || '未知錯誤'))
+      toast.error(`可用時段檢查失敗：${error?.message || '未知錯誤'}`)
       return false
     }
   }
 
   const addStaff = () => {
-    const newId = Math.max(...staff.map((item) => item.id), 0) + 1
+    const tempIds = staff.map((item) => Number(item.id)).filter((value) => Number.isFinite(value) && value < 0)
+    const newId = tempIds.length ? Math.min(...tempIds) - 1 : -1
     setStaff([
       ...staff,
       {
@@ -1378,7 +1452,7 @@ const normalizeNullableNumber = (value) => {
     activeTickets: userTickets.filter((ticket) => Number(ticket?.remaining_count || 0) > 0).length,
   }
 
-    const activeTabMeta = tabMeta[activeTab] || {
+  const activeTabMeta = tabMeta[activeTab] || {
     title: '管理後台',
     eyebrow: '營運控制台',
     description: '管理預約、排班、銷售、顧客與內容設定。',
@@ -1401,6 +1475,7 @@ const normalizeNullableNumber = (value) => {
         return (
           <SchedulingTab
             staff={staff}
+            bookings={bookings}
             services={services}
             operationalContext={{
               locations,
@@ -1484,8 +1559,8 @@ const normalizeNullableNumber = (value) => {
     return null
   }
 
-  if (!authChecked || loading) return <div style={{ padding: '100px', textAlign: 'center' }}>載入管理後台中…</div>
-  if (!isAuthenticated) return <div style={{ padding: '100px', textAlign: 'center' }}>正在檢查管理權限…</div>
+  if (!authChecked || loading) return <div style={{ padding: '100px', textAlign: 'center' }}>載入管理後台中...</div>
+  if (!isAuthenticated) return <div style={{ padding: '100px', textAlign: 'center' }}>正在檢查管理權限...</div>
 
   return (
     <div style={{ minHeight: '100vh', background: '#f8f9fa' }}>
@@ -1506,7 +1581,7 @@ const normalizeNullableNumber = (value) => {
           <div style={{ fontSize: '12px', fontWeight: 800, letterSpacing: '0.08em', color: '#A68B6A' }}>管理導航</div>
           <h3 style={{ margin: '8px 0 0', fontSize: '20px', fontWeight: 800 }}>營運控制台</h3>
           <p style={{ margin: '10px 0 18px', fontSize: '13px', lineHeight: 1.6, color: 'var(--text-light)' }}>
-            以分組方式管理預約、排班、營運、內容與系統設定，避免全部功能擠在同一條長分頁列。
+            以分組方式管理預約、排班、營運、內容與系統設定，避免所有功能擠在同一個長頁面。
           </p>
 
           <div style={{ display: 'grid', gap: '16px' }}>
@@ -1558,4 +1633,5 @@ const normalizeNullableNumber = (value) => {
     </div>
   )
 }
+
 
