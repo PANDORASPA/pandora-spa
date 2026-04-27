@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { getServerClient } from '../../lib/supabase/server'
 import SignOutButton from './SignOutButton'
+import ProfileForm from './ProfileForm'
 
 const shellStyle = {
   padding: '20px 16px max(36px, env(safe-area-inset-bottom))',
@@ -29,6 +30,7 @@ export default async function Account({ searchParams }) {
   const displayEmail = profile?.email || user.email || '-'
   const displayPhone = profile?.phone || user.user_metadata?.phone || ''
   const message = searchParams?.message || ''
+  const profileIncomplete = !displayName || displayName === user.email || !displayPhone
 
   return (
     <section style={shellStyle}>
@@ -41,7 +43,7 @@ export default async function Account({ searchParams }) {
           <p style={{ color: '#6B7280', fontSize: '14px', lineHeight: 1.7 }}>你可以在這裡查看會員資料、我的預約和服務資訊。</p>
         </div>
 
-        {message === 'profile_incomplete' ? (
+        {message === 'profile_incomplete' || profileIncomplete ? (
           <div
             style={{
               marginBottom: '16px',
@@ -53,7 +55,7 @@ export default async function Account({ searchParams }) {
               lineHeight: 1.7,
             }}
           >
-            你的會員資料尚未完全同步，但帳號已成功確認。請檢查姓名及電話是否完整。
+            你的會員資料尚未完整。請先補回姓名及電話，之後就可以直接用會員資料提交預約。
           </div>
         ) : null}
 
@@ -79,6 +81,13 @@ export default async function Account({ searchParams }) {
           <p style={{ color: '#666', fontSize: '14px', marginBottom: '6px' }}>{displayEmail}</p>
           {displayPhone ? <p style={{ color: '#999', fontSize: '13px' }}>{displayPhone}</p> : null}
         </div>
+
+        {profileIncomplete ? (
+          <div style={{ ...cardStyle, marginBottom: '18px' }}>
+            <h3 style={{ marginBottom: '10px' }}>完成會員資料</h3>
+            <ProfileForm initialName={profile?.full_name || ''} initialPhone={displayPhone || ''} />
+          </div>
+        ) : null}
 
         <div style={{ display: 'grid', gap: '12px', marginBottom: '16px' }}>
           <Link
