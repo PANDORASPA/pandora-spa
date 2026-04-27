@@ -30,7 +30,7 @@ export default async function Account({ searchParams }) {
   const displayEmail = profile?.email || user.email || '-'
   const displayPhone = profile?.phone || user.user_metadata?.phone || ''
   const message = searchParams?.message || ''
-  const profileIncomplete = !displayName || displayName === user.email || !displayPhone
+  const profileIncomplete = !profile?.full_name || !profile?.phone
 
   return (
     <section style={shellStyle}>
@@ -85,7 +85,7 @@ export default async function Account({ searchParams }) {
         {profileIncomplete ? (
           <div style={{ ...cardStyle, marginBottom: '18px' }}>
             <h3 style={{ marginBottom: '10px' }}>完成會員資料</h3>
-            <ProfileForm initialName={profile?.full_name || ''} initialPhone={displayPhone || ''} />
+            <ProfileForm initialName={profile?.full_name || ''} initialPhone={profile?.phone || ''} />
           </div>
         ) : null}
 
