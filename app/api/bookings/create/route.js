@@ -9,6 +9,33 @@ import {
   validatePhase2Selection,
 } from '../../../../lib/booking/phase2'
 
+const getHongKongNowParts = () => {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Hong_Kong',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).formatToParts(new Date())
+
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]))
+  return {
+    dateISO: `${values.year}-${values.month}-${values.day}`,
+    minutes: Number(values.hour) * 60 + Number(values.minute),
+  }
+}
+
+const parseTimeToMinutes = (value) => {
+  const match = String(value || '').match(/^(\d{2}):(\d{2})/)
+  if (!match) return null
+  const hours = Number(match[1])
+  const minutes = Number(match[2])
+  if (!Number.isInteger(hours) || !Number.isInteger(minutes) || hours < 0 || hours > 23 || minutes < 0 || minutes > 59) return null
+  return hours * 60 + minutes
+}
+
 const loadTicketSnapshot = async (supabase, ticketId) => {
   const normalizedId = Number(ticketId)
   if (!Number.isFinite(normalizedId) || normalizedId <= 0) return null
@@ -140,6 +167,14 @@ export async function POST(request) {
     }
     if (!startTime) {
       return NextResponse.json({ error: 'Please choose a time slot.' }, { status: 400 })
+    }
+    const startMinutes = parseTimeToMinutes(startTime)
+    if (startMinutes == null) {
+      return NextResponse.json({ error: 'Invalid appointment time.' }, { status: 400 })
+    }
+    const nowInHongKong = getHongKongNowParts()
+    if (dateISO < nowInHongKong.dateISO || (dateISO === nowInHongKong.dateISO && startMinutes <= nowInHongKong.minutes)) {
+      return NextResponse.json({ error: 'Cannot create a booking in the past.' }, { status: 400 })
     }
 
     const supabase = getServiceClient()
