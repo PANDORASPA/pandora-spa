@@ -65,6 +65,21 @@ const sameAllocationSet = (leftRows, rightRows) => {
   return left.length === right.length && left.every((value, index) => value === right[index])
 }
 
+const inspectRestoreState = async (supabase, bookingId) => {
+  const [bookingRes, allocationRes] = await Promise.all([
+    supabase.from('bookings').select('id,status,appointment_date,start_time,end_time,buffer_end_time').eq('id', bookingId).maybeSingle(),
+    supabase.from('booking_resource_allocations').select('id,booking_id,resource_id,quantity').eq('booking_id', bookingId),
+  ])
+
+  return {
+    bookingExists: Boolean(bookingRes?.data),
+    bookingStatus: bookingRes?.data?.status || null,
+    bookingCheckError: bookingRes?.error?.message || null,
+    allocationCount: Array.isArray(allocationRes?.data) ? allocationRes.data.length : 0,
+    allocationCheckError: allocationRes?.error?.message || null,
+  }
+}
+
 const restoreBookingState = async ({ supabase, bookingId, userId, previousPayload, previousAllocations }) => {
   const bookingRestoreRes = await supabase
     .from('bookings')
@@ -75,12 +90,22 @@ const restoreBookingState = async ({ supabase, bookingId, userId, previousPayloa
     .single()
 
   if (bookingRestoreRes.error) {
-    return { ok: false, stage: 'restore_booking', error: bookingRestoreRes.error.message }
+    return {
+      ok: false,
+      stage: 'restore_booking',
+      error: bookingRestoreRes.error.message,
+      details: await inspectRestoreState(supabase, bookingId),
+    }
   }
 
   const cleanupAllocationsRes = await supabase.from('booking_resource_allocations').delete().eq('booking_id', bookingId)
   if (cleanupAllocationsRes.error) {
-    return { ok: false, stage: 'cleanup_allocations', error: cleanupAllocationsRes.error.message }
+    return {
+      ok: false,
+      stage: 'cleanup_allocations',
+      error: cleanupAllocationsRes.error.message,
+      details: await inspectRestoreState(supabase, bookingId),
+    }
   }
 
   if ((previousAllocations || []).length > 0) {
@@ -88,7 +113,15 @@ const restoreBookingState = async ({ supabase, bookingId, userId, previousPayloa
       .from('booking_resource_allocations')
       .insert(normalizeAllocationRows(previousAllocations))
     if (restoreAllocationsRes.error) {
-      return { ok: false, stage: 'restore_allocations', error: restoreAllocationsRes.error.message }
+      return {
+        ok: false,
+        stage: 'restore_allocations',
+        error: restoreAllocationsRes.error.message,
+        details: {
+          ...(await inspectRestoreState(supabase, bookingId)),
+          expectedAllocationCount: (previousAllocations || []).length,
+        },
+      }
     }
   }
 
@@ -101,12 +134,22 @@ const restoreBookingState = async ({ supabase, bookingId, userId, previousPayloa
     .eq('user_id', userId)
     .maybeSingle()
   if (verifyBookingRes.error) {
-    return { ok: false, stage: 'verify_booking', error: verifyBookingRes.error.message }
+    return {
+      ok: false,
+      stage: 'verify_booking',
+      error: verifyBookingRes.error.message,
+      details: await inspectRestoreState(supabase, bookingId),
+    }
   }
 
   const verifyAllocationsRes = await supabase.from('booking_resource_allocations').select('*').eq('booking_id', bookingId)
   if (verifyAllocationsRes.error) {
-    return { ok: false, stage: 'verify_allocations', error: verifyAllocationsRes.error.message }
+    return {
+      ok: false,
+      stage: 'verify_allocations',
+      error: verifyAllocationsRes.error.message,
+      details: await inspectRestoreState(supabase, bookingId),
+    }
   }
 
   const restoredBooking = verifyBookingRes.data || {}
@@ -119,6 +162,7 @@ const restoreBookingState = async ({ supabase, bookingId, userId, previousPayloa
       stage: 'verify_restore',
       error: 'Rollback verification failed.',
       details: {
+        ...(await inspectRestoreState(supabase, bookingId)),
         bookingMatches,
         allocationsMatch,
         allocationCount: (verifyAllocationsRes.data || []).length,
