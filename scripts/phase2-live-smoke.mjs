@@ -82,6 +82,14 @@ const addMinutes = (time, amount) => {
 
 const ok = (status, details = {}) => ({ status, ...details })
 
+const classifyExecutionError = (error) => {
+  const text = `${error?.message || ''}\n${error?.details || ''}\n${error?.cause?.message || ''}`
+  if (/fetch failed|ConnectTimeout|UND_ERR_CONNECT_TIMEOUT|ENOTFOUND|ECONNREFUSED|ETIMEDOUT/i.test(text)) {
+    return 'environment_invalid'
+  }
+  return error?.details?.diagnostic_category || 'unexpected_server_error'
+}
+
 const diagnosticCategoryForResponse = (response, fallback = 'unexpected_server_error') => {
   if (response?.blocked) return 'environment_invalid'
   if (response?.status === 401 || response?.status === 403) return 'auth_session_invalid'
@@ -959,6 +967,11 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.error(error)
+  const diagnosticCategory = classifyExecutionError(error)
+  console.error({
+    message: error?.message || 'Unknown error',
+    diagnostic_category: diagnosticCategory,
+    details: error?.details || null,
+  })
   process.exit(1)
 })
