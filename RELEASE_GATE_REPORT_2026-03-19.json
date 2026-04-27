@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-22T18:12:31.670Z",
+  "generatedAt": "2026-04-26T14:09:41.509Z",
   "baseUrl": "http://localhost:3000",
   "checks": {},
   "release_decision": "NO-GO",
@@ -7,7 +7,7 @@
     {
       "name": "script_execution",
       "response_status": null,
-      "response_code": "unexpected_server_error"
+      "response_code": "environment_invalid"
     }
   ],
   "known_p2": [],
@@ -15,8 +15,8 @@
   "evidence_checked": [],
   "next_fix_round_needed": "yes",
   "failure": {
-    "message": "fetch failed",
-    "diagnostic_category": "unexpected_server_error",
-    "details": null
+    "message": "TypeError: fetch failed",
+    "diagnostic_category": "environment_invalid",
+    "details": "TypeError: fetch failed\n\nCaused by: ConnectTimeoutError: Connect Timeout Error (attempted address: khjjvjufwbmqymgzhbkl.supabase.co:443, timeout: 10000ms) (UND_ERR_CONNECT_TIMEOUT)\nConnectTimeoutError: Connect Timeout Error (attempted address: khjjvjufwbmqymgzhbkl.supabase.co:443, timeout: 10000ms)\n    at onConnectTimeout (node:internal/deps/undici/undici:2602:28)\n    at Immediate._onImmediate (node:internal/deps/undici/undici:2568:35)\n    at process.processImmediate (node:internal/timers:485:21)"
   }
 }
