@@ -673,17 +673,25 @@ export default function SchedulingTab({
     if (!selectedStaff?.id) return
     try {
       const previousStaffId = Number(selectedStaff.id)
-      const savedStaff = await onSave?.(selectedStaff.id, { silentSuccess: true })
+      const runSaveStep = async (label, action) => {
+        try {
+          return await action()
+        } catch (error) {
+          throw new Error(`${label}儲存失敗：${error?.message || '未知錯誤'}`)
+        }
+      }
+
+      const savedStaff = await runSaveStep('服務供應者資料', () => onSave?.(selectedStaff.id, { silentSuccess: true }))
       const resolvedStaffId = Number(savedStaff?.id || selectedStaff.id)
       const remapRows = (rows) =>
         (rows || []).map((row) =>
           Number(row?.staff_id) === previousStaffId ? { ...row, staff_id: resolvedStaffId } : row,
         )
 
-      await onSaveShifts?.({ rows: remapRows(shiftRows), deletedIds: shiftDeletedIds }, { silentSuccess: true })
-      await onSaveBreaks?.({ rows: remapRows(breakRows), deletedIds: breakDeletedIds }, { silentSuccess: true })
-      await onSaveTimeOff?.({ rows: remapRows(timeOffRows), deletedIds: timeOffDeletedIds }, { silentSuccess: true })
-      await onSaveBlockedSlots?.({ rows: remapRows(blockedRows), deletedIds: blockedDeletedIds }, { silentSuccess: true })
+      await runSaveStep('日期覆蓋', () => onSaveShifts?.({ rows: remapRows(shiftRows), deletedIds: shiftDeletedIds }, { silentSuccess: true }))
+      await runSaveStep('固定休息時段', () => onSaveBreaks?.({ rows: remapRows(breakRows), deletedIds: breakDeletedIds }, { silentSuccess: true }))
+      await runSaveStep('休假時段', () => onSaveTimeOff?.({ rows: remapRows(timeOffRows), deletedIds: timeOffDeletedIds }, { silentSuccess: true }))
+      await runSaveStep('封鎖時段', () => onSaveBlockedSlots?.({ rows: remapRows(blockedRows), deletedIds: blockedDeletedIds }, { silentSuccess: true }))
       if (resolvedStaffId !== previousStaffId) {
         setSelectedStaffId(resolvedStaffId)
         setShiftRows((current) => remapRows(current))
