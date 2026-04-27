@@ -14,68 +14,26 @@ const dailySlotsCache = new Map()
 
 const fieldStyle = {
   width: '100%',
-  minHeight: '46px',
-  padding: '10px 12px',
-  borderRadius: '12px',
+  minHeight: '48px',
+  padding: '11px 13px',
+  borderRadius: '14px',
   border: '1px solid #D6D3D1',
   background: '#fff',
-  fontSize: '14px',
+  fontSize: '15px',
   color: '#1F2937',
 }
 
 const panelStyle = {
-  padding: '22px',
+  padding: 'clamp(18px, 4vw, 24px)',
   border: '1px solid #E8E0D5',
   borderRadius: '24px',
   background: '#fff',
   boxShadow: '0 16px 36px rgba(15, 23, 42, 0.04)',
 }
 
-const LEGACY_T = {
-  title: '線上預約',
-  intro: '先選擇服務、日期，再從下拉選單選擇可預約的時段。',
-  loadingStaff: '載入服務供應者資料中…',
-  loadingBootstrapFailed: '無法載入預約資料',
-  noStaffFound: '找不到這位服務供應者',
-  backToBooking: '返回預約頁',
-  serviceProvider: '服務供應者',
-  service: '服務',
-  businessHours: '營業時間',
-  customerName: '顧客姓名',
-  customerNamePlaceholder: '請輸入顧客姓名',
-  customerPhone: '聯絡電話',
-  customerPhonePlaceholder: '請輸入聯絡電話',
-  date: '日期',
-  time: '時間',
-  chooseDateThenTime: '先選日期，再選時間',
-  bookingSummary: '預約摘要',
-  amountDue: '應付金額',
-  monthPrev: '上月',
-  monthNext: '下月',
-  chooseDate: '選擇日期',
-  collapseCalendar: '收起月曆',
-  contactLabel: '查詢電話',
-  timeDropdown: '可預約時段',
-  submit: '提交預約',
-  submitted: '預約已送出',
-  submitFailed: '預約失敗',
-  available: bookingOpsCopy.available,
-  full: bookingOpsCopy.full,
-  off: bookingOpsCopy.rest,
-  chooseDateFirst: bookingOpsCopy.chooseDateFirst,
-  chooseTimeFirst: bookingOpsCopy.chooseTimeFirst,
-  loadingDates: bookingOpsCopy.loadingDates,
-  loadingSlots: bookingOpsCopy.loadingSlots,
-  noAvailability: bookingOpsCopy.noAvailability,
-  fullNote: bookingOpsCopy.fullDayHint,
-  configLimitedNote: bookingOpsCopy.limitedDayHint,
-  offNote: bookingOpsCopy.offDayHint,
-  restDay: bookingOpsCopy.restDay,
-}
-
 const T = {
   title: '線上預約',
-  intro: '先選擇服務與日期，再從下拉選單揀可預約時段。',
+  intro: '先選擇服務與日期，再從下拉選單選擇可預約時段。',
   loadingStaff: '載入服務供應者資料中...',
   loadingBootstrapFailed: '無法載入預約資料',
   noStaffFound: '找不到這位服務供應者',
@@ -101,173 +59,20 @@ const T = {
   submit: '提交預約',
   submitted: '預約已送出',
   submitFailed: '提交預約失敗',
-  available: bookingOpsCopy.available,
-  full: bookingOpsCopy.full,
-  off: bookingOpsCopy.rest,
-  chooseDateFirst: bookingOpsCopy.chooseDateFirst,
-  chooseTimeFirst: bookingOpsCopy.chooseTimeFirst,
-  loadingDates: bookingOpsCopy.loadingDates,
-  loadingSlots: bookingOpsCopy.loadingSlots,
-  noAvailability: bookingOpsCopy.noAvailability,
-  fullNote: bookingOpsCopy.fullDayHint,
-  configLimitedNote: bookingOpsCopy.limitedDayHint,
-  offNote: bookingOpsCopy.offDayHint,
-  restDay: bookingOpsCopy.restDay,
+  available: bookingOpsCopy.available || '可預約',
+  full: bookingOpsCopy.full || '已滿',
+  off: bookingOpsCopy.rest || '休息',
+  chooseDateFirst: bookingOpsCopy.chooseDateFirst || '請先選擇日期',
+  chooseTimeFirst: bookingOpsCopy.chooseTimeFirst || '請先選擇時段',
+  loadingDates: bookingOpsCopy.loadingDates || '載入日期中...',
+  loadingSlots: bookingOpsCopy.loadingSlots || '載入時段中...',
+  noAvailability: bookingOpsCopy.noAvailability || '暫時沒有可預約時段',
+  fullNote: bookingOpsCopy.fullDayHint || '有上班，但今天已滿',
+  configLimitedNote: bookingOpsCopy.limitedDayHint || '有上班，但目前未形成可預約時段',
+  offNote: bookingOpsCopy.offDayHint || '休息日',
 }
 
 const DAY_LABELS = ['一', '二', '三', '四', '五', '六', '日']
-
-Object.assign(T, {
-  title: '線上預約',
-  intro: '先選擇服務與日期，再從下拉選單選擇可預約時段。',
-  loadingStaff: '載入服務供應者資料中...',
-  loadingBootstrapFailed: '無法載入預約資料',
-  noStaffFound: '找不到這位服務供應者',
-  backToBooking: '返回預約頁',
-  serviceProvider: '服務供應者',
-  service: '服務',
-  businessHours: '營業時間',
-  customerName: '顧客姓名',
-  customerNamePlaceholder: '請輸入顧客姓名',
-  customerPhone: '聯絡電話',
-  customerPhonePlaceholder: '請輸入聯絡電話',
-  date: '日期',
-  time: '時間',
-  chooseDateThenTime: '先選日期，再選時間',
-  bookingSummary: '預約摘要',
-  amountDue: '應付金額',
-  monthPrev: '上月',
-  monthNext: '下月',
-  chooseDate: '選擇日期',
-  collapseCalendar: '收起月曆',
-  contactLabel: '查詢電話',
-  timeDropdown: '可預約時段',
-  submit: '提交預約',
-  submitted: '預約已送出',
-  submitFailed: '提交預約失敗',
-})
-
-DAY_LABELS.splice(0, DAY_LABELS.length, '一', '二', '三', '四', '五', '六', '日')
-
-Object.assign(T, {
-  title: '線上預約',
-  intro: '先選擇服務與日期，再從下拉選單選擇可預約時段。',
-  loadingStaff: '載入服務供應者資料中...',
-  loadingBootstrapFailed: '無法載入預約資料',
-  noStaffFound: '找不到這位服務供應者',
-  backToBooking: '返回預約頁',
-  serviceProvider: '服務供應者',
-  service: '服務',
-  businessHours: '營業時間',
-  customerName: '顧客姓名',
-  customerNamePlaceholder: '請輸入顧客姓名',
-  customerPhone: '聯絡電話',
-  customerPhonePlaceholder: '請輸入聯絡電話',
-  date: '日期',
-  time: '時間',
-  chooseDateThenTime: '先選日期，再選時間',
-  bookingSummary: '預約摘要',
-  amountDue: '應付金額',
-  monthPrev: '上月',
-  monthNext: '下月',
-  chooseDate: '選擇日期',
-  collapseCalendar: '收起月曆',
-  contactLabel: '查詢電話',
-  timeDropdown: '可預約時段',
-  submit: '提交預約',
-  submitted: '預約已送出',
-  submitFailed: '提交預約失敗',
-})
-
-DAY_LABELS.splice(0, DAY_LABELS.length, '一', '二', '三', '四', '五', '六', '日')
-
-const getReasonMessageDisplay = (summary) => {
-  if (!summary) return ''
-  if (summary.status === 'off') return '休息日'
-  if (summary.status !== 'full') return ''
-  if (summary.reason === 'fully_booked' || summary.reason === 'resource_full') return '有上班，但今天已滿'
-  if (summary.reason === 'provider_mismatch' || summary.reason === 'location_required' || summary.reason === 'no_bookable_slots') {
-    return '已安排上班，但此服務目前未形成可預約時段'
-  }
-  return bookingOpsCopy.limitedDayHint
-}
-
-const getReasonMessageClean = (summary) => {
-  if (!summary) return ''
-  if (summary.status === 'off') return T.offNote
-  if (summary.status !== 'full') return ''
-  if (summary.reason === 'fully_booked' || summary.reason === 'resource_full') {
-    return '有上班，但今天已滿'
-  }
-  if (summary.reason === 'provider_mismatch' || summary.reason === 'location_required' || summary.reason === 'no_bookable_slots') {
-    return '已安排上班，但此服務目前未形成可預約時段'
-  }
-  return T.configLimitedNote
-}
-
-Object.assign(T, {
-  title: '線上預約',
-  intro: '先選擇服務與日期，再從下拉選單選擇可預約時段。',
-  loadingStaff: '載入服務供應者資料中...',
-  loadingBootstrapFailed: '無法載入預約資料',
-  noStaffFound: '找不到這位服務供應者',
-  backToBooking: '返回預約頁',
-  serviceProvider: '服務供應者',
-  service: '服務',
-  businessHours: '營業時間',
-  customerName: '顧客姓名',
-  customerNamePlaceholder: '請輸入顧客姓名',
-  customerPhone: '聯絡電話',
-  customerPhonePlaceholder: '請輸入聯絡電話',
-  date: '日期',
-  time: '時間',
-  chooseDateThenTime: '先選日期，再選時間',
-  bookingSummary: '預約摘要',
-  amountDue: '應付金額',
-  monthPrev: '上月',
-  monthNext: '下月',
-  chooseDate: '選擇日期',
-  collapseCalendar: '收起月曆',
-  contactLabel: '查詢電話',
-  timeDropdown: '可預約時段',
-  submit: '提交預約',
-  submitted: '預約已送出',
-  submitFailed: '提交預約失敗',
-})
-
-DAY_LABELS.splice(0, DAY_LABELS.length, '一', '二', '三', '四', '五', '六', '日')
-
-DAY_LABELS.splice(0, DAY_LABELS.length, '一', '二', '三', '四', '五', '六', '日')
-
-Object.assign(T, {
-  title: '線上預約',
-  intro: '先選擇服務與日期，再從下拉選單選擇可預約時段。',
-  loadingStaff: '載入服務供應者資料中…',
-  loadingBootstrapFailed: '無法載入預約資料',
-  noStaffFound: '找不到這位服務供應者',
-  backToBooking: '返回預約頁',
-  serviceProvider: '服務供應者',
-  service: '服務',
-  businessHours: '營業時間',
-  customerName: '顧客姓名',
-  customerNamePlaceholder: '請輸入顧客姓名',
-  customerPhone: '聯絡電話',
-  customerPhonePlaceholder: '請輸入聯絡電話',
-  date: '日期',
-  time: '時間',
-  chooseDateThenTime: '先選日期，再選時間',
-  bookingSummary: '預約摘要',
-  amountDue: '應付金額',
-  monthPrev: '上月',
-  monthNext: '下月',
-  chooseDate: '選擇日期',
-  collapseCalendar: '收起月曆',
-  contactLabel: '查詢電話',
-  timeDropdown: '可預約時段',
-  submit: '提交預約',
-  submitted: '預約已送出',
-  submitFailed: '提交預約失敗',
-})
 
 function LegendPill({ children, tone = 'default' }) {
   const palette =
@@ -326,13 +131,25 @@ const buildMonthGrid = (monthKey) => {
   })
 }
 
+const extractTimeText = (value) => {
+  if (!value) return ''
+  const text = String(value).trim()
+  if (!text) return ''
+  const directMatch = text.match(/^(\d{2}:\d{2})(?::\d{2})?$/)
+  if (directMatch) return directMatch[1]
+  const isoMatch = text.match(/T(\d{2}:\d{2})(?::\d{2})?/)
+  if (isoMatch) return isoMatch[1]
+  const anyMatch = text.match(/(\d{2}:\d{2})(?::\d{2})?/)
+  return anyMatch ? anyMatch[1] : ''
+}
+
 const normalizeSlotValue = (slot) => {
   if (typeof slot === 'string') {
-    const value = slot.slice(0, 5).trim()
+    const value = extractTimeText(slot)
     return value ? { time: value } : null
   }
   if (!slot || typeof slot !== 'object') return null
-  const value = String(slot.time || slot.startTime || slot.start_time || '').slice(0, 5).trim()
+  const value = extractTimeText(slot.time || slot.startTime || slot.start_time)
   return value ? { ...slot, time: value } : null
 }
 
@@ -367,9 +184,8 @@ const getReasonMessage = (summary) => {
   if (!summary) return ''
   if (summary.status === 'off') return T.offNote
   if (summary.status !== 'full') return ''
-  if (summary.reason === 'fully_booked' || summary.reason === 'resource_full') {
-    return '有上班，但今天已滿'
-  }
+  if (summary.reason === 'fully_booked') return '有上班，但今天已滿'
+  if (summary.reason === 'resource_full') return '有上班，但資源設備已滿'
   if (summary.reason === 'provider_mismatch' || summary.reason === 'location_required' || summary.reason === 'no_bookable_slots') {
     return '已安排上班，但此服務目前未形成可預約時段'
   }
@@ -412,6 +228,7 @@ export default function BookingStaffPage() {
   const searchParams = useSearchParams()
   const staffId = Number(params?.staffId || searchParams.get('staffId') || 0)
   const calendarRef = useRef(null)
+  const previousServiceIdRef = useRef('')
 
   const [staff, setStaff] = useState(null)
   const [services, setServices] = useState([])
@@ -473,6 +290,18 @@ export default function BookingStaffPage() {
       cancelled = true
     }
   }, [staffId])
+
+  useEffect(() => {
+    if (!serviceId) return
+    if (previousServiceIdRef.current && previousServiceIdRef.current !== serviceId) {
+      setSelectedDate('')
+      setSelectedTime('')
+      setSlots([])
+      setMonthSummary([])
+      setCalendarOpen(true)
+    }
+    previousServiceIdRef.current = serviceId
+  }, [serviceId])
 
   useEffect(() => {
     let cancelled = false
@@ -558,7 +387,7 @@ export default function BookingStaffPage() {
 
   useEffect(() => {
     if (!staffId || !serviceId || !monthKey) return
-    let cancelled = false
+    const controller = new AbortController()
     setLoadingSummary(true)
     setError('')
 
@@ -576,44 +405,44 @@ export default function BookingStaffPage() {
       year: monthKey.slice(0, 4),
       month: monthKey.slice(5, 7),
     })
-    fetch(`/api/availability/month-summary?${summaryParams.toString()}`)
+    fetch(`/api/availability/month-summary?${summaryParams.toString()}`, { signal: controller.signal })
       .then(async (response) => {
         const payload = await response.json().catch(() => ({}))
         if (!response.ok) throw new Error(payload?.error || bookingOpsCopy.loadFailed)
         return payload
       })
       .then((payload) => {
-        if (cancelled) return
+        if (controller.signal.aborted) return
         const dates = Array.isArray(payload?.dates) ? payload.dates : []
         writeCached(monthSummaryCache, monthSummaryKey, dates)
         setMonthSummary(dates)
       })
       .catch((fetchError) => {
-        if (!cancelled) setError(fetchError?.message || bookingOpsCopy.loadFailed)
+        if (fetchError?.name !== 'AbortError') setError(fetchError?.message || bookingOpsCopy.loadFailed)
       })
       .finally(() => {
-        if (!cancelled) setLoadingSummary(false)
+        if (!controller.signal.aborted) setLoadingSummary(false)
       })
 
-    return () => {
-      cancelled = true
-    }
-  }, [availabilityVersion, monthKey, serviceId, staff?.location_id, staffId])
+    return () => controller.abort()
+  }, [availabilityVersion, monthKey, serviceId, staffId])
 
   const summaryMap = useMemo(() => new Map(monthSummary.map((entry) => [entry.date, entry])), [monthSummary])
   const selectedSummary = selectedDate ? summaryMap.get(selectedDate) : null
   const selectedService = useMemo(() => services.find((item) => String(item.id) === String(serviceId)) || null, [services, serviceId])
   const monthGrid = useMemo(() => (calendarOpen ? buildMonthGrid(monthKey) : []), [calendarOpen, monthKey])
   const currentDateISO = useMemo(() => todayISO(), [])
+
   const selectedDateHelperText = useMemo(() => {
     if (!selectedDate) return ''
     if (selectedDate < currentDateISO) return '過去日期不可預約'
     if (!selectedSummary) return ''
     if (selectedSummary.status === 'off') return T.offNote
-    if (selectedSummary.status === 'full') return getReasonMessageDisplay(selectedSummary)
+    if (selectedSummary.status === 'full') return getReasonMessage(selectedSummary)
     if (!loadingSlots && slots.length === 0) return T.noAvailability
     return ''
   }, [currentDateISO, loadingSlots, selectedDate, selectedSummary, slots.length])
+
   const timePlaceholder = useMemo(() => {
     if (!selectedDate) return T.chooseDateFirst
     if (selectedDate < currentDateISO) return '過去日期不可預約'
@@ -647,6 +476,10 @@ export default function BookingStaffPage() {
       setSlots([])
       return
     }
+    if (loadingSummary || !summaryMap.has(selectedDate)) {
+      setSlots([])
+      return
+    }
 
     const daySummary = summaryMap.get(selectedDate)
     if (daySummary?.status !== 'available') {
@@ -654,7 +487,7 @@ export default function BookingStaffPage() {
       return
     }
 
-    let cancelled = false
+    const controller = new AbortController()
     setLoadingSlots(true)
     setError('')
 
@@ -672,35 +505,35 @@ export default function BookingStaffPage() {
       serviceId: String(serviceId),
       staffId: String(staffId),
     })
-    fetch(`/api/availability?${slotParams.toString()}`)
+    fetch(`/api/availability?${slotParams.toString()}`, { signal: controller.signal })
       .then(async (response) => {
         const payload = await response.json().catch(() => ({}))
         if (!response.ok) throw new Error(payload?.error || bookingOpsCopy.loadFailed)
         return payload
       })
-        .then((payload) => {
-          if (cancelled) return
-          const rawSlots = Array.isArray(payload?.slots)
-            ? payload.slots
-            : Array.isArray(payload?.slotMatrix)
-              ? payload.slotMatrix.flat().filter(Boolean)
-              : []
-          const nextSlots = normalizeSlotList(rawSlots)
-          if (!nextSlots.length) {
-            const nextReason = payload?.dateSummaryReason || daySummary?.reason || 'no_bookable_slots'
-            setMonthSummary((current) => {
-              const next = current.map((entry) => {
-                if (entry?.date !== selectedDate) return entry
-                const nextStatus = nextReason === 'staff_unavailable' ? 'off' : 'full'
-                return {
-                  ...entry,
-                  status: nextStatus,
-                  reason: nextReason,
-                  hasAvailableSlots: false,
-                  availableCount: 0,
-                }
-              })
-              writeCached(monthSummaryCache, monthSummaryKey, next)
+      .then((payload) => {
+        if (controller.signal.aborted) return
+        const rawSlots = Array.isArray(payload?.slots)
+          ? payload.slots
+          : Array.isArray(payload?.slotMatrix)
+            ? payload.slotMatrix.flat().filter(Boolean)
+            : []
+        const nextSlots = normalizeSlotList(rawSlots)
+        if (!nextSlots.length) {
+          const nextReason = payload?.dateSummaryReason || daySummary?.reason || 'no_bookable_slots'
+          setMonthSummary((current) => {
+            const next = current.map((entry) => {
+              if (entry?.date !== selectedDate) return entry
+              const nextStatus = nextReason === 'staff_unavailable' ? 'off' : 'full'
+              return {
+                ...entry,
+                status: nextStatus,
+                reason: nextReason,
+                hasAvailableSlots: false,
+                availableCount: 0,
+              }
+            })
+            writeCached(monthSummaryCache, monthSummaryKey, next)
             return next
           })
         }
@@ -712,19 +545,17 @@ export default function BookingStaffPage() {
         setSlots(nextSlots)
       })
       .catch((fetchError) => {
-        if (!cancelled) {
+        if (fetchError?.name !== 'AbortError') {
           setSlots([])
           setError(fetchError?.message || bookingOpsCopy.loadFailed)
         }
       })
       .finally(() => {
-        if (!cancelled) setLoadingSlots(false)
+        if (!controller.signal.aborted) setLoadingSlots(false)
       })
 
-    return () => {
-      cancelled = true
-    }
-  }, [availabilityVersion, currentDateISO, monthKey, selectedDate, serviceId, staff?.location_id, staffId, summaryMap])
+    return () => controller.abort()
+  }, [availabilityVersion, currentDateISO, loadingSummary, monthKey, selectedDate, serviceId, staffId, summaryMap])
 
   const handleSubmit = async (event) => {
     event.preventDefault()
@@ -774,8 +605,8 @@ export default function BookingStaffPage() {
   }
 
   return (
-    <div style={{ padding: '32px 16px 48px', background: '#FAF8F5', minHeight: '100vh' }}>
-      <div style={{ maxWidth: '1120px', margin: '0 auto', display: 'grid', gap: '20px', gridTemplateColumns: 'minmax(0, 1fr) 320px' }}>
+    <div style={{ padding: '32px 16px max(48px, env(safe-area-inset-bottom))', background: '#FAF8F5', minHeight: '100vh' }}>
+      <div className="booking-layout" style={{ maxWidth: '1120px', margin: '0 auto', display: 'grid', gap: '20px', gridTemplateColumns: 'minmax(0, 1fr) minmax(280px, 320px)' }}>
         <div style={{ display: 'grid', gap: '18px' }}>
           <div className="admin-card" style={panelStyle}>
             <h1 style={{ margin: 0, fontSize: '30px' }}>{T.title}</h1>
@@ -783,19 +614,17 @@ export default function BookingStaffPage() {
           </div>
 
           <form className="admin-card" style={{ ...panelStyle, display: 'grid', gap: '18px' }} onSubmit={handleSubmit}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 240px', gap: '16px', alignItems: 'center' }}>
+            <div className="booking-provider-row" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 240px', gap: '16px', alignItems: 'center' }}>
               <div>
                 <div style={{ fontSize: '12px', color: '#A68B6A', fontWeight: 800, letterSpacing: '0.08em' }}>{T.serviceProvider}</div>
                 <div style={{ marginTop: '4px', fontSize: '24px', fontWeight: 900 }}>{staff.name}</div>
                 <div style={{ marginTop: '6px', color: '#6B7280' }}>{staff.role || T.serviceProvider}</div>
               </div>
-              <div style={{ textAlign: 'right', color: '#6B7280', fontSize: '13px' }}>
-                {settings.phone ? `${T.contactLabel}：${settings.phone}` : null}
-              </div>
+              <div style={{ textAlign: 'right', color: '#6B7280', fontSize: '13px' }}>{settings.phone ? `${T.contactLabel}：${settings.phone}` : null}</div>
             </div>
 
             <div className="admin-card" style={{ ...panelStyle, padding: '20px', display: 'grid', gap: '14px' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 320px', gap: '14px', alignItems: 'end' }}>
+              <div className="booking-service-row" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 320px', gap: '14px', alignItems: 'end' }}>
                 <label style={{ display: 'grid', gap: '8px' }}>
                   <span style={{ fontSize: '13px', fontWeight: 800 }}>{T.service}</span>
                   <select value={serviceId} onChange={(event) => setServiceId(event.target.value)} style={fieldStyle}>
@@ -833,7 +662,7 @@ export default function BookingStaffPage() {
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 280px) minmax(0, 1fr)', gap: '14px', alignItems: 'start' }}>
+              <div className="booking-date-row" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 280px) minmax(0, 1fr)', gap: '14px', alignItems: 'start' }}>
                 <div ref={calendarRef} style={{ position: 'relative', display: 'grid', gap: '8px' }}>
                   <span style={{ fontSize: '13px', fontWeight: 800 }}>{T.date}</span>
                   <button
@@ -863,7 +692,7 @@ export default function BookingStaffPage() {
                         left: 0,
                         zIndex: 20,
                         width: 'min(100vw - 32px, 560px)',
-                        minWidth: '320px',
+                        minWidth: '300px',
                         marginTop: '8px',
                         display: 'grid',
                         gap: '14px',
@@ -913,14 +742,17 @@ export default function BookingStaffPage() {
                                 color: status === 'off' ? '#9CA3AF' : '#111827',
                                 opacity: cell.inMonth ? 1 : 0.38,
                                 cursor: status === 'off' ? 'not-allowed' : 'pointer',
-                                textAlign: 'center',
+                                display: 'grid',
+                                gap: '6px',
+                                textAlign: 'left',
                               }}
                             >
-                              <div style={{ fontWeight: 900, fontSize: '22px', lineHeight: 1 }}>{cell.dayLabel}</div>
-                              {cell.inMonth ? (
-                                <div style={{ marginTop: '8px', fontSize: '12px', fontWeight: 700, color: status === 'off' ? '#9CA3AF' : '#6B7280' }}>
-                                  {isPastDate ? T.off : getCalendarStatusLabel(summary)}
-                                </div>
+                              <strong>{cell.dayLabel}</strong>
+                              <span style={{ fontSize: '12px', color: status === 'available' ? '#047857' : status === 'full' ? '#B45309' : '#6B7280' }}>
+                                {isPastDate ? T.off : getCalendarStatusLabel(summary)}
+                              </span>
+                              {status === 'available' && Number(summary.availableCount || 0) > 0 ? (
+                                <span style={{ fontSize: '11px', color: '#047857' }}>{summary.availableCount} 個時段</span>
                               ) : null}
                             </button>
                           )
@@ -928,53 +760,35 @@ export default function BookingStaffPage() {
                       </div>
                     </div>
                   ) : null}
+                  {selectedDateHelperText ? <div style={{ color: '#9A5E1A', fontSize: '13px', lineHeight: 1.6 }}>{selectedDateHelperText}</div> : null}
                 </div>
 
                 <label style={{ display: 'grid', gap: '8px' }}>
                   <span style={{ fontSize: '13px', fontWeight: 800 }}>{T.timeDropdown}</span>
-                    <select
-                      value={selectedTime}
-                      onChange={(event) => setSelectedTime(event.target.value)}
-                      disabled={!selectedDate || selectedSummary?.status !== 'available' || loadingSlots}
-                      style={fieldStyle}
-                    >
-                      <option value="">{timePlaceholder}</option>
-                    {slots.map((slot) => {
-                      const time = String(slot?.time || '').slice(0, 5)
-                      if (!time) return null
-                      return (
-                        <option key={time} value={time}>
-                          {time}
-                        </option>
-                      )
-                    })}
+                  <select value={selectedTime} onChange={(event) => setSelectedTime(event.target.value)} style={fieldStyle} disabled={!selectedDate || loadingSlots || slots.length === 0}>
+                    <option value="">{timePlaceholder}</option>
+                    {slots.map((slot) => (
+                      <option key={slot.time} value={slot.time}>
+                        {slot.time}
+                      </option>
+                    ))}
                   </select>
                 </label>
               </div>
-
-              {selectedDateHelperText ? <div style={{ color: '#6B7280', fontSize: '14px' }}>{selectedDateHelperText}</div> : null}
             </div>
 
             {memberProfile ? (
-              <div className="admin-card" style={{ padding: '16px', border: '1px solid #E8E0D5', background: '#FFFCF6' }}>
-                <div style={{ fontSize: '12px', color: '#A68B6A', fontWeight: 800, letterSpacing: '0.08em' }}>會員資料</div>
-                <div style={{ marginTop: '8px', display: 'grid', gap: '6px', color: '#4B5563', fontSize: '14px' }}>
-                  <div>姓名：{memberProfile.full_name || '-'}</div>
-                  <div>電話：{memberProfile.phone || '-'}</div>
-                  {memberProfile.email ? <div>電郵：{memberProfile.email}</div> : null}
-                </div>
+              <div style={{ border: '1px solid #E5E7EB', borderRadius: '16px', padding: '14px', background: '#F8FAFC', color: '#374151', lineHeight: 1.7 }}>
+                <strong>會員資料</strong>
+                <div>姓名：{memberProfile.full_name || '-'}</div>
+                <div>電話：{memberProfile.phone || '-'}</div>
+                {memberProfile.email ? <div>電郵：{memberProfile.email}</div> : null}
                 {!memberProfileLoading && (!memberProfile.full_name || !memberProfile.phone) ? (
-                  <div style={{ marginTop: '8px', color: '#B45309', fontSize: '13px', lineHeight: 1.6 }}>
-                    請先完成帳號資料中的姓名及電話，之後才可提交預約。
-                  </div>
-                ) : (
-                  <div style={{ marginTop: '8px', color: '#6B7280', fontSize: '13px', lineHeight: 1.6 }}>
-                    你已登入會員，預約會直接使用帳號內的姓名及電話。
-                  </div>
-                )}
+                  <div style={{ color: '#B45309', marginTop: '8px' }}>請先完成帳號資料中的姓名及電話，才可提交預約。</div>
+                ) : null}
               </div>
             ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
+              <div className="booking-guest-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
                 <label style={{ display: 'grid', gap: '8px' }}>
                   <span style={{ fontSize: '13px', fontWeight: 800 }}>{T.customerName}</span>
                   <input value={customerName} onChange={(event) => setCustomerName(event.target.value)} style={fieldStyle} placeholder={T.customerNamePlaceholder} />
@@ -990,37 +804,55 @@ export default function BookingStaffPage() {
               type="submit"
               className="btn btn-interactive"
               disabled={!selectedDate || !selectedTime || Boolean(memberProfile && (!memberProfile.full_name || !memberProfile.phone))}
-              style={{ minHeight: '48px' }}
+              style={{ width: '100%', minHeight: '52px', background: '#A68B6A', color: '#fff', borderRadius: '14px', fontWeight: 800 }}
             >
               {T.submit}
             </button>
           </form>
         </div>
 
-        <div className="admin-card" style={{ ...panelStyle, padding: '18px', alignSelf: 'start' }}>
+        <aside className="admin-card booking-summary" style={{ ...panelStyle, height: 'fit-content', position: 'sticky', top: '24px' }}>
           <div style={{ fontSize: '12px', color: '#A68B6A', fontWeight: 800, letterSpacing: '0.08em' }}>{T.bookingSummary}</div>
-          <div style={{ marginTop: '12px', display: 'grid', gap: '12px' }}>
+          <div style={{ display: 'grid', gap: '14px', marginTop: '16px' }}>
             <div>
               <div style={{ fontSize: '12px', color: '#6B7280' }}>{T.service}</div>
-              <div style={{ fontWeight: 900 }}>{selectedService?.name || '-'}</div>
+              <strong>{selectedService?.name || '-'}</strong>
             </div>
             <div>
               <div style={{ fontSize: '12px', color: '#6B7280' }}>{T.date}</div>
-              <div style={{ fontWeight: 900 }}>{selectedDate || '-'}</div>
+              <strong>{selectedDate || '-'}</strong>
             </div>
             <div>
               <div style={{ fontSize: '12px', color: '#6B7280' }}>{T.time}</div>
-              <div style={{ fontWeight: 900 }}>{selectedTime || '-'}</div>
+              <strong>{selectedTime || '-'}</strong>
             </div>
             <div>
               <div style={{ fontSize: '12px', color: '#6B7280' }}>{T.amountDue}</div>
-              <div style={{ fontWeight: 900 }}>${Number(selectedService?.price || 0).toFixed(0)}</div>
+              <strong>${Number(selectedService?.price || 0).toFixed(0)}</strong>
             </div>
           </div>
-        </div>
+        </aside>
       </div>
 
-      {error ? <div style={{ maxWidth: '1120px', margin: '16px auto 0', color: '#991B1B' }}>{error}</div> : null}
+      <style jsx>{`
+        @media (max-width: 860px) {
+          .booking-layout {
+            grid-template-columns: 1fr !important;
+          }
+          .booking-provider-row,
+          .booking-service-row,
+          .booking-date-row,
+          .booking-guest-row {
+            grid-template-columns: 1fr !important;
+          }
+          .booking-provider-row > div:last-child {
+            text-align: left !important;
+          }
+          .booking-summary {
+            position: static !important;
+          }
+        }
+      `}</style>
     </div>
   )
 }
