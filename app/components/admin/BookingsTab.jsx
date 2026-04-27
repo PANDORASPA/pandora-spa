@@ -257,14 +257,16 @@ export default function BookingsTab({
 
   const updateStatus = async (id, status) => {
     if (!onUpdateStatus) return
-    await onUpdateStatus(id, status)
+    const result = await onUpdateStatus(id, status)
+    if (result === false) return
     setSelectedBooking((current) => (current?.id === id ? { ...current, status } : current))
   }
 
   const updateStaff = async (id, staffId) => {
     if (!onUpdateBookingStaff) return
     const normalizedStaffId = Number(staffId) || null
-    await onUpdateBookingStaff(id, normalizedStaffId)
+    const result = await onUpdateBookingStaff(id, normalizedStaffId)
+    if (result === false) return
     setSelectedBooking((current) =>
       current?.id === id
         ? { ...current, staff_id: normalizedStaffId, staff_name: staffNameMap[normalizedStaffId] || current?.staff_name || getStaffName(staff.find((member) => String(member.id) === String(staffId))) }
