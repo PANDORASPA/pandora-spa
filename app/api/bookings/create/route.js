@@ -30,18 +30,30 @@ const updateTicketRemainingCount = async (supabase, ticketId, nextCount) => {
   return data
 }
 
-const rollbackCreateBooking = async ({ supabase, bookingId, ticketSnapshot }) => {
+const inspectCreateRollbackState = async ({ supabase, bookingId, ticketSnapshot }) => {
+  const [bookingRes, allocationRes, ticketRes] = await Promise.all([
+    supabase.from('bookings').select('id').eq('id', bookingId).maybeSingle(),
+    supabase.from('booking_resource_allocations').select('id').eq('booking_id', bookingId),
+    ticketSnapshot?.id ? loadTicketSnapshot(supabase, ticketSnapshot.id) : Promise.resolve(null),
+  ])
+
+  return {
+    bookingExists: Boolean(bookingRes?.data),
+    bookingCheckError: bookingRes?.error?.message || null,
+    allocationCount: Array.isArray(allocationRes?.data) ? allocationRes.data.length : 0,
+    allocationCheckError: allocationRes?.error?.message || null,
+    ticketRemaining: ticketRes ? Number(ticketRes.remaining_count || 0) : null,
+    ticketCheckError: ticketSnapshot?.id && !ticketRes ? 'Ticket snapshot could not be reloaded.' : null,
+  }
+}
+
+const rollbackCreateBooking = async ({ supabase, bookingId, ticketSnapshot, restoreTicket = Boolean(ticketSnapshot?.id) }) => {
   const details = {
+    restoreTicketAttempted: Boolean(restoreTicket && ticketSnapshot?.id),
     bookingDeleted: false,
     allocationsDeleted: false,
     ticketRestored: ticketSnapshot ? false : null,
   }
-
-  const allocationDeleteRes = await supabase.from('booking_resource_allocations').delete().eq('booking_id', bookingId)
-  if (allocationDeleteRes.error) {
-    return { ok: false, stage: 'delete_allocations', error: allocationDeleteRes.error.message, details }
-  }
-  details.allocationsDeleted = true
 
   const bookingDeleteRes = await supabase.from('bookings').delete().eq('id', bookingId)
   if (bookingDeleteRes.error) {
@@ -49,7 +61,13 @@ const rollbackCreateBooking = async ({ supabase, bookingId, ticketSnapshot }) =>
   }
   details.bookingDeleted = true
 
-  if (ticketSnapshot?.id) {
+  const allocationDeleteRes = await supabase.from('booking_resource_allocations').delete().eq('booking_id', bookingId)
+  if (allocationDeleteRes.error) {
+    return { ok: false, stage: 'delete_allocations', error: allocationDeleteRes.error.message, details }
+  }
+  details.allocationsDeleted = true
+
+  if (restoreTicket && ticketSnapshot?.id) {
     try {
       await updateTicketRemainingCount(supabase, ticketSnapshot.id, ticketSnapshot.remaining_count)
       details.ticketRestored = true
@@ -58,39 +76,39 @@ const rollbackCreateBooking = async ({ supabase, bookingId, ticketSnapshot }) =>
     }
   }
 
-  const verifyAllocationsRes = await supabase.from('booking_resource_allocations').select('id').eq('booking_id', bookingId)
-  if (verifyAllocationsRes.error) {
-    return { ok: false, stage: 'verify_allocations', error: verifyAllocationsRes.error.message, details }
-  }
-  if ((verifyAllocationsRes.data || []).length > 0) {
-    return { ok: false, stage: 'verify_allocations', error: 'Booking allocations still exist after rollback.', details }
-  }
+  const verifyState = await inspectCreateRollbackState({ supabase, bookingId, ticketSnapshot })
+  const bookingRemoved = !verifyState.bookingExists
+  const allocationsRemoved = verifyState.allocationCount === 0
+  const ticketRestored =
+    !restoreTicket || !ticketSnapshot?.id || verifyState.ticketRemaining == null
+      ? true
+      : Number(verifyState.ticketRemaining || 0) === Number(ticketSnapshot.remaining_count || 0)
 
-  const verifyBookingRes = await supabase.from('bookings').select('id').eq('id', bookingId).maybeSingle()
-  if (verifyBookingRes.error) {
-    return { ok: false, stage: 'verify_booking', error: verifyBookingRes.error.message, details }
-  }
-  if (verifyBookingRes.data) {
-    return { ok: false, stage: 'verify_booking', error: 'Booking still exists after rollback.', details }
-  }
-
-  if (ticketSnapshot?.id) {
-    const verifyTicket = await loadTicketSnapshot(supabase, ticketSnapshot.id)
-    if (!verifyTicket || Number(verifyTicket.remaining_count || 0) !== Number(ticketSnapshot.remaining_count || 0)) {
-      return {
-        ok: false,
-        stage: 'verify_ticket',
-        error: 'Ticket restore verification failed.',
-        details: {
-          ...details,
-          expectedTicketRemaining: Number(ticketSnapshot.remaining_count || 0),
-          actualTicketRemaining: Number(verifyTicket?.remaining_count || 0),
-        },
-      }
+  if (!bookingRemoved || !allocationsRemoved || !ticketRestored) {
+    return {
+      ok: false,
+      stage: 'verify_rollback',
+      error: 'Rollback verification failed.',
+      details: {
+        ...details,
+        ...verifyState,
+        bookingRemoved,
+        allocationsRemoved,
+        ticketRestored,
+      },
     }
   }
 
-  return { ok: true, details }
+  return {
+    ok: true,
+    details: {
+      ...details,
+      ...verifyState,
+      bookingRemoved,
+      allocationsRemoved,
+      ticketRestored,
+    },
+  }
 }
 
 export async function POST(request) {
@@ -249,8 +267,14 @@ export async function POST(request) {
           supabase,
           bookingId: inserted.id,
           ticketSnapshot: originalTicketSnapshot,
+          restoreTicket: false,
         })
         if (!rollbackResult.ok) {
+          const stateSnapshot = await inspectCreateRollbackState({
+            supabase,
+            bookingId: inserted.id,
+            ticketSnapshot: originalTicketSnapshot,
+          })
           return NextResponse.json(
             {
               error: 'Ticket deduction failed and rollback could not be fully verified.',
@@ -260,6 +284,7 @@ export async function POST(request) {
                 rollbackStage: rollbackResult.stage,
                 rollbackError: rollbackResult.error,
                 rollbackDetails: rollbackResult.details,
+                stateSnapshot,
               },
             },
             { status: 500 },
@@ -290,6 +315,11 @@ export async function POST(request) {
           ticketSnapshot: originalTicketSnapshot,
         })
         if (!rollbackResult.ok) {
+          const stateSnapshot = await inspectCreateRollbackState({
+            supabase,
+            bookingId: inserted.id,
+            ticketSnapshot: originalTicketSnapshot,
+          })
           return NextResponse.json(
             {
               error: 'Resource allocation failed and rollback could not be fully verified.',
@@ -299,6 +329,7 @@ export async function POST(request) {
                 rollbackStage: rollbackResult.stage,
                 rollbackError: rollbackResult.error,
                 rollbackDetails: rollbackResult.details,
+                stateSnapshot,
               },
             },
             { status: 500 },
@@ -315,6 +346,11 @@ export async function POST(request) {
           ticketSnapshot: originalTicketSnapshot,
         })
         if (!rollbackResult.ok) {
+          const stateSnapshot = await inspectCreateRollbackState({
+            supabase,
+            bookingId: inserted.id,
+            ticketSnapshot: originalTicketSnapshot,
+          })
           return NextResponse.json(
             {
               error: 'Resource allocation verification failed and rollback could not be fully verified.',
@@ -326,6 +362,7 @@ export async function POST(request) {
                 rollbackDetails: rollbackResult.details,
                 expectedAllocationCount: allocationPayload.length,
                 actualAllocationCount: (verifyAllocationsRes.data || []).length,
+                stateSnapshot,
               },
             },
             { status: 500 },
