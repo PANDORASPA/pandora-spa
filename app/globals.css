@@ -23,6 +23,10 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+main {
+  min-height: calc(100vh - 180px);
+}
+
 a {
   text-decoration: none;
   color: inherit;
@@ -557,5 +561,19 @@ label {
   /* Add padding to main content to account for bottom nav */
   main {
     padding-bottom: calc(112px + env(safe-area-inset-bottom, 0));
+  }
+}
+
+@media (max-width: 768px) {
+  body.auth-page .mobile-bottom-nav {
+    display: none;
+  }
+
+  body.auth-page main {
+    padding-bottom: 24px;
+  }
+
+  body.auth-page .footer {
+    margin-top: 24px;
   }
 }
