@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useEffect, useMemo, useState } from 'react'
 import { AdminSection, EmptyState, StatusPill } from './AdminConfigKit'
@@ -23,20 +23,19 @@ const SECTION_OPTIONS = [
   {
     key: 'availability',
     title: '營業時間與預約規則',
-    description: '設定店舖營業時間、時段步幅與預設緩衝時間。',
+    description: '設定店舖營業時間、時段步長與預約緩衝時間。',
   },
   {
     key: 'daysOff',
-    title: '全店休息日',
+    title: '全店公休日',
     description: '設定全店共同休息的星期，所有員工都會一併受影響。',
   },
   {
     key: 'admins',
-    title: '管理員帳戶',
+    title: '管理員帳號',
     description: '查看哪些會員已具備後台管理權限，並同步登入狀態。',
   },
 ]
-
 const parseBusinessHours = (value) => {
   const fallback = ['11:00', '20:00']
   const parts = String(value || `${fallback[0]} - ${fallback[1]}`)
@@ -81,21 +80,20 @@ const adminStatusTone = (profile) => {
 }
 
 const adminStatusText = (profile) => {
-  if (!profile?.auth_user_exists) return '未找到對應登入帳戶'
+  if (!profile?.auth_user_exists) return '找不到對應登入帳號'
   if (!profile?.is_admin) return '目前不是管理員'
   return '可登入後台'
 }
 
 const adminDiagnosticText = (profile) => {
   if (!profile?.id) return '缺少會員資料記錄。'
-  if (!profile?.auth_user_exists) return '找不到對應的 Supabase Auth 帳戶，請先確認是否已完成註冊。'
-  if (!profile?.is_admin) return '帳戶存在，但目前未勾選管理員權限。'
+  if (!profile?.auth_user_exists) return '找不到對應的 Supabase Auth 帳號，請先確認是否已完成註冊。'
+  if (!profile?.is_admin) return '帳號存在，但目前未勾選管理員權限。'
   if (profile?.auth_email && profile?.email && profile.auth_email !== profile.email) {
-    return `登入帳戶電郵 ${profile.auth_email} 與會員資料電郵 ${profile.email} 不同。`
+    return `登入帳號電郵 ${profile.auth_email} 與會員資料電郵 ${profile.email} 不同。`
   }
-  return '登入帳戶與會員資料已對上，理論上可正常進入後台。'
+  return '登入帳號與會員資料已對上，理論上可正常進入後台。'
 }
-
 export default function SettingsTab({
   settings,
   saveSettings,
@@ -125,14 +123,13 @@ export default function SettingsTab({
     () => ({
       profile: draft?.shop_name ? '已填店舖資料' : '待填店舖資料',
       availability: draft?.business_hours ? '已設定營業時間' : '未設定營業時間',
-      daysOff: daysOff.length ? `已選 ${daysOff.length} 日` : '沒有全店休息日',
+      daysOff: daysOff.length ? `已選 ${daysOff.length} 日` : '沒有全店公休日',
       admins: adminDraft.filter((profile) => profile?.is_admin === true).length
         ? `${adminDraft.filter((profile) => profile?.is_admin === true).length} 位管理員`
         : '未指定管理員',
     }),
     [adminDraft, daysOff.length, draft?.business_hours, draft?.shop_name],
   )
-
   const updateSetting = (key, value) => setDraft((current) => ({ ...current, [key]: value }))
 
   const toggleDayOff = (dayKey) => {
@@ -160,7 +157,7 @@ export default function SettingsTab({
               </label>
               <label style={{ display: 'grid', gap: '8px' }}>
                 <span style={{ fontSize: '13px', fontWeight: 800 }}>Google Place ID</span>
-                <input type="text" value={draft.google_place_id || ''} onChange={(event) => updateSetting('google_place_id', event.target.value)} style={fieldStyle} placeholder="如有需要才填" />
+                <input type="text" value={draft.google_place_id || ''} onChange={(event) => updateSetting('google_place_id', event.target.value)} style={fieldStyle} placeholder="如有需要才填寫" />
               </label>
             </div>
           </div>
@@ -171,34 +168,20 @@ export default function SettingsTab({
             <div style={{ display: 'grid', gap: '8px' }}>
               <span style={{ fontSize: '13px', fontWeight: 800 }}>營業時間</span>
               <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap', flexDirection: compact ? 'column' : 'row' }}>
-                <input
-                  type="time"
-                  value={businessHours.start}
-                  onChange={(event) => updateSetting('business_hours', `${event.target.value} - ${businessHours.end}`)}
-                  style={{ ...fieldStyle, maxWidth: compact ? '100%' : '220px' }}
-                />
+                <input type="time" value={businessHours.start} onChange={(event) => updateSetting('business_hours', `${event.target.value} - ${businessHours.end}`)} style={{ ...fieldStyle, maxWidth: compact ? '100%' : '220px' }} />
                 <span style={{ color: 'var(--text-light)', fontWeight: 700 }}>至</span>
-                <input
-                  type="time"
-                  value={businessHours.end}
-                  onChange={(event) => updateSetting('business_hours', `${businessHours.start} - ${event.target.value}`)}
-                  style={{ ...fieldStyle, maxWidth: compact ? '100%' : '220px' }}
-                />
+                <input type="time" value={businessHours.end} onChange={(event) => updateSetting('business_hours', `${businessHours.start} - ${event.target.value}`)} style={{ ...fieldStyle, maxWidth: compact ? '100%' : '220px' }} />
               </div>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px', overflowX: 'auto' }}>
               <label style={{ display: 'grid', gap: '8px' }}>
-                <span style={{ fontSize: '13px', fontWeight: 800 }}>時段步幅（分鐘）</span>
+                <span style={{ fontSize: '13px', fontWeight: 800 }}>時段步長（分鐘）</span>
                 <select value={String(draft.slot_step_min || '30')} onChange={(event) => updateSetting('slot_step_min', event.target.value)} style={fieldStyle}>
-                  {[15, 30, 60].map((value) => (
-                    <option key={value} value={String(value)}>
-                      {value}
-                    </option>
-                  ))}
+                  {[15, 30, 60].map((value) => <option key={value} value={String(value)}>{value}</option>)}
                 </select>
               </label>
               <label style={{ display: 'grid', gap: '8px' }}>
-                <span style={{ fontSize: '13px', fontWeight: 800 }}>預設緩衝時間（分鐘）</span>
+                <span style={{ fontSize: '13px', fontWeight: 800 }}>預約緩衝時間（分鐘）</span>
                 <input type="number" min="0" step="5" value={draft.default_buffer_min || '15'} onChange={(event) => updateSetting('default_buffer_min', event.target.value)} style={fieldStyle} />
               </label>
             </div>
@@ -207,103 +190,41 @@ export default function SettingsTab({
       case 'daysOff':
         return (
           <div style={{ display: 'grid', gap: '14px' }}>
-            <div style={{ color: 'var(--text-light)', fontSize: '13px', lineHeight: 1.6 }}>
-              這裡設定的是全店共同休息日。勾選後，所有員工都會一併視為休息，前台可預約日期會即時反映。
-            </div>
+            <div style={{ color: 'var(--text-light)', fontSize: '13px', lineHeight: 1.6 }}>這裡設定全店共同公休日。勾選後，所有員工都會一併視為休息，前台可預約日期會即時反映。</div>
             <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
               {DAY_OPTIONS.map((day) => {
                 const active = daysOff.includes(day.key)
-                return (
-                  <button
-                    key={day.key}
-                    type="button"
-                    onClick={() => toggleDayOff(day.key)}
-                    className="btn-interactive"
-                    style={{
-                      padding: '10px 16px',
-                      borderRadius: '999px',
-                      border: `1px solid ${active ? 'var(--primary)' : 'var(--gray)'}`,
-                      background: active ? 'var(--primary)' : '#fff',
-                      color: active ? '#fff' : 'var(--text-light)',
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                    }}
-                  >
-                    {day.label}
-                  </button>
-                )
+                return <button key={day.key} type="button" onClick={() => toggleDayOff(day.key)} className="btn-interactive" style={{ padding: '10px 16px', borderRadius: '999px', border: `1px solid ${active ? 'var(--primary)' : 'var(--gray)'}`, background: active ? 'var(--primary)' : '#fff', color: active ? '#fff' : 'var(--text-light)', fontWeight: 700, cursor: 'pointer' }}>{day.label}</button>
               })}
             </div>
-            <div style={{ color: 'var(--text-light)', fontSize: '12px', lineHeight: 1.6 }}>
-              目前全店休息日：{daysOff.length ? daysOff.map((day) => DAY_OPTIONS.find((item) => item.key === day)?.label || day).join('、') : '沒有'}
-            </div>
+            <div style={{ color: 'var(--text-light)', fontSize: '12px', lineHeight: 1.6 }}>目前全店公休日：{daysOff.length ? daysOff.map((day) => DAY_OPTIONS.find((item) => item.key === day)?.label || day).join('、') : '沒有'}</div>
           </div>
         )
       case 'admins':
         return (
           <div style={{ display: 'grid', gap: '12px' }}>
-            {(adminDraft || []).length === 0 ? (
-              <EmptyState title="暫時沒有管理員帳戶" description="請先建立會員資料，之後再勾選管理員權限。" />
-            ) : (
-              adminDraft.map((profile) => (
-                <div
-                  key={profile.id}
-                  style={{
-                    display: 'grid',
-                    gap: '10px',
-                    padding: '12px 14px',
-                    border: '1px solid var(--gray)',
-                    borderRadius: '12px',
-                    background: '#fff',
-                  }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: compact ? 'flex-start' : 'center', gap: '12px', flexWrap: 'wrap' }}>
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{ fontWeight: 700, color: 'var(--text)' }}>{profile.full_name || profile.email || profile.id}</div>
-                      <div style={{ marginTop: '4px', color: 'var(--text-light)', fontSize: '12px', lineHeight: 1.5 }}>
-                        {profile.email || '沒有電郵'}
-                        {profile.phone ? ` / ${profile.phone}` : ''}
-                      </div>
-                    </div>
-                    <label style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: 700 }}>
-                      <input
-                        type="checkbox"
-                        checked={profile.is_admin === true}
-                        onChange={(event) =>
-                          setAdminDraft((current) =>
-                            current.map((item) => (item.id === profile.id ? { ...item, is_admin: event.target.checked } : item)),
-                          )
-                        }
-                      />
-                      管理員
-                    </label>
+            {(adminDraft || []).length === 0 ? <EmptyState title="暫時沒有管理員帳號" description="請先建立會員資料，之後再勾選管理員權限。" /> : adminDraft.map((profile) => (
+              <div key={profile.id} style={{ display: 'grid', gap: '10px', padding: '12px 14px', border: '1px solid var(--gray)', borderRadius: '12px', background: '#fff' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: compact ? 'flex-start' : 'center', gap: '12px', flexWrap: 'wrap' }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontWeight: 700, color: 'var(--text)' }}>{profile.full_name || profile.email || profile.id}</div>
+                    <div style={{ marginTop: '4px', color: 'var(--text-light)', fontSize: '12px', lineHeight: 1.5 }}>{profile.email || '沒有電郵'}{profile.phone ? ` / ${profile.phone}` : ''}</div>
                   </div>
-
-                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                    <StatusPill tone={adminStatusTone(profile)}>{adminStatusText(profile)}</StatusPill>
-                    <StatusPill tone="accent">Profile ID：{profile.id}</StatusPill>
-                    <StatusPill tone={profile.auth_user_exists ? 'success' : 'danger'}>
-                      Auth：{profile.auth_user_exists ? '已找到' : '找不到'}
-                    </StatusPill>
-                  </div>
-
-                  <div style={{ fontSize: '12px', color: 'var(--text-light)', lineHeight: 1.6 }}>
-                    {adminDiagnosticText(profile)}
-                    {profile.auth_email ? ` 目前 auth 電郵：${profile.auth_email}` : ''}
-                  </div>
+                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: 700 }}>
+                    <input type="checkbox" checked={profile.is_admin === true} disabled={!profile.auth_user_exists || profile.account_status !== 'ready'} onChange={(event) => setAdminDraft((current) => current.map((item) => (item.id === profile.id ? { ...item, is_admin: event.target.checked } : item)))} />
+                    管理員
+                  </label>
                 </div>
-              ))
-            )}
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  <StatusPill tone={adminStatusTone(profile)}>{adminStatusText(profile)}</StatusPill>
+                  <StatusPill tone="accent">Profile ID：{profile.id}</StatusPill>
+                  <StatusPill tone={profile.auth_user_exists ? 'success' : 'danger'}>Auth：{profile.auth_user_exists ? '已找到' : '找不到'}</StatusPill>
+                </div>
+                <div style={{ fontSize: '12px', color: 'var(--text-light)', lineHeight: 1.6 }}>{adminDiagnosticText(profile)}{profile.auth_email ? ` 目前 auth 電郵：${profile.auth_email}` : ''}</div>
+              </div>
+            ))}
             <div style={{ display: 'flex', justifyContent: compact ? 'stretch' : 'flex-end' }}>
-              <button
-                type="button"
-                onClick={() => saveAdminProfiles?.(adminDraft)}
-                disabled={!adminDirty || saving}
-                className="btn btn-small btn-interactive"
-                style={{ minWidth: compact ? '100%' : '148px' }}
-              >
-                {saving ? '儲存中…' : '儲存管理員設定'}
-              </button>
+              <button type="button" onClick={() => saveAdminProfiles?.(adminDraft)} disabled={!adminDirty || saving} className="btn btn-small btn-interactive" style={{ minWidth: compact ? '100%' : '148px' }}>{saving ? '儲存中...' : '儲存管理員設定'}</button>
             </div>
           </div>
         )
@@ -316,44 +237,19 @@ export default function SettingsTab({
 
   return (
     <div style={{ display: 'grid', gap: '20px' }}>
-      <div
-        className="admin-card"
-        style={{
-          padding: '20px 22px',
-          background: 'linear-gradient(135deg, #fff, #FBF8F4)',
-          border: '1px solid rgba(166, 139, 106, 0.22)',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          gap: '16px',
-          flexWrap: 'wrap',
-        }}
-      >
+      <div className="admin-card" style={{ padding: '20px 22px', background: 'linear-gradient(135deg, #fff, #FBF8F4)', border: '1px solid rgba(166, 139, 106, 0.22)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
         <div>
           <div style={{ color: '#A68B6A', fontSize: '12px', fontWeight: 800, letterSpacing: '0.08em' }}>系統設定</div>
           <div style={{ marginTop: '4px', fontSize: '20px', fontWeight: 800 }}>店舖與管理員設定</div>
-          <div style={{ marginTop: '6px', fontSize: '13px', color: 'var(--text-light)', lineHeight: 1.6 }}>
-            先在左側切換項目，再在右側集中編輯，避免整頁資料一長串難以操作。
-          </div>
+          <div style={{ marginTop: '6px', fontSize: '13px', color: 'var(--text-light)', lineHeight: 1.6 }}>先在左側切換設定分類，再在右側集中編輯，避免整頁資料太長而難以操作。</div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
           <StatusPill tone={isDirty || adminDirty ? 'warning' : 'success'}>{isDirty || adminDirty ? '有未儲存變更' : '全部已儲存'}</StatusPill>
-          {selectedSection !== 'admins' ? (
-            <button type="button" onClick={() => saveSettings(draft)} disabled={!isDirty || saving} className="btn btn-small btn-interactive" style={{ minWidth: '120px' }}>
-              {saving ? '儲存中…' : '儲存設定'}
-            </button>
-          ) : null}
+          {selectedSection !== 'admins' ? <button type="button" onClick={() => saveSettings(draft)} disabled={!isDirty || saving} className="btn btn-small btn-interactive" style={{ minWidth: '120px' }}>{saving ? '儲存中...' : '儲存設定'}</button> : null}
         </div>
       </div>
 
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: compact ? '1fr' : 'minmax(280px, 340px) minmax(0, 1fr)',
-          gap: '18px',
-          alignItems: 'start',
-        }}
-      >
+      <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : 'minmax(280px, 340px) minmax(0, 1fr)', gap: '18px', alignItems: 'start' }}>
         <AdminSection eyebrow="設定清單" title="設定分類" description="先選左邊分類，再在右邊集中編輯。">
           <div style={{ display: 'grid', gap: '12px' }}>
             {SECTION_OPTIONS.map((section) => {
@@ -370,11 +266,9 @@ export default function SettingsTab({
             })}
           </div>
         </AdminSection>
-
-        <AdminSection eyebrow="設定內容" title={currentSection.title} description={currentSection.description}>
-          {renderSection()}
-        </AdminSection>
+        <AdminSection eyebrow="設定內容" title={currentSection.title} description={currentSection.description}>{renderSection()}</AdminSection>
       </div>
     </div>
   )
 }
+
