@@ -1,13 +1,13 @@
 {
-  "generatedAt": "2026-04-26T14:09:41.509Z",
-  "baseUrl": "http://localhost:3000",
+  "generatedAt": "2026-04-27T15:50:26.367Z",
+  "baseUrl": "http://localhost:3001",
   "checks": {},
   "release_decision": "NO-GO",
   "blocking_findings": [
     {
       "name": "script_execution",
       "response_status": null,
-      "response_code": "environment_invalid"
+      "response_code": "unexpected_server_error"
     }
   ],
   "known_p2": [],
@@ -15,8 +15,8 @@
   "evidence_checked": [],
   "next_fix_round_needed": "yes",
   "failure": {
-    "message": "TypeError: fetch failed",
-    "diagnostic_category": "environment_invalid",
-    "details": "TypeError: fetch failed\n\nCaused by: ConnectTimeoutError: Connect Timeout Error (attempted address: khjjvjufwbmqymgzhbkl.supabase.co:443, timeout: 10000ms) (UND_ERR_CONNECT_TIMEOUT)\nConnectTimeoutError: Connect Timeout Error (attempted address: khjjvjufwbmqymgzhbkl.supabase.co:443, timeout: 10000ms)\n    at onConnectTimeout (node:internal/deps/undici/undici:2602:28)\n    at Immediate._onImmediate (node:internal/deps/undici/undici:2568:35)\n    at process.processImmediate (node:internal/timers:485:21)"
+    "message": "Create smoke failed unexpectedly: {\"error\":\"Cannot create a booking in the past.\"}",
+    "diagnostic_category": "unexpected_server_error",
+    "details": null
   }
 }
