@@ -58,6 +58,14 @@ const createStructuredError = (message, details = {}) => {
   return error
 }
 
+const classifyExecutionError = (error) => {
+  const text = `${error?.message || ''}\n${error?.details || ''}\n${error?.cause?.message || ''}`
+  if (/fetch failed|ConnectTimeout|UND_ERR_CONNECT_TIMEOUT|ENOTFOUND|ECONNREFUSED|ETIMEDOUT/i.test(text)) {
+    return 'environment_invalid'
+  }
+  return error?.details?.diagnostic_category || 'unexpected_server_error'
+}
+
 const parseTimeToMinutes = (value) => {
   if (!value) return null
   const [hours, minutes] = String(value).slice(0, 5).split(':').map(Number)
@@ -828,6 +836,7 @@ async function main() {
 }
 
 main().catch((error) => {
+  const diagnosticCategory = classifyExecutionError(error)
   const report = {
     generatedAt: new Date().toISOString(),
     baseUrl,
@@ -837,7 +846,7 @@ main().catch((error) => {
       {
         name: 'script_execution',
         response_status: null,
-        response_code: error?.details?.diagnostic_category || 'unexpected_server_error',
+        response_code: diagnosticCategory,
       },
     ],
     known_p2: [],
@@ -846,7 +855,7 @@ main().catch((error) => {
     next_fix_round_needed: 'yes',
     failure: {
       message: error?.message || 'Unknown error',
-      diagnostic_category: error?.details?.diagnostic_category || 'unexpected_server_error',
+      diagnostic_category: diagnosticCategory,
       details: error?.details || null,
     },
   }
