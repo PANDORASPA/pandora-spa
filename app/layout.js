@@ -1,6 +1,7 @@
 import './globals.css'
 import Navbar from './components/Navbar'
 import MobileNav from './components/MobileNav'
+import RouteBodyClass from './components/RouteBodyClass'
 import { Toaster } from 'react-hot-toast'
 
 export const metadata = {
@@ -11,20 +12,19 @@ export const metadata = {
 export const viewport = {
   width: 'device-width',
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
 }
 
 export default function RootLayout({ children }) {
   return (
     <html lang="zh-HK">
       <body>
+        <RouteBodyClass />
         <Toaster />
         <Navbar />
         <main>{children}</main>
         <footer className="footer">
           <p>© 2026 VIVA HAIR. All Rights Reserved.</p>
-          <p>店舖資料與服務內容可在後台更新。</p>
+          <p>店舖資料及服務內容可由後台更新。</p>
         </footer>
         <MobileNav />
       </body>
