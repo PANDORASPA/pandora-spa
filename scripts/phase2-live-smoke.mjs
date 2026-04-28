@@ -319,6 +319,7 @@ async function ensureServiceRelations(locationId, providerGroupId, resourceId) {
   await supabase.from('service_provider_groups').upsert({ service_id: smokeConfig.serviceId, provider_group_id: providerGroupId, assignment_mode: 'required' })
   await supabase.from('staff_provider_groups').upsert({ staff_id: smokeConfig.staffId, provider_group_id: providerGroupId })
   await supabase.from('service_resources').delete().eq('service_id', smokeConfig.serviceId).eq('resource_id', resourceId)
+  await supabase.from('service_resources').delete().eq('service_id', smokeConfig.serviceId).neq('resource_id', resourceId)
   await supabase.from('service_resources').insert({ service_id: smokeConfig.serviceId, resource_id: resourceId, quantity: 1, required: true })
   await supabase
     .from('staff')
