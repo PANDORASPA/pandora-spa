@@ -1,29 +1,29 @@
 {
-  "generatedAt": "2026-04-27T15:57:06.404Z",
+  "generatedAt": "2026-04-27T16:07:25.040Z",
   "baseUrl": "http://localhost:3001",
   "report_version": 3,
   "seeds": {
     "location_id": 5,
     "provider_group_id": 4,
     "resource_id": 4,
-    "booking_id": 66,
+    "booking_id": 74,
     "order_id": 5,
     "transaction_id": 2,
     "customer_id": 3,
-    "holiday_id": 14,
+    "holiday_id": 16,
     "user_ticket_id": 4,
     "staff_id": 3
   },
   "controlled_booking_flow": {
-    "status": "fail",
-    "booking_id": 67,
+    "status": "pass",
+    "booking_id": 75,
     "create_date": "2026-06-04",
     "reschedule_date": "2026-06-05",
     "create_slot": "09:00",
     "reschedule_slot": "11:00",
     "ticket_id": 8,
-    "create_pass": false,
-    "reschedule_pass": false,
+    "create_pass": true,
+    "reschedule_pass": true,
     "cancel_pass": true
   },
   "controlled_booking_evidence": {
@@ -44,7 +44,7 @@
         "location": null,
         "valid": true
       },
-      "booking_id": 67,
+      "booking_id": 75,
       "before_snapshot": null,
       "after_snapshot": {
         "appointment_date": "2026-06-04",
@@ -53,9 +53,9 @@
         "buffer_end_time": "10:00:00",
         "location_id": null,
         "provider_group_id": null,
-        "allocation_count": 2
+        "allocation_count": 1
       },
-      "status": "fail"
+      "status": "pass"
     },
     "reschedule": {
       "request": {
@@ -66,41 +66,41 @@
         "staff_id": 3,
         "user_ticket_id": 8
       },
-      "response_status": 409,
-      "response_code": "resource_full",
+      "response_status": 200,
+      "response_code": null,
       "diagnostic_category": "unexpected_server_error",
-      "booking_id": 67,
+      "booking_id": 75,
       "before_snapshot": {
         "appointment_date": "2026-06-04",
         "start_time": "09:00:00",
-        "allocation_count": 2
+        "allocation_count": 1
       },
       "after_snapshot": {
-        "appointment_date": "2026-06-04",
-        "start_time": "09:00:00",
-        "allocation_count": 2
+        "appointment_date": "2026-06-05",
+        "start_time": "11:00:00",
+        "allocation_count": 1
       },
-      "status": "fail"
+      "status": "pass"
     },
     "cancel": {
       "request": {
-        "booking_id": 67
+        "booking_id": 75
       },
       "response_status": 200,
       "response_code": null,
       "diagnostic_category": "unexpected_server_error",
-      "booking_id": 67,
+      "booking_id": 75,
       "before_snapshot": {
-        "appointment_date": "2026-06-04",
-        "start_time": "09:00:00",
+        "appointment_date": "2026-06-05",
+        "start_time": "11:00:00",
         "status": "pending",
-        "allocation_count": 2
+        "allocation_count": 1
       },
       "after_snapshot": {
-        "appointment_date": "2026-06-04",
-        "start_time": "09:00:00",
+        "appointment_date": "2026-06-05",
+        "start_time": "11:00:00",
         "status": "cancelled",
-        "allocation_count": 2
+        "allocation_count": 1
       },
       "ticket_before_cancel": {
         "remaining_count": 1
@@ -113,7 +113,7 @@
   },
   "checks": {
     "controlled_booking_create": {
-      "status": "fail",
+      "status": "pass",
       "request": {
         "date": "2026-06-04",
         "start_time": "09:00",
@@ -130,7 +130,7 @@
         "location": null,
         "valid": true
       },
-      "booking_id": 67,
+      "booking_id": 75,
       "before_snapshot": null,
       "after_snapshot": {
         "appointment_date": "2026-06-04",
@@ -139,11 +139,11 @@
         "buffer_end_time": "10:00:00",
         "location_id": null,
         "provider_group_id": null,
-        "allocation_count": 2
+        "allocation_count": 1
       }
     },
     "controlled_booking_reschedule": {
-      "status": "fail",
+      "status": "pass",
       "request": {
         "date": "2026-06-05",
         "start_time": "11:00",
@@ -152,41 +152,41 @@
         "staff_id": 3,
         "user_ticket_id": 8
       },
-      "response_status": 409,
-      "response_code": "resource_full",
+      "response_status": 200,
+      "response_code": null,
       "diagnostic_category": "unexpected_server_error",
-      "booking_id": 67,
+      "booking_id": 75,
       "before_snapshot": {
         "appointment_date": "2026-06-04",
         "start_time": "09:00:00",
-        "allocation_count": 2
+        "allocation_count": 1
       },
       "after_snapshot": {
-        "appointment_date": "2026-06-04",
-        "start_time": "09:00:00",
-        "allocation_count": 2
+        "appointment_date": "2026-06-05",
+        "start_time": "11:00:00",
+        "allocation_count": 1
       }
     },
     "controlled_booking_cancel": {
       "status": "pass",
       "request": {
-        "booking_id": 67
+        "booking_id": 75
       },
       "response_status": 200,
       "response_code": null,
       "diagnostic_category": "unexpected_server_error",
-      "booking_id": 67,
+      "booking_id": 75,
       "before_snapshot": {
-        "appointment_date": "2026-06-04",
-        "start_time": "09:00:00",
+        "appointment_date": "2026-06-05",
+        "start_time": "11:00:00",
         "status": "pending",
-        "allocation_count": 2
+        "allocation_count": 1
       },
       "after_snapshot": {
-        "appointment_date": "2026-06-04",
-        "start_time": "09:00:00",
+        "appointment_date": "2026-06-05",
+        "start_time": "11:00:00",
         "status": "cancelled",
-        "allocation_count": 2
+        "allocation_count": 1
       },
       "ticket_before_cancel": {
         "remaining_count": 1
@@ -206,8 +206,8 @@
     "transaction_edit_save_roundtrip": {
       "status": "pass",
       "before": "Smoke seed created",
-      "after": "Smoke roundtrip 2026-04-27T15:56:25.194Z",
-      "booking_id": 66,
+      "after": "Smoke roundtrip 2026-04-27T16:06:50.310Z",
+      "booking_id": 74,
       "order_id": 5
     },
     "customer_operational_seed_ready": {
@@ -216,7 +216,7 @@
       "user_ticket_id": 4,
       "transaction_id": 2,
       "order_id": 5,
-      "booking_id": 66
+      "booking_id": 74
     },
     "availability_resource_full": {
       "status": "pass",
@@ -295,13 +295,13 @@
   "evidence_checked": [
     {
       "name": "controlled_booking_create",
-      "status": "fail",
+      "status": "pass",
       "response_status": 200
     },
     {
       "name": "controlled_booking_reschedule",
-      "status": "fail",
-      "response_status": 409
+      "status": "pass",
+      "response_status": 200
     },
     {
       "name": "controlled_booking_cancel",
