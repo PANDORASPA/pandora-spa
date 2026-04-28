@@ -15,7 +15,7 @@ export default function Navbar() {
     let supabase
     try {
       supabase = getBrowserClient()
-    } catch (error) {
+    } catch {
       return
     }
 
@@ -41,9 +41,14 @@ export default function Navbar() {
       setAuthUser(user)
       setDisplayName(user?.email || '')
       if (user) {
-        supabase.from('member_profiles').select('full_name').eq('id', user.id).maybeSingle().then(({ data: profile }) => {
-          setDisplayName(profile?.full_name || user.email || '')
-        })
+        supabase
+          .from('member_profiles')
+          .select('full_name')
+          .eq('id', user.id)
+          .maybeSingle()
+          .then(({ data: profile }) => {
+            setDisplayName(profile?.full_name || user.email || '')
+          })
       }
     })
 
@@ -61,6 +66,7 @@ export default function Navbar() {
   ]
 
   const closeMenu = () => setMobileMenuOpen(false)
+  const isActive = (href) => pathname === href || (href !== '/' && pathname?.startsWith(`${href}/`))
 
   return (
     <>
@@ -68,16 +74,17 @@ export default function Navbar() {
         <div className="nav-container">
           <Link href="/" className="logo" onClick={closeMenu}>
             VIVA HAIR
+            <span>Hair Salon</span>
           </Link>
 
           <div className="nav-links">
             {links.map((link) => (
-              <Link key={link.href} href={link.href} className={pathname === link.href ? 'active' : ''}>
+              <Link key={link.href} href={link.href} className={isActive(link.href) ? 'active' : ''}>
                 {link.label}
               </Link>
             ))}
             {authUser ? (
-              <Link href="/account" className="nav-login" style={{ background: '#f3f4f6', color: '#333', border: '1px solid #e5e5e5' }}>
+              <Link href="/account" className="nav-login">
                 {displayName || '會員中心'}
               </Link>
             ) : (
@@ -88,9 +95,9 @@ export default function Navbar() {
           </div>
 
           <button className={`mobile-menu-btn ${mobileMenuOpen ? 'active' : ''}`} onClick={() => setMobileMenuOpen((current) => !current)} aria-label="開啟選單">
-            <span></span>
-            <span></span>
-            <span></span>
+            <span />
+            <span />
+            <span />
           </button>
         </div>
       </nav>
@@ -99,24 +106,24 @@ export default function Navbar() {
 
       <div className={`mobile-menu ${mobileMenuOpen ? 'active' : ''}`}>
         <div className="mobile-menu-header">
-          <span style={{ fontWeight: 700, color: '#A68B6A', fontSize: '18px' }}>VIVA HAIR</span>
-          <button className="mobile-menu-close" onClick={closeMenu}>
+          <span>VIVA HAIR</span>
+          <button className="mobile-menu-close" onClick={closeMenu} aria-label="關閉選單">
             ×
           </button>
         </div>
 
         <div className="mobile-menu-links">
           {links.map((link) => (
-            <Link key={link.href} href={link.href} className={pathname === link.href ? 'active' : ''} onClick={closeMenu}>
+            <Link key={link.href} href={link.href} className={isActive(link.href) ? 'active' : ''} onClick={closeMenu}>
               {link.label}
             </Link>
           ))}
 
-          <div style={{ height: '1px', background: '#eee', margin: '12px 0' }} />
+          <div className="mobile-menu-divider" />
 
           {authUser ? (
             <Link href="/account" onClick={closeMenu}>
-              會員中心 ({displayName || '會員'})
+              會員中心{displayName ? `（${displayName}）` : ''}
             </Link>
           ) : (
             <Link href={`/login?redirectTo=${encodeURIComponent(pathname || '/')}`} onClick={closeMenu}>
