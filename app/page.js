@@ -6,6 +6,12 @@ import { supabase } from '../lib/supabase'
 
 const formatCurrency = (value) => `$${Math.round(Number(value || 0))}`
 
+const heroStats = [
+  { label: '會員預約', value: 'Online' },
+  { label: '營業時段', value: '11:00-20:00' },
+  { label: '流程', value: '3 Steps' },
+]
+
 export default function HomePage() {
   const [loading, setLoading] = useState(true)
   const [services, setServices] = useState([])
@@ -30,7 +36,7 @@ export default function HomePage() {
         (settingsRes.data || []).reduce((acc, row) => {
           acc[row.key] = row.value
           return acc
-        }, {})
+        }, {}),
       )
       setLoading(false)
     }
@@ -38,68 +44,87 @@ export default function HomePage() {
     load()
   }, [])
 
+  const businessHours = settings.business_hours || '11:00 - 20:00'
+
   return (
     <>
-      <section
-        style={{
-          padding: '56px 16px',
-          background: 'linear-gradient(135deg, #f4efe8 0%, #efe4d5 100%)',
-        }}
-      >
-        <div style={{ maxWidth: '1100px', margin: '0 auto', display: 'grid', gap: '24px', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', alignItems: 'center' }}>
-          <div>
-            <div style={{ display: 'inline-block', padding: '6px 12px', borderRadius: '999px', background: '#fff', color: '#8B7355', fontWeight: 700, marginBottom: '14px' }}>
-              線上預約已全面改用會員流程
-            </div>
-            <h1 style={{ fontSize: '42px', lineHeight: 1.1, marginBottom: '14px', color: '#2f2a24' }}>VIVA HAIR</h1>
-            <p style={{ color: '#5f584e', fontSize: '16px', lineHeight: 1.7, marginBottom: '20px' }}>
-              集中處理服務選擇、預約時段、會員資料與後台設定，讓前台與營運資料都回到同一條正式流程。
+      <section className="vh-hero">
+        <div className="vh-container vh-hero-grid">
+          <div className="vh-hero-copy">
+            <span className="vh-eyebrow">Hair care, softly arranged</span>
+            <h1>以清爽節奏，安排你的髮型時光。</h1>
+            <p>
+              VIVA HAIR 提供線上預約、會員資料與服務時間查詢。先選服務供應者，再揀日期與可預約時段，流程簡單清楚。
             </p>
-            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-              <Link href="/booking" style={{ padding: '14px 22px', background: '#8B7355', color: '#fff', borderRadius: '12px', textDecoration: 'none', fontWeight: 800 }}>
+            <div className="vh-action-row">
+              <Link href="/booking" className="vh-btn vh-btn-primary">
                 立即預約
               </Link>
-              <Link href="/services" style={{ padding: '14px 22px', background: '#fff', color: '#8B7355', borderRadius: '12px', textDecoration: 'none', fontWeight: 800, border: '1px solid #d8cab6' }}>
+              <Link href="/services" className="vh-btn vh-btn-secondary">
                 查看服務
               </Link>
             </div>
+            <div className="vh-stat-row">
+              {heroStats.map((item) => (
+                <div key={item.label}>
+                  <strong>{item.value}</strong>
+                  <span>{item.label}</span>
+                </div>
+              ))}
+            </div>
           </div>
 
-          <div style={{ background: '#fff', borderRadius: '22px', padding: '24px', boxShadow: '0 12px 36px rgba(0,0,0,0.08)' }}>
-            <div style={{ fontWeight: 800, marginBottom: '12px', color: '#2f2a24' }}>店舖資訊</div>
-            <div style={{ display: 'grid', gap: '12px', color: '#5f584e', fontSize: '15px' }}>
-              <div>店名：{settings.shop_name || 'VIVA HAIR'}</div>
-              <div>地址：{settings.address || '請到後台設定店舖地址'}</div>
-              <div>聯絡：{settings.phone || '請到後台設定聯絡電話'}</div>
-              <div>營業時間：{settings.business_hours || '11:00 - 20:00'}</div>
-            </div>
+          <div className="vh-salon-card">
+            <div className="vh-card-orb" />
+            <span className="vh-eyebrow">Salon information</span>
+            <h2>{settings.shop_name || 'VIVA HAIR'}</h2>
+            <dl>
+              <div>
+                <dt>地址</dt>
+                <dd>{settings.address || '請於後台設定店舖地址'}</dd>
+              </div>
+              <div>
+                <dt>電話</dt>
+                <dd>{settings.phone || '請於後台設定聯絡電話'}</dd>
+              </div>
+              <div>
+                <dt>營業時間</dt>
+                <dd>{businessHours}</dd>
+              </div>
+            </dl>
           </div>
         </div>
       </section>
 
-      <section style={{ padding: '32px 16px' }}>
-        <div style={{ maxWidth: '1100px', margin: '0 auto' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', marginBottom: '18px', flexWrap: 'wrap' }}>
-            <h2 style={{ fontSize: '24px', margin: 0 }}>人氣服務</h2>
-            <Link href="/services" style={{ color: '#8B7355', fontWeight: 700, textDecoration: 'none' }}>
+      <section className="vh-section">
+        <div className="vh-container">
+          <div className="vh-section-head">
+            <div>
+              <span className="vh-eyebrow">Services</span>
+              <h2>人氣服務</h2>
+            </div>
+            <Link href="/services" className="vh-text-link">
               查看全部
             </Link>
           </div>
 
           {loading ? (
-            <p style={{ color: '#777' }}>載入中...</p>
+            <p className="vh-muted">載入服務中...</p>
           ) : (
-            <div style={{ display: 'grid', gap: '16px', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
+            <div className="vh-card-grid">
               {services.map((service) => (
-                <div key={service.id} style={{ background: '#fff', borderRadius: '18px', padding: '20px', border: '1px solid #eee' }}>
-                  <div style={{ fontSize: '34px', marginBottom: '10px' }}>{service.emoji || '✂️'}</div>
-                  <div style={{ fontWeight: 800, marginBottom: '6px' }}>{service.name}</div>
-                  <div style={{ color: '#777', fontSize: '14px', marginBottom: '10px' }}>{service.time || 60} 分鐘</div>
-                  <div style={{ fontSize: '22px', fontWeight: 800, color: '#8B7355', marginBottom: '12px' }}>{formatCurrency(service.price)}</div>
-                  <Link href="/booking" style={{ display: 'inline-block', padding: '10px 14px', background: '#8B7355', color: '#fff', borderRadius: '10px', textDecoration: 'none', fontWeight: 700 }}>
+                <article key={service.id} className="vh-service-card">
+                  <div className="vh-service-icon">{service.emoji || '✂'}</div>
+                  <h3>{service.name}</h3>
+                  <p>{service.description || '專業髮型服務，適合日常整理與造型更新。'}</p>
+                  <div className="vh-service-meta">
+                    <span>{service.time || 60} 分鐘</span>
+                    <strong>{formatCurrency(service.price)}</strong>
+                  </div>
+                  <Link href="/booking" className="vh-card-cta">
                     預約
                   </Link>
-                </div>
+                </article>
               ))}
             </div>
           )}
@@ -107,16 +132,21 @@ export default function HomePage() {
       </section>
 
       {packages.length > 0 && (
-        <section style={{ padding: '32px 16px', background: '#FAF8F5' }}>
-          <div style={{ maxWidth: '1100px', margin: '0 auto' }}>
-            <h2 style={{ fontSize: '24px', marginBottom: '18px' }}>服務套票</h2>
-            <div style={{ display: 'grid', gap: '16px', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
+        <section className="vh-section vh-section-tint">
+          <div className="vh-container">
+            <div className="vh-section-head">
+              <div>
+                <span className="vh-eyebrow">Packages</span>
+                <h2>服務套票</h2>
+              </div>
+            </div>
+            <div className="vh-card-grid">
               {packages.map((item) => (
-                <div key={item.id} style={{ background: '#fff', borderRadius: '18px', padding: '20px', border: '1px solid #eadfce' }}>
-                  <div style={{ fontWeight: 800, marginBottom: '8px' }}>{item.name}</div>
-                  <div style={{ fontSize: '22px', fontWeight: 800, color: '#8B7355', marginBottom: '10px' }}>{formatCurrency(item.price)}</div>
-                  <div style={{ color: '#666', fontSize: '14px', lineHeight: 1.6 }}>{item.description || '詳情可於預約前向店舖查詢。'}</div>
-                </div>
+                <article key={item.id} className="vh-package-card">
+                  <h3>{item.name}</h3>
+                  <strong>{formatCurrency(item.price)}</strong>
+                  <p>{item.description || '詳情可於預約前向店舖查詢。'}</p>
+                </article>
               ))}
             </div>
           </div>
@@ -124,15 +154,20 @@ export default function HomePage() {
       )}
 
       {gallery.length > 0 && (
-        <section style={{ padding: '32px 16px' }}>
-          <div style={{ maxWidth: '1100px', margin: '0 auto' }}>
-            <h2 style={{ fontSize: '24px', marginBottom: '18px' }}>作品參考</h2>
-            <div style={{ display: 'grid', gap: '12px', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))' }}>
+        <section className="vh-section">
+          <div className="vh-container">
+            <div className="vh-section-head">
+              <div>
+                <span className="vh-eyebrow">Gallery</span>
+                <h2>作品參考</h2>
+              </div>
+            </div>
+            <div className="vh-gallery-grid">
               {gallery.map((item) => (
-                <div key={item.id} style={{ overflow: 'hidden', borderRadius: '16px', background: '#f6f6f6' }}>
-                  <img src={item.image_url} alt={item.title || '作品'} style={{ width: '100%', height: '180px', objectFit: 'cover' }} />
-                  {item.title && <div style={{ padding: '10px 12px', fontSize: '13px', color: '#555' }}>{item.title}</div>}
-                </div>
+                <figure key={item.id} className="vh-gallery-card">
+                  <img src={item.image_url} alt={item.title || '髮型作品'} />
+                  {item.title ? <figcaption>{item.title}</figcaption> : null}
+                </figure>
               ))}
             </div>
           </div>
