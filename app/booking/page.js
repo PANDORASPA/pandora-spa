@@ -8,14 +8,14 @@ import { bookingOpsCopy } from '../components/admin/opsUi'
 
 const T = {
   title: '選擇服務供應者',
-  intro: '先選擇服務供應者，再進入預約頁面選擇服務、日期與時間。',
-  loading: bookingOpsCopy.loading,
+  intro: '先選擇髮型師，再進入預約頁選擇服務、日期與可預約時段。',
+  loading: bookingOpsCopy.loading || '載入中...',
   redirecting: '正在載入預約資料...',
   loadFailed: '無法載入預約入口',
   noStaff: '目前沒有可預約的服務供應者。',
   roleFallback: '髮型師',
-  cta: '立即預約',
-  editFallback: '無法載入原預約，請從「我的預約」重新進入。',
+  cta: '開始預約',
+  editFallback: '無法載入原預約，請到「我的預約」重新進入。',
 }
 
 export default function BookingPage() {
@@ -111,64 +111,51 @@ export default function BookingPage() {
 
   if (redirecting) {
     return (
-      <section style={{ padding: '48px 16px', textAlign: 'center' }}>
-        <p>{T.redirecting}</p>
+      <section className="vh-page-hero">
+        <p className="vh-muted">{T.redirecting}</p>
       </section>
     )
   }
 
   return (
     <>
-      <section style={{ padding: '32px 16px', background: '#FAF8F5', textAlign: 'center' }}>
-        <h1 style={{ fontSize: '30px', marginBottom: '8px' }}>{T.title}</h1>
-        <p style={{ color: '#666', maxWidth: '720px', margin: '0 auto' }}>{T.intro}</p>
+      <section className="vh-page-hero">
+        <span className="vh-eyebrow">Online booking</span>
+        <h1>{T.title}</h1>
+        <p>{T.intro}</p>
       </section>
 
-      <section style={{ padding: '24px 16px 40px' }}>
-        <div style={{ maxWidth: '1080px', margin: '0 auto' }}>
-          {error && (
-            <div style={{ background: '#FEF2F2', color: '#991B1B', border: '1px solid #FECACA', borderRadius: '16px', padding: '16px 18px', marginBottom: '18px' }}>
-              {error}
-            </div>
-          )}
+      <section className="vh-section">
+        <div className="vh-container">
+          {error ? <div className="vh-alert vh-alert-error">{error}</div> : null}
 
           {loading ? (
-            <div style={{ display: 'grid', gap: '16px', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))' }}>
+            <div className="vh-staff-grid">
               {Array.from({ length: 6 }).map((_, index) => (
-                <div key={index} style={{ background: '#fff', borderRadius: '20px', padding: '18px', border: '1px solid #eee', minHeight: '220px' }}>
-                  <div style={{ width: '100%', aspectRatio: '4 / 3', borderRadius: '16px', background: '#f3f4f6', marginBottom: '14px' }} />
-                  <div style={{ width: '60%', height: '16px', background: '#f3f4f6', borderRadius: '999px', marginBottom: '10px' }} />
-                  <div style={{ width: '35%', height: '12px', background: '#f3f4f6', borderRadius: '999px', marginBottom: '14px' }} />
-                  <div style={{ width: '100%', height: '40px', background: '#f3f4f6', borderRadius: '12px' }} />
+                <div key={index} className="vh-staff-card vh-skeleton-card">
+                  <div />
+                  <span />
+                  <span />
+                  <button type="button" disabled>
+                    {T.loading}
+                  </button>
                 </div>
               ))}
             </div>
           ) : items.length === 0 ? (
-            <div style={{ background: '#fff', borderRadius: '18px', padding: '32px', textAlign: 'center', color: '#666' }}>{T.noStaff}</div>
+            <div className="vh-empty-card">{T.noStaff}</div>
           ) : (
-            <div style={{ display: 'grid', gap: '18px', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))' }}>
+            <div className="vh-staff-grid">
               {items.map((member) => (
-                <Link key={member.id} href={`/booking/${encodeURIComponent(String(member.id))}`} style={{ textDecoration: 'none' }} className="btn-interactive">
-                  <div style={{ background: '#fff', borderRadius: '20px', overflow: 'hidden', border: '1px solid #E8E0D5', boxShadow: '0 8px 24px rgba(0,0,0,0.06)', height: '100%' }}>
-                    <div style={{ aspectRatio: '4 / 3', background: 'linear-gradient(135deg, #f6efe4, #faf8f5)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-                      {member.photoUrl ? (
-                        <img src={member.photoUrl} alt={member.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                      ) : (
-                        <div style={{ fontSize: '56px' }}>✂</div>
-                      )}
-                    </div>
-                    <div style={{ padding: '18px' }}>
-                      <div style={{ fontWeight: 800, color: '#3D3D3D', fontSize: '18px', marginBottom: '6px' }}>{member.name}</div>
-                      <div style={{ fontSize: '12px', color: '#A68B6A', fontWeight: 700, marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                        {member.role || T.roleFallback}
-                      </div>
-                      <div style={{ fontSize: '13px', color: '#666', lineHeight: 1.6, minHeight: '42px' }}>
-                        {member.bio || '進入詳細頁面選擇服務、日期與預約時段。'}
-                      </div>
-                      <div style={{ marginTop: '16px', padding: '12px 16px', borderRadius: '12px', background: '#3D3D3D', color: '#fff', fontWeight: 800, textAlign: 'center' }}>
-                        {T.cta}
-                      </div>
-                    </div>
+                <Link key={member.id} href={`/booking/${encodeURIComponent(String(member.id))}`} className="vh-staff-card">
+                  <div className="vh-staff-photo">
+                    {member.photoUrl ? <img src={member.photoUrl} alt={member.name} /> : <span>✂</span>}
+                  </div>
+                  <div className="vh-staff-body">
+                    <span className="vh-eyebrow">{member.role || T.roleFallback}</span>
+                    <h2>{member.name}</h2>
+                    <p>{member.bio || '進入詳情頁選擇服務、日期與預約時段。'}</p>
+                    <span className="vh-card-cta">{T.cta}</span>
                   </div>
                 </Link>
               ))}
