@@ -71,29 +71,23 @@ export default function AccountTicketsPage() {
       }),
     [payload],
   )
-  const redemptionHistory = useMemo(
-    () => getFirstArray(payload, ['redemptionHistory', 'redemption_history', 'redemptions', 'history', 'usages']),
-    [payload],
-  )
+  const redemptionHistory = useMemo(() => getFirstArray(payload, ['redemptionHistory', 'redemption_history', 'redemptions', 'history', 'usages']), [payload])
 
   return (
     <>
-      <section style={{ padding: '30px 16px', background: '#FAF8F5', textAlign: 'center' }}>
-        <h1 style={{ fontSize: '28px' }}>
-          我的<span style={{ color: '#A68B6A' }}>套票</span>
+      <section className="vh-page-hero">
+        <span className="vh-eyebrow">My packages</span>
+        <h1>
+          我的<span>套票</span>
         </h1>
-        <p style={{ color: '#666', marginTop: '8px' }}>查看可用套票、待付款訂單與使用記錄。</p>
+        <p>查看可用套票、待付款套票訂單和最近使用紀錄。預約適用頭皮護理服務時，可以選擇套票扣 1 次使用。</p>
       </section>
 
-      <section style={{ padding: '24px 16px' }}>
-        <div style={{ maxWidth: '760px', margin: '0 auto' }}>
-          <div style={{ marginBottom: '16px', display: 'flex', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
-            <Link href="/account" style={{ color: '#A68B6A', fontWeight: 800 }}>
-              ← 返回會員中心
-            </Link>
-            <Link href="/tickets" style={{ color: '#A68B6A', fontWeight: 800 }}>
-              購買套票
-            </Link>
+      <section className="vh-section">
+        <div className="vh-container vh-narrow">
+          <div className="vh-account-links">
+            <Link href="/account">← 返回會員中心</Link>
+            <Link href="/tickets">購買套票</Link>
           </div>
 
           {loading ? <Panel>載入套票資料中...</Panel> : null}
@@ -105,7 +99,7 @@ export default function AccountTicketsPage() {
           ) : null}
 
           {!loading && !error ? (
-            <div style={{ display: 'grid', gap: '18px' }}>
+            <div className="vh-account-ticket-stack">
               <Section title="可用套票" emptyText="目前沒有可用套票。">
                 {activePackages.map((pkg) => {
                   const remaining = getRemaining(pkg)
@@ -137,7 +131,7 @@ export default function AccountTicketsPage() {
                         {order.created_at ? <p style={{ margin: '8px 0 0', color: '#999', fontSize: '13px' }}>{formatDate(order.created_at)}</p> : null}
                       </div>
                       <div style={{ textAlign: 'right' }}>
-                        <div style={{ color: '#A68B6A', fontWeight: 800 }}>{formatCurrency(order.total)}</div>
+                        <div style={{ color: '#8BA58B', fontWeight: 800 }}>{formatCurrency(order.total)}</div>
                         <span style={{ ...badgeStyle, background: '#FEF3C7', color: '#B45309', marginTop: '8px' }}>待付款</span>
                       </div>
                     </div>
@@ -146,7 +140,7 @@ export default function AccountTicketsPage() {
               </Section>
 
               {asArray(redemptionHistory).length > 0 ? (
-                <Section title="使用記錄" emptyText="">
+                <Section title="使用紀錄" emptyText="">
                   {redemptionHistory.map((item) => (
                     <article key={item.id || `${item.booking_id}-${item.created_at}`} style={cardStyle}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px' }}>

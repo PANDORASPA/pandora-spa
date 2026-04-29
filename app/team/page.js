@@ -4,13 +4,12 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '../../lib/supabase'
 
-const getServiceEmoji = (name) => {
-  if (!name) return '✂️'
-  if (name.includes('染')) return '🎨'
-  if (name.includes('電') || name.includes('燙')) return '🌀'
-  if (name.includes('護')) return '✨'
-  if (name.includes('頭皮')) return '🧴'
-  return '✂️'
+const getServiceMark = (name) => {
+  if (!name) return 'SP'
+  if (name.includes('檢測')) return 'CHECK'
+  if (name.includes('潔淨') || name.includes('清潔')) return 'CLEAN'
+  if (name.includes('舒緩') || name.includes('放鬆')) return 'CALM'
+  return 'SPA'
 }
 
 export default function TeamPage() {
@@ -40,115 +39,61 @@ export default function TeamPage() {
   }
 
   if (loading) {
-    return <div style={{ padding: '40px', textAlign: 'center' }}>載入中...</div>
+    return <div className="vh-loading">載入中...</div>
   }
 
   return (
     <>
-      <section style={{ padding: '36px 16px', background: '#FAF8F5' }}>
-        <div style={{ textAlign: 'center', maxWidth: '760px', margin: '0 auto' }}>
-          <h1 style={{ fontSize: '30px', color: '#3D3D3D', marginBottom: '10px' }}>
-            我們的
-            <span style={{ color: '#A68B6A' }}>團隊</span>
-          </h1>
-          <p style={{ color: '#666', lineHeight: 1.7 }}>
-            認識店內髮型師和擅長服務，之後可直接帶著指定髮型師進入預約流程。
-          </p>
-        </div>
+      <section className="vh-page-hero">
+        <span className="vh-eyebrow">Care team</span>
+        <h1>
+          頭皮護理<span>團隊</span>
+        </h1>
+        <p>認識 PANDORA HEAD SPA 的護理師與服務人員。每位成員可在後台設定可提供服務和預約時段。</p>
       </section>
 
-      <section style={{ padding: '28px 12px 48px' }}>
-        <div style={{ maxWidth: '1020px', margin: '0 auto' }}>
+      <section className="vh-section">
+        <div className="vh-container vh-narrow">
           {staff.length === 0 ? (
-            <div style={{ background: '#fff', border: '1px solid #E8E0D5', borderRadius: '16px', padding: '28px', textAlign: 'center' }}>
-              <p style={{ color: '#666', marginBottom: '12px' }}>暫時未有公開團隊資料。</p>
-              <Link href="/booking" className="btn" style={{ display: 'inline-block' }}>
+            <div className="vh-empty-card">
+              <p>暫時未有公開團隊資料。</p>
+              <Link href="/booking" className="vh-btn vh-btn-primary">
                 前往預約
               </Link>
             </div>
           ) : (
-            <div style={{ display: 'grid', gap: '24px' }}>
+            <div className="vh-team-list">
               {staff.map((member) => {
                 const memberServices = getStaffServices(member.services)
 
                 return (
-                  <article key={member.id} style={{ background: '#fff', borderRadius: '18px', overflow: 'hidden', boxShadow: '0 2px 12px rgba(0,0,0,0.08)' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 280px) 1fr' }}>
-                      <div
-                        style={{
-                          minHeight: '220px',
-                          background: member.photo_url
-                            ? `url(${member.photo_url}) center/cover`
-                            : 'linear-gradient(135deg, #A68B6A, #8B7355)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          color: 'rgba(255,255,255,0.8)',
-                          fontSize: '72px',
-                          fontWeight: 700,
-                        }}
-                      >
-                        {!member.photo_url ? member.name?.charAt(0) || '?' : null}
+                  <article key={member.id} className="vh-team-card">
+                    <div className="vh-team-photo" style={member.photo_url ? { backgroundImage: `url(${member.photo_url})` } : undefined}>
+                      {!member.photo_url ? member.name?.charAt(0) || 'P' : null}
+                    </div>
+                    <div className="vh-team-body">
+                      <div className="vh-team-title">
+                        <h2>{member.name}</h2>
+                        <span>{member.role || '頭皮護理師'}</span>
                       </div>
+                      {member.phone ? <p className="vh-muted">聯絡電話: {member.phone}</p> : null}
+                      <p>{member.bio || '專注頭皮潔淨、舒緩護理和日常保養建議，協助客人建立穩定的頭皮護理節奏。'}</p>
 
-                      <div style={{ padding: '22px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', marginBottom: '8px' }}>
-                          <h2 style={{ fontSize: '22px', margin: 0 }}>{member.name}</h2>
-                          {member.role && (
-                            <span style={{ background: '#A68B6A', color: '#fff', padding: '4px 10px', borderRadius: '999px', fontSize: '12px' }}>
-                              {member.role}
+                      <div className="vh-chip-row">
+                        {memberServices.length > 0 ? (
+                          memberServices.map((service) => (
+                            <span key={service.id} className="vh-chip">
+                              {getServiceMark(service.name)} · {service.name}
                             </span>
-                          )}
-                        </div>
-
-                        {member.phone && (
-                          <p style={{ color: '#666', fontSize: '14px', marginBottom: '10px' }}>聯絡電話: {member.phone}</p>
+                          ))
+                        ) : (
+                          <span className="vh-chip">服務資料整理中</span>
                         )}
-
-                        <p style={{ color: '#666', fontSize: '14px', lineHeight: 1.7, marginBottom: '16px' }}>
-                          {member.bio || '專注剪裁、護理和整體造型建議。'}
-                        </p>
-
-                        <div style={{ marginBottom: '18px' }}>
-                          <p style={{ fontSize: '13px', color: '#999', marginBottom: '8px', fontWeight: 600 }}>擅長服務</p>
-                          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                            {memberServices.length > 0 ? (
-                              memberServices.map((service) => (
-                                <span
-                                  key={service.id}
-                                  style={{
-                                    background: '#FAF8F5',
-                                    color: '#666',
-                                    padding: '6px 12px',
-                                    borderRadius: '20px',
-                                    fontSize: '12px',
-                                  }}
-                                >
-                                  {getServiceEmoji(service.name)} {service.name}
-                                </span>
-                              ))
-                            ) : (
-                              <span style={{ color: '#999', fontSize: '12px' }}>服務資料整理中</span>
-                            )}
-                          </div>
-                        </div>
-
-                        <Link
-                          href={`/booking?staffId=${member.id}`}
-                          style={{
-                            display: 'inline-block',
-                            padding: '12px 24px',
-                            background: 'linear-gradient(135deg, #A68B6A, #8B7355)',
-                            color: '#fff',
-                            borderRadius: '8px',
-                            textDecoration: 'none',
-                            fontSize: '14px',
-                            fontWeight: 600,
-                          }}
-                        >
-                          預約 {member.name}
-                        </Link>
                       </div>
+
+                      <Link href={`/booking?staffId=${member.id}`} className="vh-btn vh-btn-primary">
+                        預約 {member.name}
+                      </Link>
                     </div>
                   </article>
                 )

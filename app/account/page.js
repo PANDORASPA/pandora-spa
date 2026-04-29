@@ -44,24 +44,24 @@ export default async function Account({ searchParams }) {
         <div style={{ marginBottom: '18px' }}>
           <h1 style={{ fontSize: 'clamp(26px, 6vw, 32px)', fontWeight: 800, lineHeight: 1.2, marginBottom: '10px' }}>
             會員
-            <span style={{ color: '#A68B6A' }}>中心</span>
+            <span style={{ color: '#8BA58B' }}>中心</span>
           </h1>
-          <p style={{ color: '#6B7280', fontSize: '14px', lineHeight: 1.7 }}>你可以在這裡查看會員資料、我的預約和服務資訊。</p>
+          <p style={{ color: '#6B7280', fontSize: '14px', lineHeight: 1.7 }}>在這裡查看會員資料、我的套票、待付款套票訂單和頭皮護理預約。</p>
         </div>
 
         {message === 'profile_incomplete' || profileIncomplete ? (
           <div
             style={{
               marginBottom: '16px',
-              border: '1px solid #F59E0B',
-              background: '#FFF7ED',
-              color: '#92400E',
+              border: '1px solid #D8B26E',
+              background: '#FFF8E8',
+              color: '#75531E',
               borderRadius: '14px',
               padding: '14px 16px',
               lineHeight: 1.7,
             }}
           >
-            你的會員資料尚未完整。請先補回姓名及電話，之後就可以直接用會員資料提交預約。
+            你的會員資料尚未完整。請先補回姓名和電話，之後便可用會員資料提交預約。
           </div>
         ) : null}
 
@@ -71,7 +71,7 @@ export default async function Account({ searchParams }) {
               width: '72px',
               height: '72px',
               borderRadius: '50%',
-              background: 'linear-gradient(135deg, #A68B6A, #8B7355)',
+              background: 'linear-gradient(135deg, #8BA58B, #6F5942)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -114,7 +114,7 @@ export default async function Account({ searchParams }) {
           <Link
             href="/account/bookings"
             className="btn btn-interactive"
-            style={{ background: '#A68B6A', color: '#fff', padding: '14px', borderRadius: '14px', fontWeight: 700, textAlign: 'center' }}
+            style={{ background: '#8BA58B', color: '#fff', padding: '14px', borderRadius: '14px', fontWeight: 700, textAlign: 'center' }}
           >
             我的預約
           </Link>
@@ -131,7 +131,7 @@ export default async function Account({ searchParams }) {
               border: '1px solid #E5E7EB',
             }}
           >
-            查看服務及套票
+            查看頭皮護理服務及套票
           </Link>
         </div>
 

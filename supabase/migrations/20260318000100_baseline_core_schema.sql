@@ -1,4 +1,4 @@
--- VIVA HAIR baseline schema
+-- PANDORA HEAD SPA baseline schema
 -- This migration is the canonical starting point for a fresh database.
 -- It intentionally excludes demo content; use supabase/seed.sql for optional sample data.
 

@@ -11,8 +11,8 @@ export default function MobileNav() {
   const navItems = [
     { href: '/', icon: '⌂', label: '首頁' },
     { href: '/booking', icon: '◷', label: '預約' },
-    { href: '/services', icon: '✂', label: '服務' },
-    { href: '/account', icon: '♡', label: '我的' },
+    { href: '/tickets', icon: '◇', label: '套票' },
+    { href: '/account', icon: '◎', label: '我的' },
   ]
 
   const isActive = (href) => pathname === href || (href !== '/' && pathname?.startsWith(`${href}/`))

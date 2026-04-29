@@ -7,13 +7,13 @@ import { toast } from 'react-hot-toast'
 import { bookingOpsCopy } from '../components/admin/opsUi'
 
 const T = {
-  title: '選擇服務供應者',
-  intro: '先選擇髮型師，再進入預約頁選擇服務、日期與可預約時段。',
+  title: '選擇頭皮護理師',
+  intro: '先選擇服務人員，再進入預約流程選擇頭皮護理服務、日期和可預約時段。',
   loading: bookingOpsCopy.loading || '載入中...',
   redirecting: '正在載入預約資料...',
   loadFailed: '無法載入預約入口',
-  noStaff: '目前沒有可預約的服務供應者。',
-  roleFallback: '髮型師',
+  noStaff: '目前沒有可預約的頭皮護理師。',
+  roleFallback: '頭皮護理師',
   cta: '開始預約',
   editFallback: '無法載入原預約，請到「我的預約」重新進入。',
 }
@@ -149,12 +149,12 @@ export default function BookingPage() {
               {items.map((member) => (
                 <Link key={member.id} href={`/booking/${encodeURIComponent(String(member.id))}`} className="vh-staff-card">
                   <div className="vh-staff-photo">
-                    {member.photoUrl ? <img src={member.photoUrl} alt={member.name} /> : <span>✂</span>}
+                    {member.photoUrl ? <img src={member.photoUrl} alt={member.name} /> : <span>HS</span>}
                   </div>
                   <div className="vh-staff-body">
                     <span className="vh-eyebrow">{member.role || T.roleFallback}</span>
                     <h2>{member.name}</h2>
-                    <p>{member.bio || '進入詳情頁選擇服務、日期與預約時段。'}</p>
+                    <p>{member.bio || '進入詳情選擇頭皮護理服務、日期和預約時段。'}</p>
                     <span className="vh-card-cta">{T.cta}</span>
                   </div>
                 </Link>

@@ -59,9 +59,11 @@ export default function Navbar() {
 
   const links = [
     { href: '/', label: '首頁' },
-    { href: '/services', label: '服務' },
+    { href: '/services', label: '頭皮護理' },
+    { href: '/tickets', label: '套票' },
     { href: '/booking', label: '預約' },
-    { href: '/articles', label: '文章' },
+    { href: '/products', label: '護理產品' },
+    { href: '/articles', label: '護理文章' },
     { href: '/faq', label: 'FAQ' },
   ]
 
@@ -73,8 +75,8 @@ export default function Navbar() {
       <nav className="navbar">
         <div className="nav-container">
           <Link href="/" className="logo" onClick={closeMenu}>
-            VIVA HAIR
-            <span>Hair Salon</span>
+            PANDORA HEAD SPA
+            <span>Self-service scalp care</span>
           </Link>
 
           <div className="nav-links">
@@ -107,7 +109,7 @@ export default function Navbar() {
       {mobileMenuOpen ? (
         <div className="mobile-menu active">
           <div className="mobile-menu-header">
-            <span>VIVA HAIR</span>
+            <span>PANDORA HEAD SPA</span>
             <button className="mobile-menu-close" onClick={closeMenu} aria-label="關閉選單">
               ×
             </button>
@@ -124,7 +126,7 @@ export default function Navbar() {
 
             {authUser ? (
               <Link href="/account" onClick={closeMenu}>
-                會員中心{displayName ? `（${displayName}）` : ''}
+                會員中心{displayName ? `：${displayName}` : ''}
               </Link>
             ) : (
               <Link href={`/login?redirectTo=${encodeURIComponent(pathname || '/')}`} onClick={closeMenu}>

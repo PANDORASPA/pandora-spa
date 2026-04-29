@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-29T10:35:08.759Z",
+  "generatedAt": "2026-04-29T12:11:20.983Z",
   "baseUrl": "http://localhost:3000",
   "seeds": {
     "member_user_id": "4e3f338a-fe41-44ec-a467-80296051fe45",
@@ -8,8 +8,8 @@
     "location_id": 10,
     "provider_group_id": 9,
     "resource_id": 9,
-    "create_booking_id": 94,
-    "ticket_booking_id": 95,
+    "create_booking_id": 102,
+    "ticket_booking_id": 103,
     "user_ticket_id": 12,
     "primary_staff_id": 3,
     "secondary_staff_id": 4
@@ -18,7 +18,7 @@
     "booking_create_success": {
       "status": "pass",
       "response_status": 200,
-      "booking_id": 94,
+      "booking_id": 102,
       "appointment_date": "2026-06-06",
       "start_time": "09:00:00",
       "end_time": "10:00:00",
@@ -42,7 +42,7 @@
     "reschedule_self_exclusion": {
       "status": "pass",
       "response_status": 200,
-      "booking_id": 94,
+      "booking_id": 102,
       "appointment_date": "2026-06-06",
       "start_time": "09:00:00",
       "allocation_count": 1
@@ -89,7 +89,7 @@
     "account_cancel_ticket_restore": {
       "status": "pass",
       "response_status": 200,
-      "booking_id": 95,
+      "booking_id": 103,
       "remaining_before_cancel": 1,
       "remaining_after_cancel": 2
     },
@@ -102,11 +102,11 @@
       "status": "pass",
       "unauth_admin": {
         "status": 307,
-        "location": "/admin/login?redirectTo=%2Fadmin"
+        "location": "http://localhost:3000/admin/login?redirectTo=%2Fadmin"
       },
       "member_admin": {
         "status": 307,
-        "location": "/admin/login?redirectTo=%2Fadmin"
+        "location": "http://localhost:3000/admin/login?redirectTo=%2Fadmin"
       },
       "admin_access": {
         "status": 200,
@@ -114,7 +114,7 @@
       },
       "unauth_account": {
         "status": 307,
-        "location": "/login?redirectTo=%2Faccount%2Fbookings"
+        "location": "http://localhost:3000/login?redirectTo=%2Faccount%2Fbookings"
       },
       "member_account": {
         "status": 200,

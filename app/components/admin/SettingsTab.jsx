@@ -144,7 +144,7 @@ export default function SettingsTab({
           <div style={{ display: 'grid', gap: '16px' }}>
             <label style={{ display: 'grid', gap: '8px' }}>
               <span style={{ fontSize: '13px', fontWeight: 800 }}>店舖名稱</span>
-              <input type="text" value={draft.shop_name || ''} onChange={(event) => updateSetting('shop_name', event.target.value)} style={fieldStyle} placeholder="VIVA HAIR" />
+              <input type="text" value={draft.shop_name || ''} onChange={(event) => updateSetting('shop_name', event.target.value)} style={fieldStyle} placeholder="PANDORA HEAD SPA" />
             </label>
             <label style={{ display: 'grid', gap: '8px' }}>
               <span style={{ fontSize: '13px', fontWeight: 800 }}>地址</span>

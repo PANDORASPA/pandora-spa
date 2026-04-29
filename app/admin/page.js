@@ -992,7 +992,7 @@ const normalizeNullableNumber = (value) => {
         const payload = {
           id: item.id,
           name: item.name || '新服務供應者',
-          role: item.role || '髮型師',
+          role: item.role || '頭皮護理師',
           phone: item.phone || '',
           photo_url: item.photo_url || '',
           bio: item.bio || '',
@@ -1348,7 +1348,7 @@ const normalizeNullableNumber = (value) => {
       {
         id: newId,
         name: '新服務供應者',
-        role: '髮型師',
+        role: '頭皮護理師',
         phone: '',
         enabled: true,
         schedule: {},
@@ -1575,7 +1575,7 @@ const normalizeNullableNumber = (value) => {
   return (
     <div style={{ minHeight: '100vh', background: '#f8f9fa' }}>
       <header style={{ background: '#3D3D3D', color: '#fff', padding: '12px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-        <h2 style={{ fontSize: '18px', margin: 0 }}>VIVA HAIR 管理後台</h2>
+        <h2 style={{ fontSize: '18px', margin: 0 }}>PANDORA HEAD SPA 管理後台</h2>
         <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
           <button onClick={fetchData} style={{ padding: '6px 12px', background: '#555', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>
             重新整理

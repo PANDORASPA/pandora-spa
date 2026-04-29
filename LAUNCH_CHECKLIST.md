@@ -1,6 +1,6 @@
-# VIVA HAIR Launch Checklist
+# PANDORA HEAD SPA Launch Checklist
 
-Use [`PALACEHAIRSPA_REPLACEMENT_ACCEPTANCE.md`](./PALACEHAIRSPA_REPLACEMENT_ACCEPTANCE.md) as the acceptance board for Palace Hair Spa replacement readiness.
+Use [`PALACEHAIRSPA_REPLACEMENT_ACCEPTANCE.md`](./PALACEHAIRSPA_REPLACEMENT_ACCEPTANCE.md) as the acceptance board for the Palace Hair Spa replacement and PANDORA HEAD SPA launch readiness.
 
 ## Environment
 
@@ -10,16 +10,14 @@ Use [`PALACEHAIRSPA_REPLACEMENT_ACCEPTANCE.md`](./PALACEHAIRSPA_REPLACEMENT_ACCE
 
 ## Database
 
-- Confirm the following migrations are present on remote:
-  - `20260318000100`
-  - `20260318000200`
-  - `20260318000300`
-  - `20260318000400`
+- Confirm the canonical migrations are present on remote.
 - Confirm core tables exist:
   - `member_profiles`
   - `bookings`
   - `orders`
+  - `tickets`
   - `user_tickets`
+  - `ticket_redemptions`
   - `staff_shifts`
   - `staff_breaks`
   - `staff_time_off`
@@ -37,23 +35,24 @@ Use [`PALACEHAIRSPA_REPLACEMENT_ACCEPTANCE.md`](./PALACEHAIRSPA_REPLACEMENT_ACCE
 
 - Booking:
   - Log in as a member.
-  - Create a booking.
+  - Create a head spa booking.
   - Confirm it appears in `/account/bookings`.
   - Cancel or reschedule it and confirm only that member can change it.
 - Tickets:
   - Purchase a ticket.
-  - Confirm a `user_tickets` row is created with the correct `member_user_id`.
-  - Confirm booking can consume only that member's ticket.
+  - Confirm unpaid purchase remains an `awaiting_payment` order.
+  - Confirm admin payment approval creates a `user_tickets` row with the correct `member_user_id`.
+  - Confirm booking can consume only that member's valid ticket.
 - Orders:
   - Place a product order.
   - Confirm an `orders` row is created with the correct `member_user_id`.
 - Admin:
-  - Confirm bookings, orders, customers, services, tickets, and settings load in `/admin`.
+  - Confirm bookings, orders, customers, services, tickets, CSV import, and settings load in `/admin`.
 
 ## Content
 
-- Replace any remaining demo or placeholder copy with real salon information.
-- Confirm services, staff, tickets, FAQs, and articles reflect current business data.
+- Replace any remaining demo or placeholder copy with real PANDORA HEAD SPA information.
+- Confirm services, staff, tickets, FAQs, and articles reflect current head spa business data.
 - Confirm phone, address, hours, and contact links are production-ready.
 
 ## Build And Release

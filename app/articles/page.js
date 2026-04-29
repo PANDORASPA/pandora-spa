@@ -20,47 +20,40 @@ export default function ArticlesPage() {
   }, [])
 
   if (loading) {
-    return <div style={{ padding: '40px', textAlign: 'center' }}>載入中...</div>
+    return <div className="vh-loading">載入中...</div>
   }
 
   return (
     <>
-      <section style={{ padding: '36px 16px', background: '#FAF8F5' }}>
-        <div style={{ textAlign: 'center', maxWidth: '760px', margin: '0 auto' }}>
-          <h1 style={{ fontSize: '30px', color: '#3D3D3D', marginBottom: '10px' }}>
-            造型
-            <span style={{ color: '#A68B6A' }}>專欄</span>
-          </h1>
-          <p style={{ color: '#666', lineHeight: 1.7 }}>
-            整理髮型靈感、護理建議和店舖公告，讓內容區不再只是占位骨架。
-          </p>
-        </div>
+      <section className="vh-page-hero">
+        <span className="vh-eyebrow">Care journal</span>
+        <h1>
+          頭皮護理<span>文章</span>
+        </h1>
+        <p>整理頭皮潔淨、舒緩保養、會員套票使用和店舖公告，讓客人在預約前更了解 PANDORA HEAD SPA 的護理節奏。</p>
       </section>
 
-      <section style={{ padding: '28px 12px 48px' }}>
-        <div style={{ maxWidth: '860px', margin: '0 auto' }}>
+      <section className="vh-section">
+        <div className="vh-container vh-narrow">
           {articles.length === 0 ? (
-            <div style={{ background: '#fff', border: '1px solid #E8E0D5', borderRadius: '16px', padding: '28px', textAlign: 'center' }}>
-              <p style={{ color: '#666', marginBottom: '12px' }}>暫時未有公開文章。</p>
-              <Link href="/team" className="btn" style={{ display: 'inline-block' }}>
-                認識團隊
+            <div className="vh-empty-card">
+              <p>暫時未有公開文章。</p>
+              <Link href="/services" className="vh-btn vh-btn-primary">
+                查看頭皮護理服務
               </Link>
             </div>
           ) : (
             <div style={{ display: 'grid', gap: '16px' }}>
               {articles.map((article) => (
-                <Link key={article.id} href={`/articles/${article.id}`} style={{ textDecoration: 'none' }}>
-                  <article style={{ background: '#fff', border: '1px solid #E8E0D5', borderRadius: '16px', padding: '18px 18px 20px' }}>
-                    {article.category && (
-                      <span style={{ display: 'inline-block', marginBottom: '10px', fontSize: '12px', color: '#A68B6A', background: '#FAF8F5', padding: '5px 10px', borderRadius: '999px' }}>
-                        {article.category}
-                      </span>
-                    )}
-                    <h2 style={{ fontSize: '18px', color: '#333', marginBottom: '8px' }}>{article.title}</h2>
-                    <p style={{ fontSize: '14px', color: '#666', lineHeight: 1.7, marginBottom: '12px' }}>
-                      {article.excerpt || '店舖內容正在整理中。'}
-                    </p>
-                    <div style={{ fontSize: '13px', color: '#A68B6A', fontWeight: 600 }}>閱讀全文</div>
+                <Link key={article.id} href={`/articles/${article.id}`}>
+                  <article className="vh-service-card">
+                    <div className="vh-service-icon">READ</div>
+                    <div>
+                      {article.category ? <span className="vh-chip">{article.category}</span> : null}
+                      <h2 style={{ fontSize: '20px', margin: '10px 0 8px' }}>{article.title}</h2>
+                      <p>{article.excerpt || '店舖內容正在整理中。'}</p>
+                      <span className="vh-card-cta">閱讀全文</span>
+                    </div>
                   </article>
                 </Link>
               ))}
