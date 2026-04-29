@@ -7,6 +7,19 @@ import { supabase } from '../../lib/supabase'
 
 const formatCurrency = (value) => `$${Math.round(Number(value || 0))}`
 
+const getPurchaseMessage = (response, payload, ticketName) => {
+  if (response.status === 202 || payload?.requiresPayment || payload?.order?.status === 'awaiting_payment') {
+    const ref = payload?.ref || payload?.order?.ref
+    return `訂單已建立，待付款確認後會加入「我的套票」${ref ? `（訂單 ${ref}）` : ''}`
+  }
+
+  if (payload?.entitlementIssued === true || payload?.ticket) {
+    return `已成功加入 ${ticketName}，可到會員中心查看`
+  }
+
+  return `已送出 ${ticketName} 訂單，請到會員中心查看狀態`
+}
+
 export default function ServicesPage() {
   const [services, setServices] = useState([])
   const [packages, setPackages] = useState([])
@@ -91,7 +104,7 @@ export default function ServicesPage() {
         throw new Error(payload?.error || 'Ticket purchase failed')
       }
 
-      toast.success(`已購買 ${ticket.name}，可到會員中心查看`)
+      toast.success(getPurchaseMessage(response, payload, ticket.name))
     } catch (error) {
       toast.error(`套票購買失敗: ${error.message}`)
     } finally {
@@ -107,7 +120,7 @@ export default function ServicesPage() {
           <span style={{ color: '#A68B6A' }}>套票</span>
         </h1>
         <p style={{ color: '#666', maxWidth: '680px', margin: '0 auto', lineHeight: 1.7 }}>
-          集中查看單次服務、服務套票與會員票券。會員身份統一以 Supabase Auth 和 member profile 為準。
+          集中查看單次服務與套票。登入後購買套票會先建立待付款訂單，付款確認後即可在預約時使用。
         </p>
       </div>
 
@@ -116,7 +129,7 @@ export default function ServicesPage() {
           {[
             { id: 'services', label: '單次服務' },
             { id: 'packages', label: '服務套票' },
-            { id: 'tickets', label: '會員票券' },
+            { id: 'tickets', label: '套票' },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -190,7 +203,7 @@ export default function ServicesPage() {
               {tickets.map((ticket) => (
                 <div key={ticket.id} className="admin-card" style={{ padding: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
                   <div style={{ background: 'linear-gradient(135deg, #3D3D3D, #1a1a1a)', padding: '30px 24px', color: '#fff', position: 'relative' }}>
-                    <div style={{ fontSize: '14px', opacity: 0.8, marginBottom: '8px', letterSpacing: '1px' }}>VIVA MEMBER TICKET</div>
+                    <div style={{ fontSize: '14px', opacity: 0.8, marginBottom: '8px', letterSpacing: '1px' }}>VIVA PACKAGE</div>
                     <h3 style={{ fontSize: '22px', fontWeight: 700, marginBottom: '20px' }}>{ticket.name}</h3>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
                       <div>
@@ -203,7 +216,7 @@ export default function ServicesPage() {
                   <div style={{ padding: '24px', flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
                     <div style={{ marginBottom: '20px' }}>
                       <p style={{ fontSize: '14px', color: '#666', lineHeight: 1.6 }}>
-                        購買後票券會存入會員帳戶，預約相關服務時可直接扣減次數。
+                        送出後會先建立待付款訂單；付款確認後套票會存入會員帳戶，預約相關服務時可直接扣減次數。
                       </p>
                       <div style={{ marginTop: '12px', padding: '8px 12px', background: '#f0fdf4', borderRadius: '8px', color: '#166534', fontSize: '13px', fontWeight: 600, display: 'inline-block' }}>
                         平均每次 {formatCurrency(ticket.count ? ticket.price / ticket.count : ticket.price)}
@@ -216,7 +229,7 @@ export default function ServicesPage() {
                       className="btn btn-interactive"
                       style={{ width: '100%', padding: '12px', background: '#3D3D3D', color: '#fff', border: 'none', borderRadius: '8px', cursor: buyingTicketId === ticket.id ? 'not-allowed' : 'pointer', fontSize: '14px', fontWeight: 600 }}
                     >
-                      {buyingTicketId === ticket.id ? '處理中...' : '購買會員票券'}
+                      {buyingTicketId === ticket.id ? '建立訂單中...' : '購買套票'}
                     </button>
                   </div>
                 </div>

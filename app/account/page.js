@@ -26,11 +26,17 @@ export default async function Account({ searchParams }) {
   }
 
   const { data: profile } = await supabase.from('member_profiles').select('*').eq('id', user.id).single()
+  const [{ data: packageRows }, { data: pendingOrderRows }] = await Promise.all([
+    supabase.from('user_tickets').select('id,remaining_count').eq('member_user_id', user.id).gt('remaining_count', 0),
+    supabase.from('orders').select('id').eq('member_user_id', user.id).eq('status', 'awaiting_payment'),
+  ])
   const displayName = profile?.full_name || user.user_metadata?.full_name || user.email || '會員'
   const displayEmail = profile?.email || user.email || '-'
   const displayPhone = profile?.phone || user.user_metadata?.phone || ''
   const message = searchParams?.message || ''
   const profileIncomplete = !profile?.full_name || !profile?.phone
+  const activePackageCount = packageRows?.length || 0
+  const pendingOrderCount = pendingOrderRows?.length || 0
 
   return (
     <section style={shellStyle}>
@@ -90,6 +96,21 @@ export default async function Account({ searchParams }) {
         ) : null}
 
         <div style={{ display: 'grid', gap: '12px', marginBottom: '16px' }}>
+          <Link
+            href="/account/tickets"
+            className="btn btn-interactive"
+            style={{
+              background: '#fff',
+              color: '#333',
+              padding: '14px',
+              borderRadius: '14px',
+              fontWeight: 700,
+              textAlign: 'center',
+              border: '1px solid #E5E7EB',
+            }}
+          >
+            我的套票 · {activePackageCount} 個可用{pendingOrderCount ? ` · ${pendingOrderCount} 張待付款訂單` : ''}
+          </Link>
           <Link
             href="/account/bookings"
             className="btn btn-interactive"

@@ -19,6 +19,22 @@ export default async function AccountBookings() {
     .eq('user_id', user.id)
     .order('created_at', { ascending: false })
 
+  const ticketIds = [...new Set((bookings || []).map((booking) => booking.user_ticket_id).filter(Boolean))]
+  let enrichedBookings = bookings || []
+
+  if (ticketIds.length > 0) {
+    const { data: userTickets } = await supabase
+      .from('user_tickets')
+      .select('id,ticket_name,remaining_count,expiry_date')
+      .in('id', ticketIds)
+
+    const ticketsById = new Map((userTickets || []).map((ticket) => [ticket.id, ticket]))
+    enrichedBookings = enrichedBookings.map((booking) => ({
+      ...booking,
+      ticket_details: ticketsById.get(booking.user_ticket_id) || null,
+    }))
+  }
+
   return (
     <>
       <section style={{ padding: '30px 16px', background: '#FAF8F5', textAlign: 'center' }}>
@@ -33,10 +49,9 @@ export default async function AccountBookings() {
             </Link>
           </div>
 
-          <BookingList initialBookings={bookings} />
+          <BookingList initialBookings={enrichedBookings} />
         </div>
       </section>
     </>
   )
 }
-

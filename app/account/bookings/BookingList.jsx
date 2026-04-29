@@ -18,9 +18,17 @@ const T = {
   serviceFallback: '\u670d\u52d9\u9805\u76ee',
   staff: '\u8a2d\u8a08\u5e2b',
   ref: '\u9810\u7d04\u7de8\u865f',
+  packageUsed: '\u4f7f\u7528\u5957\u7968',
+  packageRemaining: '\u5269\u9918\u6b21\u6578',
   loading: '\u8655\u7406\u4e2d...',
   cancel: '\u53d6\u6d88\u9810\u7d04',
   reschedule: '\u66f4\u6539\u6642\u6bb5',
+}
+
+const getTicketDetails = (booking) => booking?.ticket_details || booking?.ticket || booking?.user_ticket || null
+const getTicketName = (booking) => {
+  const details = getTicketDetails(booking)
+  return details?.ticket_name || details?.name || booking?.ticket_name || booking?.user_ticket_name || ''
 }
 
 export default function BookingList({ initialBookings }) {
@@ -91,6 +99,9 @@ export default function BookingList({ initialBookings }) {
       {bookings.map((booking) => {
         const status = getStatusDisplay(booking.status)
         const isEditable = booking.status === 'pending' || booking.status === 'confirmed'
+        const ticketName = getTicketName(booking)
+        const ticketDetails = getTicketDetails(booking)
+        const hasPackageUsage = Boolean(booking.user_ticket_id || ticketName || ticketDetails)
 
         return (
           <div
@@ -128,6 +139,31 @@ export default function BookingList({ initialBookings }) {
                 <div style={{ color: '#999', fontSize: '12px', marginTop: '6px' }}>
                   {T.ref}\uff1a{booking.ref || `#${booking.id}`}
                 </div>
+                {hasPackageUsage ? (
+                  <div
+                    style={{
+                      marginTop: '10px',
+                      display: 'inline-flex',
+                      flexWrap: 'wrap',
+                      gap: '6px',
+                      alignItems: 'center',
+                      borderRadius: '999px',
+                      background: '#F0FDF4',
+                      color: '#166534',
+                      padding: '6px 10px',
+                      fontSize: '12px',
+                      fontWeight: 800,
+                    }}
+                  >
+                    <span>{T.packageUsed}</span>
+                    <span>{ticketName || `#${booking.user_ticket_id}`}</span>
+                    {ticketDetails?.remaining_count != null ? (
+                      <span>
+                        {T.packageRemaining}\uff1a{ticketDetails.remaining_count}
+                      </span>
+                    ) : null}
+                  </div>
+                ) : null}
               </div>
               <span
                 style={{

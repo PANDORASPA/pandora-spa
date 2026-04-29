@@ -251,6 +251,8 @@ export default function BookingStaffPage() {
   const [customerPhone, setCustomerPhone] = useState('')
   const [memberProfile, setMemberProfile] = useState(null)
   const [memberProfileLoading, setMemberProfileLoading] = useState(true)
+  const [userTickets, setUserTickets] = useState([])
+  const [selectedUserTicketId, setSelectedUserTicketId] = useState('')
   const [loading, setLoading] = useState(true)
   const [loadingSummary, setLoadingSummary] = useState(false)
   const [loadingSlots, setLoadingSlots] = useState(false)
@@ -343,6 +345,14 @@ export default function BookingStaffPage() {
         setMemberProfile(nextProfile)
         setCustomerName(String(nextProfile.full_name || ''))
         setCustomerPhone(String(nextProfile.phone || ''))
+
+        try {
+          const ticketResponse = await fetch('/api/account/tickets', { cache: 'no-store' })
+          const ticketPayload = await ticketResponse.json().catch(() => ({}))
+          setUserTickets(ticketResponse.ok && Array.isArray(ticketPayload?.tickets) ? ticketPayload.tickets : [])
+        } catch {
+          setUserTickets([])
+        }
       } catch {
         if (!cancelled) setMemberProfile(null)
       } finally {
@@ -437,8 +447,28 @@ export default function BookingStaffPage() {
   const summaryMap = useMemo(() => new Map(monthSummary.map((entry) => [entry.date, entry])), [monthSummary])
   const selectedSummary = selectedDate ? summaryMap.get(selectedDate) : null
   const selectedService = useMemo(() => services.find((item) => String(item.id) === String(serviceId)) || null, [services, serviceId])
+  const usableTickets = useMemo(() => {
+    const now = Date.now()
+    return (userTickets || []).filter((ticket) => {
+      if (Number(ticket?.remaining_count || 0) <= 0) return false
+      if (ticket?.expiry_date && Date.parse(ticket.expiry_date) < now) return false
+      const ticketServiceId = Number(ticket?.tickets?.service_id)
+      return !Number.isFinite(ticketServiceId) || ticketServiceId === Number(serviceId)
+    })
+  }, [serviceId, userTickets])
+  const selectedUserTicket = useMemo(
+    () => usableTickets.find((ticket) => String(ticket.id) === String(selectedUserTicketId)) || null,
+    [selectedUserTicketId, usableTickets],
+  )
+  const amountDue = selectedUserTicket ? 0 : Number(selectedService?.price || 0)
   const monthGrid = useMemo(() => (calendarOpen ? buildMonthGrid(monthKey) : []), [calendarOpen, monthKey])
   const currentDateISO = useMemo(() => todayISO(), [])
+
+  useEffect(() => {
+    if (selectedUserTicketId && !usableTickets.some((ticket) => String(ticket.id) === String(selectedUserTicketId))) {
+      setSelectedUserTicketId('')
+    }
+  }, [selectedUserTicketId, usableTickets])
 
   const selectedDateHelperText = useMemo(() => {
     if (!selectedDate) return ''
@@ -587,6 +617,7 @@ export default function BookingStaffPage() {
           locationId: null,
           customerName: effectiveCustomerName,
           customerPhone: effectiveCustomerPhone,
+          userTicketId: selectedUserTicket?.id || null,
         }),
       })
       const payload = await response.json().catch(() => ({}))
@@ -807,6 +838,37 @@ export default function BookingStaffPage() {
               </div>
             )}
 
+            {memberProfile ? (
+              <div className="admin-card" style={{ ...panelStyle, padding: '20px', display: 'grid', gap: '12px' }}>
+                <div>
+                  <div style={{ fontSize: '12px', color: '#A68B6A', fontWeight: 800, letterSpacing: '0.08em' }}>套票</div>
+                  <div style={{ marginTop: '4px', fontSize: '20px', fontWeight: 900 }}>使用我的套票</div>
+                </div>
+                {usableTickets.length > 0 ? (
+                  <label style={{ display: 'grid', gap: '8px' }}>
+                    <span style={{ fontSize: '13px', fontWeight: 800 }}>可用套票</span>
+                    <select value={selectedUserTicketId} onChange={(event) => setSelectedUserTicketId(event.target.value)} style={fieldStyle}>
+                      <option value="">不使用套票，現場付款</option>
+                      {usableTickets.map((ticket) => (
+                        <option key={ticket.id} value={ticket.id}>
+                          {ticket.ticket_name || ticket?.tickets?.name || `套票 #${ticket.id}`} - 剩餘 {ticket.remaining_count} 次
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ) : (
+                  <div style={{ border: '1px dashed #D6D3D1', borderRadius: '14px', padding: '14px', color: '#6B7280', lineHeight: 1.7 }}>
+                    這項服務暫時沒有可用套票。你仍可正常提交預約。
+                  </div>
+                )}
+                {selectedUserTicket ? (
+                  <div style={{ background: '#F0FDF4', color: '#166534', borderRadius: '14px', padding: '12px 14px', fontWeight: 800 }}>
+                    今次預約會扣除 1 次套票，應付金額為 $0。
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+
             <button
               type="submit"
               className="btn btn-interactive"
@@ -835,7 +897,8 @@ export default function BookingStaffPage() {
             </div>
             <div>
               <div style={{ fontSize: '12px', color: '#6B7280' }}>{T.amountDue}</div>
-              <strong>${Number(selectedService?.price || 0).toFixed(0)}</strong>
+              <strong>${amountDue.toFixed(0)}</strong>
+              {selectedUserTicket ? <div style={{ color: '#166534', fontSize: '12px', marginTop: '4px' }}>使用套票扣 1 次</div> : null}
             </div>
           </div>
         </aside>

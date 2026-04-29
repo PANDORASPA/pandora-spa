@@ -1,12 +1,15 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { toast } from 'react-hot-toast'
 import { supabase } from '../../../lib/supabase'
 import { EmptyState, Pill, RecordFilterBar, SectionHeader, fieldStyle, formatMoney, smallFieldStyle } from './opsUi'
 
 const STATUS_OPTIONS = [
+  { value: 'awaiting_payment', label: '待確認付款', tone: 'warning' },
   { value: 'pending', label: '待處理', tone: 'warning' },
   { value: 'paid', label: '已付款', tone: 'success' },
+  { value: 'completed', label: '已完成', tone: 'success' },
   { value: 'shipped', label: '已出貨', tone: 'default' },
   { value: 'cancelled', label: '已取消', tone: 'danger' },
 ]
@@ -39,6 +42,27 @@ const getBookingText = (booking) => booking?.ref || booking?.booking_ref || book
 const getTransactionText = (transaction) => transaction?.ref || transaction?.payment_ref || transaction?.code || `交易 #${transaction?.id || ''}`
 const getLinkedLocationId = (row) => row?.location_id ?? row?.branch_id ?? row?.location?.id ?? row?.branch?.id ?? ''
 const getLinkedProviderGroupId = (row) => row?.provider_group_id ?? row?.group_id ?? row?.provider_group?.id ?? ''
+const isTicketPackageOrder = (order) => {
+  const candidates = [
+    order.type,
+    order.order_type,
+    order.kind,
+    order.category,
+    order.product_type,
+    order.item_type,
+    order.delivery,
+    order.delivery_method,
+    order.package_id,
+    order.ticket_id,
+    getItemsText(order),
+  ]
+    .filter((value) => value != null)
+    .join(' ')
+    .toLowerCase()
+
+  return ['ticket', 'tickets', 'package', 'packages', '套票', '票券'].some((token) => candidates.includes(token))
+}
+const canConfirmPayment = (order) => (order.status || '') === 'awaiting_payment' && isTicketPackageOrder(order)
 
 const normalizeOrder = (order) => ({
   ...order,
@@ -88,6 +112,7 @@ export default function OrdersTab({
   const [scopeFilter, setScopeFilter] = useState('all')
   const [selectedOrder, setSelectedOrder] = useState(null)
   const [savingId, setSavingId] = useState(null)
+  const [confirmingId, setConfirmingId] = useState(null)
 
   useEffect(() => {
     setOrders((initialOrders || []).map(normalizeOrder))
@@ -246,7 +271,38 @@ export default function OrdersTab({
     }
   }
 
-  const isRowSaving = (order) => saving || savingId === order.id
+  const confirmPayment = async (order) => {
+    if (!order?.id) return
+
+    try {
+      setConfirmingId(order.id)
+      const response = await fetch('/api/admin/tickets/confirm-payment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderId: order.id,
+          order_id: order.id,
+          ticketId: order.ticket_id || order.package_id || '',
+          paymentRef: order.payment_ref || order.__transaction?.payment_ref || '',
+          paymentMethod: order.payment || order.payment_method || 'manual-admin',
+        }),
+      })
+      const result = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(result?.error || result?.message || 'Confirm payment failed')
+
+      const updatedOrder = result?.order || result?.data?.order || null
+      const nextStatus = updatedOrder?.status || result?.status || 'paid'
+      setOrders((current) => current.map((row) => (row.id === order.id ? { ...row, ...updatedOrder, status: nextStatus } : row)))
+      setSelectedOrder((current) => (current?.id === order.id ? { ...current, ...updatedOrder, status: nextStatus } : current))
+      toast.success('付款已確認')
+    } catch (error) {
+      toast.error(error?.message || '確認付款失敗')
+    } finally {
+      setConfirmingId(null)
+    }
+  }
+
+  const isRowSaving = (order) => saving || savingId === order.id || confirmingId === order.id
 
   return (
     <div style={{ display: 'grid', gap: '20px' }}>
@@ -427,17 +483,33 @@ export default function OrdersTab({
                         </span>
                       </td>
                       <td style={{ padding: '14px 12px', textAlign: 'center' }}>
-                        <button
-                          type="button"
-                          onClick={(event) => {
-                            event.stopPropagation()
-                            setSelectedOrder(order)
-                          }}
-                          className="btn-interactive"
-                          style={{ padding: '6px 12px', background: '#f5f5f5', border: '1px solid var(--gray)', borderRadius: '8px', cursor: 'pointer', fontSize: '12px', fontWeight: 700 }}
-                        >
-                          詳情
-                        </button>
+                        <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                          {canConfirmPayment(order) ? (
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation()
+                                confirmPayment(order)
+                              }}
+                              className="btn-interactive"
+                              disabled={isRowSaving(order)}
+                              style={{ padding: '6px 12px', background: '#A68B6A', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '12px', fontWeight: 700 }}
+                            >
+                              {confirmingId === order.id ? '確認中...' : '確認付款'}
+                            </button>
+                          ) : null}
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              setSelectedOrder(order)
+                            }}
+                            className="btn-interactive"
+                            style={{ padding: '6px 12px', background: '#f5f5f5', border: '1px solid var(--gray)', borderRadius: '8px', cursor: 'pointer', fontSize: '12px', fontWeight: 700 }}
+                          >
+                            詳情
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   )
@@ -541,6 +613,17 @@ export default function OrdersTab({
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                {canConfirmPayment(selectedOrder) ? (
+                  <button
+                    type="button"
+                    onClick={() => confirmPayment(selectedOrder)}
+                    className="btn btn-small btn-interactive"
+                    disabled={isRowSaving(selectedOrder)}
+                    style={{ background: '#A68B6A', color: '#fff' }}
+                  >
+                    {confirmingId === selectedOrder.id ? '確認中...' : '確認付款'}
+                  </button>
+                ) : null}
                 <button type="button" onClick={() => setSelectedOrder(null)} className="btn btn-small btn-interactive" style={{ background: '#fff' }}>
                   關閉
                 </button>

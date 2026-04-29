@@ -31,6 +31,28 @@ const tableMap = {
   tickets: 'tickets',
 }
 
+const normalizeImportMessage = (message) => {
+  if (typeof message === 'string') return message
+  if (!message || typeof message !== 'object') return ''
+  const row = message.row || message.line || message.rowNumber
+  const text = message.message || message.error || message.warning || message.detail || JSON.stringify(message)
+  return row ? `Row ${row}: ${text}` : text
+}
+
+const normalizeImportResult = (result = {}) => {
+  const data = result.data || result
+  const rows = data.rows || data.preview || data.records || data.validRows || []
+  const rowErrors = rows.flatMap((row) => (row?.errors || []).map((message) => ({ row: row.rowNumber, message })))
+  const rowWarnings = rows.flatMap((row) => (row?.warnings || []).map((message) => ({ row: row.rowNumber, message })))
+  return {
+    previewId: data.previewId || data.preview_id || data.importId || data.import_id || data.token || '',
+    rows,
+    errors: [...(data.errors || data.rowErrors || []), ...rowErrors].map(normalizeImportMessage).filter(Boolean),
+    warnings: [...(data.warnings || data.rowWarnings || []), ...rowWarnings].map(normalizeImportMessage).filter(Boolean),
+    summary: data.summary || data.stats || null,
+  }
+}
+
 export default function InventoryTab({
   products: initialProducts,
   packages: initialPackages,
@@ -44,6 +66,10 @@ export default function InventoryTab({
   const [ticketsState, setTicketsState] = useState(() => (initialTickets || []).map(normalizeTicketItem))
   const [subTab, setSubTab] = useState('products')
   const [saving, setSaving] = useState(false)
+  const [ticketCsv, setTicketCsv] = useState('')
+  const [ticketImportPreview, setTicketImportPreview] = useState(null)
+  const [ticketImportLoading, setTicketImportLoading] = useState(false)
+  const [ticketImportCommitting, setTicketImportCommitting] = useState(false)
 
   useEffect(() => setProducts((initialProducts || []).map(normalizeItem)), [initialProducts])
   useEffect(() => setPackagesState((initialPackages || []).map(normalizeItem)), [initialPackages])
@@ -158,6 +184,65 @@ export default function InventoryTab({
       toast.error('Save failed: ' + (error?.message || 'Unknown error'))
     } finally {
       setSaving(false)
+    }
+  }
+
+  const handleTicketImportPreview = async () => {
+    const csvText = ticketCsv.trim()
+    if (!csvText) {
+      toast.error('Paste CSV text before previewing')
+      return
+    }
+
+    setTicketImportLoading(true)
+    try {
+      const response = await fetch('/api/admin/tickets/import-preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ csvText, csv: csvText }),
+      })
+      const result = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(result?.error || result?.message || 'Preview failed')
+      const normalized = normalizeImportResult(result)
+      setTicketImportPreview(normalized)
+      if (normalized.errors.length > 0) {
+        toast.error('CSV preview has row errors')
+      } else {
+        toast.success('CSV preview ready')
+      }
+    } catch (error) {
+      toast.error(error?.message || 'CSV preview failed')
+    } finally {
+      setTicketImportLoading(false)
+    }
+  }
+
+  const handleTicketImportCommit = async () => {
+    if (!ticketImportPreview || ticketImportPreview.errors.length > 0) return
+
+    setTicketImportCommitting(true)
+    try {
+      const csvText = ticketCsv.trim()
+      const response = await fetch('/api/admin/tickets/import-commit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          csvText,
+          csv: csvText,
+          previewId: ticketImportPreview.previewId,
+          importId: ticketImportPreview.previewId,
+        }),
+      })
+      const result = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(result?.error || result?.message || 'Import commit failed')
+      toast.success('Ticket CSV imported')
+      setTicketCsv('')
+      setTicketImportPreview(null)
+      if (fetchData) await fetchData()
+    } catch (error) {
+      toast.error(error?.message || 'Ticket CSV import failed')
+    } finally {
+      setTicketImportCommitting(false)
     }
   }
 
@@ -356,6 +441,66 @@ export default function InventoryTab({
           {saving ? 'Saving...' : 'Save Changes'}
         </button>
       </div>
+      <div className="admin-card" style={{ padding: '20px', border: '1px solid var(--gray)', marginBottom: '20px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap', marginBottom: '14px' }}>
+          <div>
+            <div style={{ fontSize: '12px', fontWeight: 800, letterSpacing: '0.08em', color: '#A68B6A' }}>CSV IMPORT</div>
+            <div style={{ marginTop: '4px', fontSize: '18px', fontWeight: 800 }}>Ticket / Package Orders</div>
+            <div style={{ marginTop: '6px', fontSize: '13px', color: 'var(--text-light)' }}>
+              Paste CSV text, preview row issues, then commit the clean import batch.
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
+            <button
+              onClick={handleTicketImportPreview}
+              disabled={ticketImportLoading || ticketImportCommitting}
+              className="btn btn-small btn-interactive"
+              type="button"
+              style={{ background: '#fff' }}
+            >
+              {ticketImportLoading ? 'Previewing...' : 'Preview CSV'}
+            </button>
+            <button
+              onClick={handleTicketImportCommit}
+              disabled={!ticketImportPreview || ticketImportPreview.errors.length > 0 || ticketImportCommitting || ticketImportLoading}
+              className="btn btn-small btn-interactive"
+              type="button"
+              style={{ background: '#34D399' }}
+            >
+              {ticketImportCommitting ? 'Importing...' : 'Commit Import'}
+            </button>
+          </div>
+        </div>
+        <textarea
+          value={ticketCsv}
+          onChange={(e) => {
+            setTicketCsv(e.target.value)
+            setTicketImportPreview(null)
+          }}
+          placeholder={'phone,ticket_name,remaining_count,expiry_date,note\n0912345678,Palace套票,10,2027-04-29,BANK-001'}
+          style={{ minHeight: '140px', resize: 'vertical', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace' }}
+        />
+        {ticketImportPreview ? (
+          <div style={{ display: 'grid', gap: '14px', marginTop: '16px' }}>
+            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+              <span className="badge badge-outline">Preview rows: {ticketImportPreview.rows.length}</span>
+              <span className="badge badge-outline" style={{ background: ticketImportPreview.errors.length ? '#FEF2F2' : '#ECFDF5', color: ticketImportPreview.errors.length ? '#DC2626' : '#047857' }}>
+                Errors: {ticketImportPreview.errors.length}
+              </span>
+              <span className="badge badge-outline" style={{ background: ticketImportPreview.warnings.length ? '#FEF3C7' : '#F8FAFC', color: ticketImportPreview.warnings.length ? '#B45309' : 'var(--text-light)' }}>
+                Warnings: {ticketImportPreview.warnings.length}
+              </span>
+            </div>
+            {ticketImportPreview.errors.length > 0 ? (
+              <ImportMessageList title="Errors" tone="danger" messages={ticketImportPreview.errors} />
+            ) : null}
+            {ticketImportPreview.warnings.length > 0 ? (
+              <ImportMessageList title="Warnings" tone="warning" messages={ticketImportPreview.warnings} />
+            ) : null}
+            {ticketImportPreview.rows.length > 0 ? <ImportPreviewTable rows={ticketImportPreview.rows} /> : null}
+          </div>
+        ) : null}
+      </div>
       <div className="grid">
         {ticketsState.map((item) =>
           renderItemCard('tickets', item, (current, deleted) => (
@@ -484,6 +629,71 @@ export default function InventoryTab({
       {subTab === 'products' && renderProducts()}
       {subTab === 'packages' && renderPackages()}
       {subTab === 'tickets' && renderTickets()}
+    </div>
+  )
+}
+
+function ImportMessageList({ title, tone, messages }) {
+  const colors =
+    tone === 'danger'
+      ? { background: '#FEF2F2', color: '#B91C1C', border: '#FECACA' }
+      : { background: '#FEF3C7', color: '#92400E', border: '#FDE68A' }
+
+  return (
+    <div style={{ background: colors.background, color: colors.color, border: `1px solid ${colors.border}`, borderRadius: '8px', padding: '12px' }}>
+      <div style={{ fontSize: '13px', fontWeight: 800, marginBottom: '8px' }}>{title}</div>
+      <div style={{ display: 'grid', gap: '6px', fontSize: '13px', lineHeight: 1.5 }}>
+        {messages.slice(0, 8).map((message, index) => (
+          <div key={`${title}-${index}`}>{message}</div>
+        ))}
+        {messages.length > 8 ? <div style={{ fontWeight: 700 }}>+ {messages.length - 8} more</div> : null}
+      </div>
+    </div>
+  )
+}
+
+function ImportPreviewTable({ rows }) {
+  const normalizedRows = rows.slice(0, 8).map((row) => {
+    if (!row || typeof row !== 'object') return { value: row }
+    const { member, ticket, service, ...rest } = row
+    return {
+      ...rest,
+      member: member?.full_name || member?.email || member?.phone || '',
+      ticket: ticket?.name || '',
+      service: service?.name || '',
+    }
+  })
+  const columns = Array.from(new Set(normalizedRows.flatMap((row) => Object.keys(row)))).slice(0, 8)
+
+  if (columns.length === 0) return null
+
+  return (
+    <div style={{ overflowX: 'auto', border: '1px solid var(--gray)', borderRadius: '8px' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', minWidth: '620px' }}>
+        <thead>
+          <tr style={{ background: '#FAF8F5' }}>
+            {columns.map((column) => (
+              <th key={column} style={{ padding: '10px', textAlign: 'left', color: 'var(--text-light)', borderBottom: '1px solid var(--gray)' }}>
+                {column}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {normalizedRows.map((row, index) => (
+            <tr key={index} style={{ borderBottom: '1px solid #f6f6f6' }}>
+              {columns.map((column) => (
+                <td key={column} style={{ padding: '10px', verticalAlign: 'top' }}>
+                  {Array.isArray(row[column]) ? row[column].join('; ') : String(row[column] ?? '')}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {rows.length > normalizedRows.length ? (
+        <div style={{ padding: '10px', fontSize: '12px', color: 'var(--text-light)' }}>Showing first {normalizedRows.length} rows of {rows.length}.</div>
+      ) : null}
     </div>
   )
 }

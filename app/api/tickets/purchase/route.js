@@ -39,7 +39,7 @@ export async function POST(request) {
     const expiryDate = new Date()
     expiryDate.setFullYear(expiryDate.getFullYear() + 1)
     const orderRef = `ORD${Date.now().toString().slice(-6)}`
-    const ticketLabel = `Ticket: ${normalizeText(ticket.name) || `#${ticket.id}`}`
+    const ticketLabel = `Package #${ticket.id}: ${normalizeText(ticket.name) || `#${ticket.id}`}`
 
     const orderPayload = {
       user_name: normalizeText(user.email) || 'Member',
@@ -84,6 +84,20 @@ export async function POST(request) {
     if (issueError) {
       await supabase.from('orders').update({ status: 'fulfillment_failed', payment: 'manual-admin' }).eq('id', order.id)
       return NextResponse.json({ error: issueError.message, order, entitlementIssued: false }, { status: 500 })
+    }
+
+    const ledgerRes = await supabase.from('ticket_redemptions').insert({
+      user_ticket_id: issuedTicket.id,
+      order_id: order.id,
+      member_user_id: user.id,
+      delta: Number(issuedTicket.remaining_count || 0),
+      reason: 'purchase_issued',
+      note: `Issued from order ${orderRef}`,
+      created_by: user.id,
+    })
+    const ledgerMessage = String(ledgerRes.error?.message || '')
+    if (ledgerRes.error && !/ticket_redemptions|schema cache|relation|does not exist/i.test(ledgerMessage)) {
+      return NextResponse.json({ error: ledgerRes.error.message, order, entitlementIssued: true, ticket: issuedTicket }, { status: 500 })
     }
 
     return NextResponse.json({ ticket: issuedTicket, order, ref: orderRef, entitlementIssued: true }, { status: 200 })

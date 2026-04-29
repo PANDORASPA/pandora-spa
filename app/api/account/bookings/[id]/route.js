@@ -40,6 +40,18 @@ const restoreTicketIfNeeded = async (supabase, booking) => {
     .update({ remaining_count: Number(ticketRes.data.remaining_count || 0) + 1 })
     .eq('id', ticketId)
   if (updateRes.error) throw updateRes.error
+
+  const ledgerRes = await supabase.from('ticket_redemptions').insert({
+    user_ticket_id: ticketId,
+    booking_id: booking.id,
+    member_user_id: booking.user_id || null,
+    delta: 1,
+    reason: 'booking_cancelled_restore',
+    note: `Restored from cancelled booking ${booking.ref || booking.id}`,
+    created_by: booking.user_id || null,
+  })
+  const message = String(ledgerRes.error?.message || '')
+  if (ledgerRes.error && !/ticket_redemptions|schema cache|relation|does not exist/i.test(message)) throw ledgerRes.error
 }
 
 const revertCancelledStatusIfNeeded = async (supabase, bookingId, userId, previousStatus) => {

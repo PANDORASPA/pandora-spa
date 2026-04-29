@@ -57,6 +57,69 @@ const updateTicketRemainingCount = async (supabase, ticketId, nextCount) => {
   return data
 }
 
+const decrementTicketForBooking = async ({ supabase, ticketId, memberUserId }) => {
+  const normalizedId = Number(ticketId)
+  if (!Number.isFinite(normalizedId) || normalizedId <= 0) throw new Error('Invalid ticket.')
+
+  const rpcResult = await supabase.rpc('decrement_user_ticket_once', {
+    target_user_ticket_id: normalizedId,
+    target_member_user_id: memberUserId,
+  })
+
+  if (!rpcResult.error) {
+    if (!Array.isArray(rpcResult.data) || rpcResult.data.length !== 1) {
+      throw new Error('Ticket has no remaining uses.')
+    }
+    return rpcResult.data[0]
+  }
+
+  const rpcMissing = /decrement_user_ticket_once|schema cache|function/i.test(String(rpcResult.error?.message || ''))
+  if (!rpcMissing) throw rpcResult.error
+
+  const snapshot = await supabase
+    .from('user_tickets')
+    .select('id,remaining_count,expiry_date')
+    .eq('id', normalizedId)
+    .eq('member_user_id', memberUserId)
+    .maybeSingle()
+  if (snapshot.error) throw snapshot.error
+  if (!snapshot.data || Number(snapshot.data.remaining_count || 0) <= 0) {
+    throw new Error('Ticket has no remaining uses.')
+  }
+  if (snapshot.data.expiry_date && new Date(snapshot.data.expiry_date) < new Date()) {
+    throw new Error('Ticket has expired.')
+  }
+
+  const previousCount = Number(snapshot.data.remaining_count || 0)
+  const { data, error } = await supabase
+    .from('user_tickets')
+    .update({ remaining_count: previousCount - 1 })
+    .eq('id', normalizedId)
+    .eq('member_user_id', memberUserId)
+    .eq('remaining_count', previousCount)
+    .select('id,remaining_count')
+
+  if (error) throw error
+  if (!Array.isArray(data) || data.length !== 1) {
+    throw new Error('Ticket has already been used. Please refresh and try again.')
+  }
+  return data[0]
+}
+
+const writeTicketRedemption = async ({ supabase, userTicketId, bookingId, memberUserId, delta, reason, note, createdBy }) => {
+  const { error } = await supabase.from('ticket_redemptions').insert({
+    user_ticket_id: userTicketId,
+    booking_id: bookingId,
+    member_user_id: memberUserId,
+    delta,
+    reason,
+    note,
+    created_by: createdBy || memberUserId,
+  })
+  const message = String(error?.message || '')
+  if (error && !/ticket_redemptions|schema cache|relation|does not exist/i.test(message)) throw error
+}
+
 const inspectCreateRollbackState = async ({ supabase, bookingId, ticketSnapshot }) => {
   const [bookingRes, allocationRes, ticketRes] = await Promise.all([
     supabase.from('bookings').select('id').eq('id', bookingId).maybeSingle(),
@@ -245,7 +308,7 @@ export async function POST(request) {
     if (userTicketId) {
       const ticketRes = await supabase
         .from('user_tickets')
-        .select('id,remaining_count,member_user_id,customer_id,ticket_name,ticket_id,tickets(*)')
+        .select('id,remaining_count,member_user_id,customer_id,ticket_name,ticket_id,expiry_date,tickets(*)')
         .eq('id', userTicketId)
         .maybeSingle()
       if (ticketRes.error) return NextResponse.json({ error: ticketRes.error.message }, { status: 500 })
@@ -256,6 +319,9 @@ export async function POST(request) {
       if (!ownerMatches) return NextResponse.json({ error: 'You do not own this ticket.' }, { status: 403 })
       if (Number(userTicket.remaining_count || 0) <= 0) {
         return NextResponse.json({ error: 'Ticket has no remaining uses.' }, { status: 400 })
+      }
+      if (userTicket.expiry_date && new Date(userTicket.expiry_date) < new Date()) {
+        return NextResponse.json({ error: 'Ticket has expired.' }, { status: 400 })
       }
 
       const ticketServiceId = Number(userTicket?.tickets?.service_id)
@@ -296,7 +362,7 @@ export async function POST(request) {
 
     if (userTicket) {
       try {
-        await updateTicketRemainingCount(supabase, userTicket.id, Number(userTicket.remaining_count || 0) - 1)
+        await decrementTicketForBooking({ supabase, ticketId: userTicket.id, memberUserId: user.id })
       } catch (ticketUpdateError) {
         const rollbackResult = await rollbackCreateBooking({
           supabase,
@@ -412,6 +478,31 @@ export async function POST(request) {
               expectedAllocationCount: allocationPayload.length,
               actualAllocationCount: (verifyAllocationsRes.data || []).length,
             },
+          },
+          { status: 500 },
+        )
+      }
+    }
+
+    if (userTicket) {
+      try {
+        await writeTicketRedemption({
+          supabase,
+          userTicketId: userTicket.id,
+          bookingId: inserted.id,
+          memberUserId: user.id,
+          delta: -1,
+          reason: 'booking_redeemed',
+          note: `Redeemed for booking ${inserted.ref || inserted.id}`,
+          createdBy: user.id,
+        })
+      } catch (redemptionError) {
+        return NextResponse.json(
+          {
+            error: 'Booking was created and ticket was deducted, but the ticket usage record could not be written.',
+            code: 'ticket_ledger_failed',
+            details: { originalError: redemptionError?.message || 'Ticket ledger failed.' },
+            booking: inserted,
           },
           { status: 500 },
         )

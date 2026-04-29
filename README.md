@@ -117,6 +117,8 @@ Before demo or launch review:
 9. Run `npm run build` and keep the output as the latest baseline.
 10. Keep any real production content separate from `supabase/seed.sql`.
 
+For Palace Hair Spa replacement readiness, use [`PALACEHAIRSPA_REPLACEMENT_ACCEPTANCE.md`](./PALACEHAIRSPA_REPLACEMENT_ACCEPTANCE.md).
+
 ## Known Follow-Up Work
 
 - Validate the new migration set against a real Supabase project, not only through local build success.

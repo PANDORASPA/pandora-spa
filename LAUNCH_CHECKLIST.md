@@ -1,5 +1,7 @@
 # VIVA HAIR Launch Checklist
 
+Use [`PALACEHAIRSPA_REPLACEMENT_ACCEPTANCE.md`](./PALACEHAIRSPA_REPLACEMENT_ACCEPTANCE.md) as the acceptance board for Palace Hair Spa replacement readiness.
+
 ## Environment
 
 - Confirm `.env.local` contains the correct project URL, anon key, and service role key.
