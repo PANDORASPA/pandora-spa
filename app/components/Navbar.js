@@ -102,40 +102,42 @@ export default function Navbar() {
         </div>
       </nav>
 
-      <div className={`mobile-menu-overlay ${mobileMenuOpen ? 'active' : ''}`} onClick={closeMenu} />
+      {mobileMenuOpen ? <div className="mobile-menu-overlay active" onClick={closeMenu} aria-hidden="true" /> : null}
 
-      <div className={`mobile-menu ${mobileMenuOpen ? 'active' : ''}`}>
-        <div className="mobile-menu-header">
-          <span>VIVA HAIR</span>
-          <button className="mobile-menu-close" onClick={closeMenu} aria-label="關閉選單">
-            ×
-          </button>
+      {mobileMenuOpen ? (
+        <div className="mobile-menu active">
+          <div className="mobile-menu-header">
+            <span>VIVA HAIR</span>
+            <button className="mobile-menu-close" onClick={closeMenu} aria-label="關閉選單">
+              ×
+            </button>
+          </div>
+
+          <div className="mobile-menu-links">
+            {links.map((link) => (
+              <Link key={link.href} href={link.href} className={isActive(link.href) ? 'active' : ''} onClick={closeMenu}>
+                {link.label}
+              </Link>
+            ))}
+
+            <div className="mobile-menu-divider" />
+
+            {authUser ? (
+              <Link href="/account" onClick={closeMenu}>
+                會員中心{displayName ? `（${displayName}）` : ''}
+              </Link>
+            ) : (
+              <Link href={`/login?redirectTo=${encodeURIComponent(pathname || '/')}`} onClick={closeMenu}>
+                會員登入
+              </Link>
+            )}
+
+            <Link href="/admin" onClick={closeMenu}>
+              管理後台
+            </Link>
+          </div>
         </div>
-
-        <div className="mobile-menu-links">
-          {links.map((link) => (
-            <Link key={link.href} href={link.href} className={isActive(link.href) ? 'active' : ''} onClick={closeMenu}>
-              {link.label}
-            </Link>
-          ))}
-
-          <div className="mobile-menu-divider" />
-
-          {authUser ? (
-            <Link href="/account" onClick={closeMenu}>
-              會員中心{displayName ? `（${displayName}）` : ''}
-            </Link>
-          ) : (
-            <Link href={`/login?redirectTo=${encodeURIComponent(pathname || '/')}`} onClick={closeMenu}>
-              會員登入
-            </Link>
-          )}
-
-          <Link href="/admin" onClick={closeMenu}>
-            管理後台
-          </Link>
-        </div>
-      </div>
+      ) : null}
     </>
   )
 }
