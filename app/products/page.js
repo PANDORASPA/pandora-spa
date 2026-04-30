@@ -152,6 +152,11 @@ export default function ProductsPage() {
       }
 
       setOrderRef(payload?.ref || '')
+      if (payload?.checkoutUrl) {
+        toast.success('正在前往 Stripe 付款頁')
+        window.location.href = payload.checkoutUrl
+        return
+      }
       setOrderPlaced(true)
       setCart([])
       setShowCheckout(false)
@@ -280,6 +285,7 @@ export default function ProductsPage() {
                 <textarea value={formData.address} onChange={(event) => setFormData((current) => ({ ...current, address: event.target.value }))} placeholder="送貨地址" rows={3} />
               )}
               <select value={formData.payment} onChange={(event) => setFormData((current) => ({ ...current, payment: event.target.value }))}>
+                <option value="Stripe">Stripe 網上付款</option>
                 <option value="現金">現金</option>
                 <option value="FPS">FPS</option>
                 <option value="銀行轉帳">銀行轉帳</option>

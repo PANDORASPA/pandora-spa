@@ -28,6 +28,9 @@ npm install
 Optional:
 
 - `NEXT_PUBLIC_SITE_URL`
+- `STRIPE_SECRET_KEY`
+- `STRIPE_WEBHOOK_SECRET`
+- `STRIPE_CURRENCY` (defaults to `hkd`)
 
 4. Apply the canonical migrations in [`supabase/migrations`](./supabase/migrations).
 
@@ -83,6 +86,8 @@ npm run build
 - Ticket entitlements are only issued after an explicitly confirmed payment path.
 - Unpaid ticket purchase requests create an order record in `awaiting_payment` state instead of minting `user_tickets`.
 - Admins can confirm eligible ticket payments and import legacy customer ticket balances by CSV.
+- Stripe Checkout is available for ticket and product orders when the Stripe environment variables are configured.
+- Stripe webhooks post to `/api/stripe/webhook`; successful ticket payments issue `user_tickets` and write `ticket_redemptions`.
 
 ## Supabase Setup
 

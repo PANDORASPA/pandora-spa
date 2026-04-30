@@ -5,6 +5,10 @@ Use [`PALACEHAIRSPA_REPLACEMENT_ACCEPTANCE.md`](./PALACEHAIRSPA_REPLACEMENT_ACCE
 ## Environment
 
 - Confirm `.env.local` contains the correct project URL, anon key, and service role key.
+- Confirm Stripe keys and webhook secret are set for production payment:
+  - `STRIPE_SECRET_KEY`
+  - `STRIPE_WEBHOOK_SECRET`
+  - `STRIPE_CURRENCY`
 - Confirm the local workspace is linked to the correct Supabase project.
 - Confirm `supabase/migrations` is the only official schema source going forward.
 
@@ -41,6 +45,7 @@ Use [`PALACEHAIRSPA_REPLACEMENT_ACCEPTANCE.md`](./PALACEHAIRSPA_REPLACEMENT_ACCE
 - Tickets:
   - Purchase a ticket.
   - Confirm unpaid purchase remains an `awaiting_payment` order.
+  - Confirm Stripe ticket payment redirects to Checkout and webhook creates `user_tickets`.
   - Confirm admin payment approval creates a `user_tickets` row with the correct `member_user_id`.
   - Confirm booking can consume only that member's valid ticket.
 - Orders:

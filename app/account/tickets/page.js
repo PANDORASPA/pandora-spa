@@ -146,7 +146,14 @@ export default function AccountTicketsPage() {
                       <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px' }}>
                         <div>
                           <h3 style={{ margin: '0 0 8px', fontSize: '16px' }}>{item.ticket_name || item.package_name || '套票使用'}</h3>
-                          <p style={{ margin: 0, color: '#666', fontSize: '14px' }}>{item.service || item.service_name || item.description || '預約扣次'}</p>
+                          <p style={{ margin: 0, color: '#666', fontSize: '14px' }}>
+                            {item.service || item.service_name || item.description || item.note || '預約扣次'}
+                          </p>
+                          {item.delta != null ? (
+                            <p style={{ margin: '6px 0 0', color: Number(item.delta) < 0 ? '#B45309' : '#15803D', fontSize: '13px', fontWeight: 800 }}>
+                              {Number(item.delta) < 0 ? `已扣 ${Math.abs(Number(item.delta))} 次` : `已回補 ${Number(item.delta)} 次`}
+                            </p>
+                          ) : null}
                         </div>
                         <div style={{ color: '#999', fontSize: '13px', whiteSpace: 'nowrap' }}>{formatDate(item.created_at || item.used_at || item.date)}</div>
                       </div>

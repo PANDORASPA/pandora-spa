@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getServerClient } from '../../../../lib/supabase/server'
 import { getServiceClient } from '../../../../lib/supabase/service'
+import { createCheckoutSession } from '../../../../lib/stripe'
 
 const normalizeText = (value) => String(value || '').trim()
 const normalizeInteger = (value) => {
@@ -78,6 +79,7 @@ export async function POST(request) {
 
     // The live orders table currently stores a single contact label instead of
     // separate name/phone/product columns, so we keep the payload compatible.
+    const isStripePayment = payment.toLowerCase() === 'stripe'
     const payload = {
       user_name: phone ? `${name} (${phone})` : name,
       address: delivery.toLowerCase() === 'pickup' ? '' : address,
@@ -85,7 +87,7 @@ export async function POST(request) {
       payment,
       items: productNames.join(', '),
       total,
-      status: 'pending',
+      status: isStripePayment ? 'awaiting_payment' : 'pending',
       created_at: new Date().toISOString(),
       member_user_id: user?.id || null,
       ref: orderRef,
@@ -95,6 +97,33 @@ export async function POST(request) {
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
+    if (isStripePayment) {
+      try {
+        const origin = normalizeText(process.env.NEXT_PUBLIC_SITE_URL) || request.nextUrl.origin
+        const session = await createCheckoutSession({
+          lineItems: canonicalItems.map((item) => ({
+            name: item.name || `Product #${item.id}`,
+            amount: Number(item.price || 0),
+            quantity: item.quantity,
+          })),
+          clientReferenceId: data.ref || String(data.id),
+          successUrl: `${origin}/account?payment=stripe_success&order=${encodeURIComponent(data.ref || data.id)}&session_id={CHECKOUT_SESSION_ID}`,
+          cancelUrl: `${origin}/products?payment=stripe_cancelled&order=${encodeURIComponent(data.ref || data.id)}`,
+          metadata: {
+            kind: 'product_order',
+            order_id: data.id,
+            order_ref: data.ref || '',
+            member_user_id: user?.id || '',
+          },
+        })
+
+        return NextResponse.json({ order: data, ref: orderRef, total, items: canonicalItems, checkoutUrl: session.url, stripeSessionId: session.id }, { status: 200 })
+      } catch (stripeError) {
+        await supabase.from('orders').update({ status: 'payment_setup_failed', payment: 'stripe' }).eq('id', data.id)
+        return NextResponse.json({ error: stripeError?.message || 'Stripe Checkout setup failed.', order: data }, { status: stripeError?.status || 500 })
+      }
     }
 
     return NextResponse.json({ order: data, ref: orderRef, total, items: canonicalItems }, { status: 200 })

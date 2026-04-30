@@ -16,7 +16,7 @@ const T = {
   unknown: '\u672a\u77e5',
   empty: '\u76ee\u524d\u9084\u6c92\u6709\u9810\u7d04\u8a18\u9304',
   serviceFallback: '\u670d\u52d9\u9805\u76ee',
-  staff: '\u8a2d\u8a08\u5e2b',
+  staff: '頭皮護理師',
   ref: '\u9810\u7d04\u7de8\u865f',
   packageUsed: '\u4f7f\u7528\u5957\u7968',
   packageRemaining: '\u5269\u9918\u6b21\u6578',

@@ -65,6 +65,41 @@
   margin-bottom: 28px;
 }
 
+.vh-payment-choice {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 0 0 20px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.vh-payment-choice span {
+  color: var(--text-light);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.vh-payment-choice button {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--text);
+  padding: 9px 14px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.vh-payment-choice button.active {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+}
+
 .vh-tab-btn,
 .vh-chip-button {
   border: 1px solid var(--line);

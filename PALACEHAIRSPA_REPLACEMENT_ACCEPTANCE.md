@@ -25,7 +25,7 @@ Use this board to confirm the new PANDORA HEAD SPA site is ready to stand in for
 
 - Ticket listings show correct names, descriptions, prices, validity rules, usage rules, and availability.
 - Ticket purchase creates an order tied to the authenticated member.
-- Entitlements are issued only after an explicitly confirmed payment or approved manual confirmation path.
+- Entitlements are issued only after Stripe confirms payment or admin uses the approved manual confirmation path.
 - Unpaid ticket requests remain in an awaiting-payment state and do not create usable entitlements.
 - Member-owned tickets are visible in the member center with remaining balance, status, and expiration where applicable.
 - Booking can consume only the authenticated member's valid ticket entitlement.
@@ -46,6 +46,7 @@ Use this board to confirm the new PANDORA HEAD SPA site is ready to stand in for
 - Imports validate required fields, reject malformed rows, and report row-level errors before production data is changed.
 - Import runs are repeatable or clearly guarded against duplicate production records.
 - Admin users can manually confirm eligible ticket payments and see the resulting order and ticket state change.
+- Stripe Checkout success for a ticket order creates the member ticket automatically through the webhook path.
 - Payment confirmation actions are auditable with actor, timestamp, target record, and resulting status where supported by the schema.
 - Failed or partial import and confirmation flows leave records in a recoverable state.
 

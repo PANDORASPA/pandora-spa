@@ -8,6 +8,10 @@ import { supabase } from '../../lib/supabase'
 const formatCurrency = (value) => `$${Math.round(Number(value || 0))}`
 
 const getPurchaseMessage = (response, payload, ticketName) => {
+  if (payload?.paymentProvider === 'stripe' || payload?.checkoutUrl) {
+    return `正在前往 Stripe 付款頁，付款成功後會自動加入 ${ticketName}`
+  }
+
   if (response.status === 202 || payload?.requiresPayment || payload?.order?.status === 'awaiting_payment') {
     const ref = payload?.ref || payload?.order?.ref
     return `已建立待付款套票訂單，確認收款後會加入「我的套票」${ref ? `（訂單 ${ref}）` : ''}`
@@ -27,6 +31,7 @@ export default function ServicesPage() {
   const [authUser, setAuthUser] = useState(null)
   const [profile, setProfile] = useState(null)
   const [buyingTicketId, setBuyingTicketId] = useState(null)
+  const [paymentMethod, setPaymentMethod] = useState('stripe')
 
   useEffect(() => {
     const load = async () => {
@@ -83,7 +88,7 @@ export default function ServicesPage() {
       const response = await fetch('/api/tickets/purchase', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ticketId: ticket.id }),
+        body: JSON.stringify({ ticketId: ticket.id, paymentMethod }),
       })
 
       const payload = await response.json()
@@ -92,6 +97,9 @@ export default function ServicesPage() {
       }
 
       toast.success(getPurchaseMessage(response, payload, ticket.name))
+      if (payload?.checkoutUrl) {
+        window.location.href = payload.checkoutUrl
+      }
     } catch (error) {
       toast.error(`套票訂單建立失敗: ${error.message}`)
     } finally {
@@ -144,6 +152,15 @@ export default function ServicesPage() {
 
           {activeTab === 'tickets' && (
             <>
+              <div className="vh-payment-choice">
+                <span>付款方式</span>
+                <button type="button" className={paymentMethod === 'stripe' ? 'active' : ''} onClick={() => setPaymentMethod('stripe')}>
+                  Stripe 網上付款
+                </button>
+                <button type="button" className={paymentMethod === 'manual' ? 'active' : ''} onClick={() => setPaymentMethod('manual')}>
+                  人工確認付款
+                </button>
+              </div>
               <div className="vh-ticket-hint">{ticketHint}</div>
               <div className="vh-card-grid">
                 {tickets.map((ticket) => (
