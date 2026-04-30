@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-30T09:42:22.432Z",
+  "generatedAt": "2026-04-30T13:58:35.638Z",
   "baseUrl": "http://localhost:3000",
   "seeds": {
     "member_user_id": "b4b37271-b313-4be6-bc24-d9452dbfea1a",
@@ -8,8 +8,8 @@
     "location_id": 12,
     "provider_group_id": 11,
     "resource_id": 11,
-    "create_booking_id": 106,
-    "ticket_booking_id": 107,
+    "create_booking_id": 110,
+    "ticket_booking_id": 111,
     "user_ticket_id": 14,
     "primary_staff_id": 3,
     "secondary_staff_id": 4
@@ -18,7 +18,7 @@
     "booking_create_success": {
       "status": "pass",
       "response_status": 200,
-      "booking_id": 106,
+      "booking_id": 110,
       "appointment_date": "2026-06-07",
       "start_time": "09:00:00",
       "end_time": "10:00:00",
@@ -42,7 +42,7 @@
     "reschedule_self_exclusion": {
       "status": "pass",
       "response_status": 200,
-      "booking_id": 106,
+      "booking_id": 110,
       "appointment_date": "2026-06-07",
       "start_time": "09:00:00",
       "allocation_count": 1
@@ -89,7 +89,7 @@
     "account_cancel_ticket_restore": {
       "status": "pass",
       "response_status": 200,
-      "booking_id": 107,
+      "booking_id": 111,
       "remaining_before_cancel": 1,
       "remaining_after_cancel": 2
     },

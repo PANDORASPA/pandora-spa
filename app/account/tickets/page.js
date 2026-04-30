@@ -3,9 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 
-const formatCurrency = (value) => `$${Math.round(Number(value || 0))}`
-
-const asArray = (value) => (Array.isArray(value) ? value : [])
+const formatCurrency = (value) => `$${Math.round(Number(value || 0)).toLocaleString('zh-HK')}`
 
 const getFirstArray = (payload, keys) => {
   for (const key of keys) {
@@ -22,9 +20,32 @@ const formatDate = (value) => {
   return date.toLocaleDateString('zh-HK', { year: 'numeric', month: '2-digit', day: '2-digit' })
 }
 
-const getPackageName = (pkg) => pkg?.ticket_name || pkg?.ticket?.name || pkg?.name || pkg?.items || '套票'
+const getPackageName = (pkg) => pkg?.ticket_name || pkg?.tickets?.name || pkg?.ticket?.name || pkg?.name || '套票'
 const getRemaining = (pkg) => Number(pkg?.remaining_count ?? pkg?.remaining ?? pkg?.balance ?? 0)
-const getInitialCount = (pkg) => Number(pkg?.initial_count ?? pkg?.total_count ?? pkg?.ticket?.count ?? pkg?.count ?? 0)
+const getInitialCount = (pkg) => Number(pkg?.initial_count ?? pkg?.total_count ?? pkg?.tickets?.count ?? pkg?.ticket?.count ?? pkg?.count ?? 0)
+const getServiceName = (pkg) => pkg?.tickets?.services?.name || pkg?.service_name || pkg?.service || '適用服務依套票條款'
+
+const getOrderStatusLabel = (status) => {
+  const normalized = String(status || '').toLowerCase()
+  if (normalized === 'completed') return '已完成付款'
+  if (normalized === 'payment_setup_failed') return '付款未完成'
+  if (normalized === 'pending') return '付款處理中'
+  return '待付款'
+}
+
+const getPaymentLabel = (order) => {
+  const payment = String(order?.payment || order?.payment_method || '').toLowerCase()
+  if (payment === 'stripe') return 'Stripe 線上付款'
+  if (payment === 'manual') return '人工確認付款'
+  return order?.payment || '待選擇付款方式'
+}
+
+const getDeltaText = (delta) => {
+  const value = Number(delta || 0)
+  if (value < 0) return `已扣 ${Math.abs(value)} 次`
+  if (value > 0) return `已回補 ${value} 次`
+  return '沒有變更次數'
+}
 
 export default function AccountTicketsPage() {
   const [payload, setPayload] = useState(null)
@@ -63,13 +84,15 @@ export default function AccountTicketsPage() {
       }),
     [payload],
   )
+
+  const ticketOrders = useMemo(() => getFirstArray(payload, ['ticketOrders', 'ticket_orders', 'pendingOrders', 'pending_orders', 'orders']), [payload])
   const pendingOrders = useMemo(
     () =>
-      getFirstArray(payload, ['pendingOrders', 'pending_orders', 'orders']).filter((order) => {
+      ticketOrders.filter((order) => {
         const status = String(order?.status || '').toLowerCase()
-        return !status || status === 'awaiting_payment' || status === 'pending' || status === 'payment_pending'
+        return !status || ['awaiting_payment', 'pending', 'payment_pending', 'payment_setup_failed'].includes(status)
       }),
-    [payload],
+    [ticketOrders],
   )
   const redemptionHistory = useMemo(() => getFirstArray(payload, ['redemptionHistory', 'redemption_history', 'redemptions', 'history', 'usages']), [payload])
 
@@ -80,7 +103,7 @@ export default function AccountTicketsPage() {
         <h1>
           我的<span>套票</span>
         </h1>
-        <p>查看可用套票、待付款套票訂單和最近使用紀錄。預約適用頭皮護理服務時，可以選擇套票扣 1 次使用。</p>
+        <p>查看可用套票、待付款訂單、Stripe 或人工付款狀態，以及每次預約扣次和取消回補紀錄。</p>
       </section>
 
       <section className="vh-section">
@@ -90,7 +113,7 @@ export default function AccountTicketsPage() {
             <Link href="/tickets">購買套票</Link>
           </div>
 
-          {loading ? <Panel>載入套票資料中...</Panel> : null}
+          {loading ? <Panel>正在載入套票資料...</Panel> : null}
           {!loading && error ? (
             <Panel>
               <div style={{ color: '#B45309', fontWeight: 800, marginBottom: '8px' }}>暫時無法顯示套票</div>
@@ -100,7 +123,7 @@ export default function AccountTicketsPage() {
 
           {!loading && !error ? (
             <div className="vh-account-ticket-stack">
-              <Section title="可用套票" emptyText="目前沒有可用套票。">
+              <TicketSection title="可用套票" emptyText="目前沒有可用套票。購買套票並完成付款後，套票會在這裡顯示。">
                 {activePackages.map((pkg) => {
                   const remaining = getRemaining(pkg)
                   const initialCount = getInitialCount(pkg)
@@ -112,55 +135,57 @@ export default function AccountTicketsPage() {
                           <p style={{ margin: 0, color: '#666', fontSize: '14px' }}>
                             剩餘 {remaining} 次{initialCount ? ` / 共 ${initialCount} 次` : ''}
                           </p>
+                          <p style={{ margin: '8px 0 0', color: '#666', fontSize: '13px' }}>適用：{getServiceName(pkg)}</p>
                           {pkg.expiry_date ? <p style={{ margin: '8px 0 0', color: '#999', fontSize: '13px' }}>有效至 {formatDate(pkg.expiry_date)}</p> : null}
+                          {pkg.created_at ? <p style={{ margin: '8px 0 0', color: '#999', fontSize: '13px' }}>發放日期 {formatDate(pkg.created_at)}</p> : null}
                         </div>
                         <span style={badgeStyle}>可使用</span>
                       </div>
                     </article>
                   )
                 })}
-              </Section>
+              </TicketSection>
 
-              <Section title="待付款訂單" emptyText="目前沒有待付款訂單。">
+              <TicketSection title="待處理付款" emptyText="目前沒有待付款套票訂單。">
                 {pendingOrders.map((order) => (
                   <article key={order.id || order.ref} style={cardStyle}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'flex-start' }}>
                       <div>
                         <h3 style={{ margin: '0 0 8px', fontSize: '17px' }}>{order.items || order.ticket_name || '套票訂單'}</h3>
                         <p style={{ margin: 0, color: '#666', fontSize: '14px' }}>訂單 {order.ref || `#${order.id}`}</p>
+                        <p style={{ margin: '8px 0 0', color: '#666', fontSize: '13px' }}>付款方式：{getPaymentLabel(order)}</p>
                         {order.created_at ? <p style={{ margin: '8px 0 0', color: '#999', fontSize: '13px' }}>{formatDate(order.created_at)}</p> : null}
                       </div>
                       <div style={{ textAlign: 'right' }}>
                         <div style={{ color: '#8BA58B', fontWeight: 800 }}>{formatCurrency(order.total)}</div>
-                        <span style={{ ...badgeStyle, background: '#FEF3C7', color: '#B45309', marginTop: '8px' }}>待付款</span>
+                        <span style={{ ...badgeStyle, background: '#FEF3C7', color: '#B45309', marginTop: '8px' }}>{getOrderStatusLabel(order.status)}</span>
                       </div>
                     </div>
                   </article>
                 ))}
-              </Section>
+              </TicketSection>
 
-              {asArray(redemptionHistory).length > 0 ? (
-                <Section title="使用紀錄" emptyText="">
-                  {redemptionHistory.map((item) => (
-                    <article key={item.id || `${item.booking_id}-${item.created_at}`} style={cardStyle}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px' }}>
-                        <div>
-                          <h3 style={{ margin: '0 0 8px', fontSize: '16px' }}>{item.ticket_name || item.package_name || '套票使用'}</h3>
-                          <p style={{ margin: 0, color: '#666', fontSize: '14px' }}>
-                            {item.service || item.service_name || item.description || item.note || '預約扣次'}
-                          </p>
-                          {item.delta != null ? (
-                            <p style={{ margin: '6px 0 0', color: Number(item.delta) < 0 ? '#B45309' : '#15803D', fontSize: '13px', fontWeight: 800 }}>
-                              {Number(item.delta) < 0 ? `已扣 ${Math.abs(Number(item.delta))} 次` : `已回補 ${Number(item.delta)} 次`}
-                            </p>
-                          ) : null}
-                        </div>
-                        <div style={{ color: '#999', fontSize: '13px', whiteSpace: 'nowrap' }}>{formatDate(item.created_at || item.used_at || item.date)}</div>
+              <TicketSection title="扣次與回補紀錄" emptyText="暫時沒有套票使用紀錄。">
+                {redemptionHistory.map((item) => (
+                  <article key={item.id || `${item.booking_id}-${item.created_at}`} style={cardStyle}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px' }}>
+                      <div>
+                        <h3 style={{ margin: '0 0 8px', fontSize: '16px' }}>{item.ticket_name || item.package_name || '套票紀錄'}</h3>
+                        <p style={{ margin: 0, color: '#666', fontSize: '14px' }}>
+                          {item.bookings?.service || item.service || item.service_name || item.note || item.reason || '預約套票扣次'}
+                        </p>
+                        {item.bookings?.ref || item.booking_id ? (
+                          <p style={{ margin: '6px 0 0', color: '#999', fontSize: '13px' }}>相關預約：{item.bookings?.ref || `#${item.booking_id}`}</p>
+                        ) : null}
+                        <p style={{ margin: '6px 0 0', color: Number(item.delta) < 0 ? '#B45309' : '#15803D', fontSize: '13px', fontWeight: 800 }}>
+                          {getDeltaText(item.delta)}
+                        </p>
                       </div>
-                    </article>
-                  ))}
-                </Section>
-              ) : null}
+                      <div style={{ color: '#999', fontSize: '13px', whiteSpace: 'nowrap' }}>{formatDate(item.created_at || item.used_at || item.date)}</div>
+                    </div>
+                  </article>
+                ))}
+              </TicketSection>
             </div>
           ) : null}
         </div>
@@ -191,8 +216,8 @@ function Panel({ children }) {
   return <div style={{ ...cardStyle, textAlign: 'center', color: '#666', lineHeight: 1.7 }}>{children}</div>
 }
 
-function Section({ title, emptyText, children }) {
-  const items = asArray(children)
+function TicketSection({ title, emptyText, children }) {
+  const items = Array.isArray(children) ? children.filter(Boolean) : children ? [children] : []
   return (
     <section>
       <h2 style={{ fontSize: '20px', marginBottom: '12px' }}>{title}</h2>

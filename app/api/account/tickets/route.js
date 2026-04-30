@@ -25,8 +25,9 @@ export async function GET() {
         .select('*')
         .eq('member_user_id', user.id)
         .eq('delivery', 'digital-ticket')
-        .in('status', ['awaiting_payment', 'pending'])
-        .order('created_at', { ascending: false }),
+        .in('status', ['awaiting_payment', 'pending', 'payment_setup_failed', 'completed'])
+        .order('created_at', { ascending: false })
+        .limit(20),
       supabase
         .from('ticket_redemptions')
         .select('id,user_ticket_id,booking_id,order_id,delta,reason,note,created_at,bookings(id,ref,service,appointment_date,start_time,status)')
@@ -43,7 +44,8 @@ export async function GET() {
     return NextResponse.json(
       {
         tickets: ticketsRes.data || [],
-        pendingOrders: ordersRes.data || [],
+        ticketOrders: ordersRes.data || [],
+        pendingOrders: (ordersRes.data || []).filter((order) => ['awaiting_payment', 'pending', 'payment_setup_failed'].includes(String(order?.status || '').toLowerCase())),
         redemptions: redemptionsMissing ? [] : redemptionsRes.data || [],
       },
       { status: 200 },
