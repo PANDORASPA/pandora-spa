@@ -7,7 +7,7 @@ import { EmptyState, Pill, RecordFilterBar, SectionHeader, fieldStyle, formatMon
 
 const STATUS_OPTIONS = [
   { value: 'awaiting_payment', label: '待付款', tone: 'warning' },
-  { value: 'payment_setup_failed', label: '付款建立失敗', tone: 'danger' },
+  { value: 'payment_setup_failed', label: '付款未完成', tone: 'danger' },
   { value: 'pending', label: '待處理', tone: 'warning' },
   { value: 'paid', label: '已付款', tone: 'success' },
   { value: 'completed', label: '已完成', tone: 'success' },
@@ -15,8 +15,8 @@ const STATUS_OPTIONS = [
   { value: 'cancelled', label: '已取消', tone: 'danger' },
 ]
 
-const getCustomerName = (order) => order.user_name || order.customer_name || order.name || '顧客'
-const getCustomerPhone = (order) => order.phone || order.user_phone || order.customer_phone || ''
+const getCustomerName = (order) => order.user_name || order.customer_name || order.name || order.__customer?.name || '顧客'
+const getCustomerPhone = (order) => order.phone || order.user_phone || order.customer_phone || order.__customer?.phone || ''
 const getItemsText = (order) => {
   if (Array.isArray(order.items)) {
     return order.items
@@ -26,8 +26,19 @@ const getItemsText = (order) => {
   }
   return order.items || order.product_name || order.description || '-'
 }
-const getDeliveryText = (order) => order.delivery || order.delivery_method || '未設定'
-const getPaymentText = (order) => order.payment || order.payment_method || '未設定'
+const getDeliveryText = (order) => {
+  const value = order.delivery || order.delivery_method || ''
+  if (value === 'digital-ticket') return '套票 / 到店使用'
+  if (value === 'pickup') return '到店取貨'
+  if (value === 'delivery') return '配送'
+  return value || '未設定'
+}
+const getPaymentText = (order) => {
+  const value = order.payment || order.payment_method || ''
+  if (value === 'stripe') return 'Stripe'
+  if (value === 'manual' || value === 'manual-admin') return '人工確認'
+  return value || '未設定'
+}
 const getDateText = (order) => (order.created_at ? new Date(order.created_at).toLocaleString('zh-HK') : '-')
 const getOrderStatusMeta = (status) => STATUS_OPTIONS.find((option) => option.value === status) || { value: status || 'pending', label: status || '待處理', tone: 'warning' }
 const isTicketPackageOrder = (order) => {
@@ -191,7 +202,7 @@ export default function OrdersTab({
         description="查看產品與套票訂單、付款方式、Stripe 狀態，以及人工確認付款後發放套票。"
         actions={
           <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-            <Pill>{filteredOrders.length} 筆可見</Pill>
+            <Pill>{filteredOrders.length} 筆顯示</Pill>
             <Pill>{summary.awaiting} 筆待付款</Pill>
             <Pill>{summary.stripe} 筆 Stripe</Pill>
           </div>
@@ -241,7 +252,7 @@ export default function OrdersTab({
               {filteredOrders.length === 0 ? (
                 <tr>
                   <td colSpan="8">
-                    <EmptyState title="找不到訂單" description="嘗試放寬搜尋或清除篩選條件。" />
+                    <EmptyState title="找不到訂單" description="請嘗試放寬搜尋或清除篩選條件。" />
                   </td>
                 </tr>
               ) : (

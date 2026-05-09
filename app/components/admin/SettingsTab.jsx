@@ -14,6 +14,18 @@ const DAY_OPTIONS = [
   { key: '6', label: '星期六' },
 ]
 
+const SEO_PAGES = [
+  { key: 'home', label: '首頁', path: '/' },
+  { key: 'services', label: '服務', path: '/services' },
+  { key: 'tickets', label: '套票', path: '/tickets' },
+  { key: 'products', label: '產品', path: '/products' },
+  { key: 'booking', label: '預約', path: '/booking' },
+  { key: 'account', label: '會員', path: '/account' },
+  { key: 'contact', label: '聯絡', path: '/contact' },
+  { key: 'faq', label: 'FAQ', path: '/faq' },
+  { key: 'articles', label: '文章', path: '/articles' },
+]
+
 const SECTION_OPTIONS = [
   {
     key: 'profile',
@@ -26,18 +38,48 @@ const SECTION_OPTIONS = [
     description: '對照 ThinkShops 後台的網站狀態、公開網址、SEO 與功能開關。',
   },
   {
-    key: 'commerce',
-    title: '付款、配送與結賬',
-    description: '集中檢查 Stripe、人工付款、配送與結賬文案是否可正式使用。',
+    key: 'seo',
+    title: 'SEO / 分享設定',
+    description: '管理主要公開頁面的標題、描述、關鍵字與 canonical path。',
   },
   {
-    key: 'communications',
-    title: '社交與訊息',
-    description: '管理 WhatsApp、Instagram、Facebook、Google Map 與顧客查詢入口。',
+    key: 'payment',
+    title: '付款方式',
+    description: '設定 Stripe、人工付款、FPS 與到店付款是否啟用。',
+  },
+  {
+    key: 'fulfillment',
+    title: '配送 / 到店使用',
+    description: '設定套票、預約與產品的交付文案。',
+  },
+  {
+    key: 'checkout',
+    title: '結賬設定',
+    description: '設定付款前提示、付款後說明與顧客須知。',
+  },
+  {
+    key: 'membership',
+    title: '會員制度',
+    description: '設定註冊、會員稱呼、套票顯示與會員中心規則。',
+  },
+  {
+    key: 'rewards',
+    title: '獎賞積分',
+    description: '設定是否啟用積分與基本兌換說明。',
+  },
+  {
+    key: 'social',
+    title: '社交媒體',
+    description: '管理 Instagram、Facebook、Google Map 與公開社交連結。',
+  },
+  {
+    key: 'messaging',
+    title: '訊息設定',
+    description: '管理 WhatsApp、查詢訊息與預約提醒文字。',
   },
   {
     key: 'availability',
-    title: '營業時間與預約規則',
+    title: '假期 / 公休日',
     description: '設定店舖營業時間、時段步長與預約緩衝時間。',
   },
   {
@@ -47,7 +89,7 @@ const SECTION_OPTIONS = [
   },
   {
     key: 'admins',
-    title: '管理員帳號',
+    title: '帳戶資料 / 用戶',
     description: '查看哪些會員已具備後台管理權限，並同步登入狀態。',
   },
   {
@@ -125,6 +167,8 @@ export default function SettingsTab({
   const [draft, setDraft] = useState(settings || {})
   const [adminDraft, setAdminDraft] = useState(memberProfiles || [])
   const [selectedSection, setSelectedSection] = useState('profile')
+  const [audit, setAudit] = useState(null)
+  const [auditLoading, setAuditLoading] = useState(false)
 
   useEffect(() => {
     setDraft(settings || {})
@@ -133,6 +177,23 @@ export default function SettingsTab({
   useEffect(() => {
     setAdminDraft(memberProfiles || [])
   }, [memberProfiles])
+
+  useEffect(() => {
+    if (selectedSection !== 'launchAudit') return
+    const loadAudit = async () => {
+      setAuditLoading(true)
+      try {
+        const response = await fetch('/api/admin/settings/audit', { credentials: 'include', cache: 'no-store' })
+        const payload = await response.json().catch(() => ({}))
+        setAudit(response.ok ? payload : { error: payload?.error || '上線檢查載入失敗' })
+      } catch (error) {
+        setAudit({ error: error?.message || '上線檢查載入失敗' })
+      } finally {
+        setAuditLoading(false)
+      }
+    }
+    loadAudit()
+  }, [selectedSection])
 
   const businessHours = parseBusinessHours(draft?.business_hours)
   const daysOff = normalizeDaysOff(draft?.days_off)
@@ -143,8 +204,14 @@ export default function SettingsTab({
     () => ({
       profile: draft?.shop_name ? '已填店舖資料' : '待填店舖資料',
       website: draft?.site_url ? '已填公開網址' : '待填公開網址',
-      commerce: draft?.stripe_enabled === 'true' || draft?.manual_payment_enabled === 'true' ? '已設定付款方向' : '待設定付款方向',
-      communications: draft?.whatsapp || draft?.instagram_url || draft?.facebook_url ? '已填聯絡入口' : '待填社交訊息',
+      seo: draft?.seo_title && draft?.seo_description ? '已填主 SEO' : '待補 SEO',
+      payment: draft?.stripe_enabled === 'true' || draft?.manual_payment_enabled === 'true' ? '已設定付款方向' : '待設定付款方向',
+      fulfillment: draft?.fulfillment_note ? '已填到店說明' : '待填使用說明',
+      checkout: draft?.checkout_notice ? '已填結賬提示' : '待填結賬提示',
+      membership: draft?.member_registration_enabled !== 'false' ? '開放會員註冊' : '已關閉註冊',
+      rewards: draft?.reward_points_enabled === 'true' ? '已啟用積分' : '未啟用積分',
+      social: draft?.instagram_url || draft?.facebook_url || draft?.google_map_url ? '已填社交連結' : '待填社交連結',
+      messaging: draft?.whatsapp ? '已填 WhatsApp' : '待填訊息入口',
       availability: draft?.business_hours ? '已設定營業時間' : '未設定營業時間',
       daysOff: daysOff.length ? `已選 ${daysOff.length} 日` : '沒有全店公休日',
       admins: adminDraft.filter((profile) => profile?.is_admin === true).length
@@ -152,7 +219,7 @@ export default function SettingsTab({
         : '未指定管理員',
       launchAudit: '待逐項核對',
     }),
-    [adminDraft, daysOff.length, draft?.business_hours, draft?.facebook_url, draft?.instagram_url, draft?.manual_payment_enabled, draft?.shop_name, draft?.site_url, draft?.stripe_enabled, draft?.whatsapp],
+    [adminDraft, daysOff.length, draft],
   )
   const updateSetting = (key, value) => setDraft((current) => ({ ...current, [key]: value }))
 
@@ -212,11 +279,47 @@ export default function SettingsTab({
             </label>
           </div>
         )
-      case 'commerce':
+      case 'seo':
+        return (
+          <div style={{ display: 'grid', gap: '14px' }}>
+            <div style={{ color: 'var(--text-light)', fontSize: '13px', lineHeight: 1.7 }}>
+              主要公開頁 SEO 使用 settings key pattern，例如 <code>seo.home.title</code>、<code>seo.tickets.description</code>。主頁 fallback 仍會使用上方 SEO 標題與描述。
+            </div>
+            <div style={{ overflowX: 'auto', border: '1px solid #EEE7DE', borderRadius: '12px' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', minWidth: '900px' }}>
+                <thead>
+                  <tr style={{ background: '#FAF8F5', color: 'var(--text-light)' }}>
+                    {['頁面', 'Canonical path', 'SEO 標題', 'SEO 描述', '關鍵字'].map((heading) => <th key={heading} style={{ padding: '10px', textAlign: 'left' }}>{heading}</th>)}
+                  </tr>
+                </thead>
+                <tbody>
+                  {SEO_PAGES.map((page) => (
+                    <tr key={page.key} style={{ borderTop: '1px solid #F1ECE4' }}>
+                      <td style={{ padding: '10px', fontWeight: 800 }}>{page.label}</td>
+                      <td style={{ padding: '10px' }}>
+                        <input value={draft[`seo.${page.key}.path`] || page.path} onChange={(event) => updateSetting(`seo.${page.key}.path`, event.target.value)} style={fieldStyle} />
+                      </td>
+                      <td style={{ padding: '10px' }}>
+                        <input value={draft[`seo.${page.key}.title`] || ''} onChange={(event) => updateSetting(`seo.${page.key}.title`, event.target.value)} style={fieldStyle} placeholder={`${page.label}｜PANDORA HEAD SPA`} />
+                      </td>
+                      <td style={{ padding: '10px' }}>
+                        <input value={draft[`seo.${page.key}.description`] || ''} onChange={(event) => updateSetting(`seo.${page.key}.description`, event.target.value)} style={fieldStyle} placeholder="輸入搜尋摘要" />
+                      </td>
+                      <td style={{ padding: '10px' }}>
+                        <input value={draft[`seo.${page.key}.keywords`] || ''} onChange={(event) => updateSetting(`seo.${page.key}.keywords`, event.target.value)} style={fieldStyle} placeholder="頭皮護理, Head Spa" />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )
+      case 'payment':
         return (
           <div style={{ display: 'grid', gap: '16px' }}>
             <div style={{ color: 'var(--text-light)', fontSize: '13px', lineHeight: 1.7 }}>
-              ThinkShops 對照項目：付款方式、配送、結賬。PANDORA 第一版以 Stripe 線上付款為主，人工確認付款保留作後備；實體護理服務可把配送文案寫成「不適用」或「到店使用」。
+              PANDORA 第一版以 Stripe 線上付款為主，人工確認付款保留作後備；FPS 與到店付款只作人工確認付款的營運提示。
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
               <label style={{ display: 'inline-flex', alignItems: 'center', gap: '10px', fontSize: '13px', fontWeight: 800 }}>
@@ -227,25 +330,84 @@ export default function SettingsTab({
                 <input type="checkbox" checked={draft.manual_payment_enabled !== 'false'} onChange={(event) => updateSetting('manual_payment_enabled', event.target.checked ? 'true' : 'false')} />
                 人工確認付款
               </label>
+              <label style={{ display: 'inline-flex', alignItems: 'center', gap: '10px', fontSize: '13px', fontWeight: 800 }}>
+                <input type="checkbox" checked={draft.fps_enabled === 'true'} onChange={(event) => updateSetting('fps_enabled', event.target.checked ? 'true' : 'false')} />
+                FPS / 轉數快提示
+              </label>
+              <label style={{ display: 'inline-flex', alignItems: 'center', gap: '10px', fontSize: '13px', fontWeight: 800 }}>
+                <input type="checkbox" checked={draft.pay_at_shop_enabled === 'true'} onChange={(event) => updateSetting('pay_at_shop_enabled', event.target.checked ? 'true' : 'false')} />
+                到店付款提示
+              </label>
             </div>
+            <label style={{ display: 'grid', gap: '8px' }}>
+              <span style={{ fontSize: '13px', fontWeight: 800 }}>FPS / 轉數快備註</span>
+              <input type="text" value={draft.fps_note || ''} onChange={(event) => updateSetting('fps_note', event.target.value)} style={fieldStyle} placeholder="例如：付款後請上傳截圖或 WhatsApp 店員確認" />
+            </label>
+          </div>
+        )
+      case 'fulfillment':
+        return (
+          <div style={{ display: 'grid', gap: '16px' }}>
+            <label style={{ display: 'grid', gap: '8px' }}>
+              <span style={{ fontSize: '13px', fontWeight: 800 }}>配送 / 到店使用說明</span>
+              <input type="text" value={draft.fulfillment_note || ''} onChange={(event) => updateSetting('fulfillment_note', event.target.value)} style={fieldStyle} placeholder="套票及預約服務無需配送，到店使用。" />
+            </label>
+            <label style={{ display: 'grid', gap: '8px' }}>
+              <span style={{ fontSize: '13px', fontWeight: 800 }}>產品取貨 / 配送說明</span>
+              <textarea value={draft.product_fulfillment_note || ''} onChange={(event) => updateSetting('product_fulfillment_note', event.target.value)} style={{ ...fieldStyle, minHeight: '92px', resize: 'vertical' }} placeholder="產品可到店取貨；如需配送，請先與店員確認。" />
+            </label>
+          </div>
+        )
+      case 'checkout':
+        return (
+          <div style={{ display: 'grid', gap: '16px' }}>
             <label style={{ display: 'grid', gap: '8px' }}>
               <span style={{ fontSize: '13px', fontWeight: 800 }}>結賬提示文案</span>
               <textarea value={draft.checkout_notice || ''} onChange={(event) => updateSetting('checkout_notice', event.target.value)} style={{ ...fieldStyle, minHeight: '92px', resize: 'vertical' }} placeholder="完成付款後，套票會自動加入會員帳戶；如選擇人工付款，需由店員確認後才會發放。" />
             </label>
             <label style={{ display: 'grid', gap: '8px' }}>
-              <span style={{ fontSize: '13px', fontWeight: 800 }}>配送 / 到店使用說明</span>
-              <input type="text" value={draft.fulfillment_note || ''} onChange={(event) => updateSetting('fulfillment_note', event.target.value)} style={fieldStyle} placeholder="套票及預約服務無需配送，到店使用。" />
+              <span style={{ fontSize: '13px', fontWeight: 800 }}>付款成功提示</span>
+              <textarea value={draft.payment_success_notice || ''} onChange={(event) => updateSetting('payment_success_notice', event.target.value)} style={{ ...fieldStyle, minHeight: '92px', resize: 'vertical' }} placeholder="付款成功後，可到會員中心查看套票或訂單狀態。" />
             </label>
           </div>
         )
-      case 'communications':
+      case 'membership':
+        return (
+          <div style={{ display: 'grid', gap: '16px' }}>
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: '10px', fontSize: '13px', fontWeight: 800 }}>
+              <input type="checkbox" checked={draft.member_registration_enabled !== 'false'} onChange={(event) => updateSetting('member_registration_enabled', event.target.checked ? 'true' : 'false')} />
+              開放會員註冊
+            </label>
+            <label style={{ display: 'grid', gap: '8px' }}>
+              <span style={{ fontSize: '13px', fontWeight: 800 }}>會員稱呼</span>
+              <input type="text" value={draft.member_label || ''} onChange={(event) => updateSetting('member_label', event.target.value)} style={fieldStyle} placeholder="會員" />
+            </label>
+            <label style={{ display: 'grid', gap: '8px' }}>
+              <span style={{ fontSize: '13px', fontWeight: 800 }}>套票顯示規則</span>
+              <select value={draft.ticket_visibility || 'show_active_and_pending'} onChange={(event) => updateSetting('ticket_visibility', event.target.value)} style={fieldStyle}>
+                <option value="show_active_and_pending">顯示可用套票與待付款訂單</option>
+                <option value="show_active_only">只顯示可用套票</option>
+              </select>
+            </label>
+          </div>
+        )
+      case 'rewards':
+        return (
+          <div style={{ display: 'grid', gap: '16px' }}>
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: '10px', fontSize: '13px', fontWeight: 800 }}>
+              <input type="checkbox" checked={draft.reward_points_enabled === 'true'} onChange={(event) => updateSetting('reward_points_enabled', event.target.checked ? 'true' : 'false')} />
+              啟用獎賞積分
+            </label>
+            <label style={{ display: 'grid', gap: '8px' }}>
+              <span style={{ fontSize: '13px', fontWeight: 800 }}>積分說明</span>
+              <textarea value={draft.reward_points_note || ''} onChange={(event) => updateSetting('reward_points_note', event.target.value)} style={{ ...fieldStyle, minHeight: '92px', resize: 'vertical' }} placeholder="第一版可先關閉；日後再設定賺取與兌換規則。" />
+            </label>
+          </div>
+        )
+      case 'social':
         return (
           <div style={{ display: 'grid', gap: '16px' }}>
             <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
-              <label style={{ display: 'grid', gap: '8px' }}>
-                <span style={{ fontSize: '13px', fontWeight: 800 }}>WhatsApp</span>
-                <input type="text" value={draft.whatsapp || ''} onChange={(event) => updateSetting('whatsapp', event.target.value)} style={fieldStyle} placeholder="+852 1234 5678" />
-              </label>
               <label style={{ display: 'grid', gap: '8px' }}>
                 <span style={{ fontSize: '13px', fontWeight: 800 }}>Instagram URL</span>
                 <input type="url" value={draft.instagram_url || ''} onChange={(event) => updateSetting('instagram_url', event.target.value)} style={fieldStyle} placeholder="https://www.instagram.com/..." />
@@ -258,6 +420,23 @@ export default function SettingsTab({
             <label style={{ display: 'grid', gap: '8px' }}>
               <span style={{ fontSize: '13px', fontWeight: 800 }}>Google Map URL</span>
               <input type="url" value={draft.google_map_url || ''} onChange={(event) => updateSetting('google_map_url', event.target.value)} style={fieldStyle} placeholder="https://maps.google.com/..." />
+            </label>
+          </div>
+        )
+      case 'messaging':
+        return (
+          <div style={{ display: 'grid', gap: '16px' }}>
+            <label style={{ display: 'grid', gap: '8px' }}>
+              <span style={{ fontSize: '13px', fontWeight: 800 }}>WhatsApp</span>
+              <input type="text" value={draft.whatsapp || ''} onChange={(event) => updateSetting('whatsapp', event.target.value)} style={fieldStyle} placeholder="+852 1234 5678" />
+            </label>
+            <label style={{ display: 'grid', gap: '8px' }}>
+              <span style={{ fontSize: '13px', fontWeight: 800 }}>查詢預設訊息</span>
+              <textarea value={draft.whatsapp_default_message || ''} onChange={(event) => updateSetting('whatsapp_default_message', event.target.value)} style={{ ...fieldStyle, minHeight: '92px', resize: 'vertical' }} placeholder="你好，我想查詢 PANDORA HEAD SPA 頭皮護理服務。" />
+            </label>
+            <label style={{ display: 'grid', gap: '8px' }}>
+              <span style={{ fontSize: '13px', fontWeight: 800 }}>預約提醒文字</span>
+              <textarea value={draft.booking_reminder_note || ''} onChange={(event) => updateSetting('booking_reminder_note', event.target.value)} style={{ ...fieldStyle, minHeight: '92px', resize: 'vertical' }} placeholder="請準時到店，如需更改預約請提前聯絡。" />
             </label>
           </div>
         )
@@ -330,19 +509,32 @@ export default function SettingsTab({
       case 'launchAudit':
         return (
           <div style={{ display: 'grid', gap: '12px' }}>
-            {[
-              '主頁、聯絡、分店地址、常見問題要有 SEO title / description。',
-              '清走或隱藏 demo theme 頁，例如 Home/About/Contact demo pages。',
-              '公開網域要由 Palace 舊域名切換到 PANDORA 正式域名，或設定清楚 redirect。',
-              '付款方式要確認 Stripe live、人工付款、FPS/到店付款哪些正式保留。',
-              '配送設定要配合頭皮護理服務，避免商品店語境誤導客人。',
-              '結賬文案要講清楚套票付款後發放、預約扣次和取消回補。',
-              '會員制度、積分、訊息、社交平台、假期設定要上線前逐項核對。',
-            ].map((item) => (
-              <div key={item} style={{ padding: '12px 14px', border: '1px solid #EEE7DE', borderRadius: '12px', background: '#fff', fontSize: '13px', lineHeight: 1.6, color: 'var(--text)' }}>
-                {item}
+            <div style={{ color: 'var(--text-light)', fontSize: '13px', lineHeight: 1.7 }}>
+              此檢查會讀取後台 settings，並掃描 app / lib / launch 文件中是否仍有舊品牌、亂碼或 demo/test 字眼。
+            </div>
+            {auditLoading ? <div style={{ padding: '14px', color: 'var(--text-light)' }}>正在檢查...</div> : null}
+            {audit?.error ? <div style={{ padding: '14px', border: '1px solid #FECACA', borderRadius: '12px', background: '#FEF2F2', color: '#B91C1C' }}>{audit.error}</div> : null}
+            {audit?.summary ? (
+              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                <StatusPill tone="success">通過 {audit.summary.pass}</StatusPill>
+                <StatusPill tone={audit.summary.warning ? 'warning' : 'success'}>需檢查 {audit.summary.warning}</StatusPill>
+                <StatusPill tone={audit.summary.fail ? 'danger' : 'success'}>阻塞 {audit.summary.fail}</StatusPill>
+              </div>
+            ) : null}
+            {(audit?.checks || []).map((item) => (
+              <div key={item.id} style={{ padding: '12px 14px', border: '1px solid #EEE7DE', borderRadius: '12px', background: '#fff', fontSize: '13px', lineHeight: 1.6, color: 'var(--text)', display: 'grid', gap: '6px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <strong>{item.label}</strong>
+                  <StatusPill tone={item.status === 'pass' ? 'success' : item.status === 'fail' ? 'danger' : 'warning'}>{item.status === 'pass' ? '通過' : item.status === 'fail' ? '阻塞' : '需檢查'}</StatusPill>
+                </div>
+                <div style={{ color: 'var(--text-light)' }}>{item.detail}</div>
               </div>
             ))}
+            {!auditLoading && !audit?.checks ? (
+              <div style={{ padding: '12px 14px', border: '1px solid #EEE7DE', borderRadius: '12px', background: '#fff', fontSize: '13px', lineHeight: 1.6 }}>
+                主頁、聯絡、分店地址、常見問題、付款方式、配送設定、會員制度、社交平台、訊息與假期設定均需於上線前逐項核對。
+              </div>
+            ) : null}
           </div>
         )
       default:

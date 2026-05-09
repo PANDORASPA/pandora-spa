@@ -1,6 +1,7 @@
 import './globals.css'
 import Navbar from './components/Navbar'
 import MobileNav from './components/MobileNav'
+import Footer from './components/Footer'
 import RouteBodyClass from './components/RouteBodyClass'
 import { Toaster } from 'react-hot-toast'
 
@@ -15,7 +16,7 @@ export const metadata = {
     template: '%s | PANDORA HEAD SPA',
   },
   description: siteDescription,
-  keywords: ['PANDORA HEAD SPA', '頭皮護理', 'Head Spa', '頭皮檢測', '頭皮深層潔淨', '自助頭皮護理', '套票預約'],
+  keywords: ['PANDORA HEAD SPA', '頭皮護理', 'Head Spa', '頭皮檢測', '深層潔淨', '自助頭皮護理', '會員套票'],
   alternates: {
     canonical: '/',
   },
@@ -56,10 +57,7 @@ export default function RootLayout({ children }) {
         <Toaster />
         <Navbar />
         <main>{children}</main>
-        <footer className="footer">
-          <p>© 2026 PANDORA HEAD SPA. All Rights Reserved.</p>
-          <p>店舖資料、服務內容、套票與預約安排可由後台即時更新。</p>
-        </footer>
+        <Footer />
         <MobileNav />
       </body>
     </html>

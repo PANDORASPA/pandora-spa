@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '../lib/supabase'
 
-const formatCurrency = (value) => `$${Math.round(Number(value || 0))}`
+const formatCurrency = (value) => `$${Math.round(Number(value || 0)).toLocaleString('zh-HK')}`
 
 const heroStats = [
   { label: '全自助頭皮護理', value: 'Self Care' },
@@ -14,18 +14,20 @@ const heroStats = [
 
 const flowSteps = [
   {
-    title: '頭皮狀態了解',
-    body: '先按需要選擇頭皮檢測、深層潔淨或保濕舒緩，讓護理節奏貼近當日狀態。',
+    title: '了解頭皮狀態',
+    body: '按需要選擇頭皮檢測、深層潔淨或養護服務，讓護理節奏貼近日常狀態。',
   },
   {
     title: '自助護理體驗',
-    body: '以乾淨、安靜、清晰的流程完成頭皮潔淨與放鬆，適合日常保養與定期調理。',
+    body: '以乾淨、安靜、清晰的流程完成頭皮潔淨與放鬆，適合日常保養與定期護理。',
   },
   {
     title: '會員套票管理',
-    body: '購買套票後由後台確認付款，會員可在預約時直接使用套票扣次。',
+    body: '購買套票後可用 Stripe 或人工確認付款，完成後即可於預約時扣次使用。',
   },
 ]
+
+const normalizePublicSettings = (payload) => payload?.settings || {}
 
 export default function HomePage() {
   const [loading, setLoading] = useState(true)
@@ -39,17 +41,12 @@ export default function HomePage() {
       const [servicesRes, ticketsRes, settingsRes] = await Promise.all([
         supabase.from('services').select('*').eq('enabled', true).order('sort_order').limit(6),
         supabase.from('tickets').select('*').eq('enabled', true).order('id').limit(3),
-        supabase.from('settings').select('*'),
+        fetch('/api/public/settings', { cache: 'no-store' }).then((response) => response.json()).catch(() => ({})),
       ])
 
       setServices(servicesRes.data || [])
       setTickets(ticketsRes.data || [])
-      setSettings(
-        (settingsRes.data || []).reduce((acc, row) => {
-          acc[row.key] = row.value
-          return acc
-        }, {}),
-      )
+      setSettings(normalizePublicSettings(settingsRes))
       setLoading(false)
     }
 
@@ -57,6 +54,9 @@ export default function HomePage() {
   }, [])
 
   const businessHours = settings.business_hours || '11:00 - 20:00'
+  const shopName = settings.shop_name || 'PANDORA HEAD SPA'
+  const phone = settings.whatsapp || settings.phone || ''
+  const mapUrl = settings.google_map_url || ''
 
   return (
     <>
@@ -66,7 +66,8 @@ export default function HomePage() {
             <span className="vh-eyebrow">Pandora Head Spa</span>
             <h1>PANDORA HEAD SPA 全自助頭皮護理中心</h1>
             <p>
-              以安靜、乾淨、柔和的 head spa 節奏，提供頭皮檢測、深層潔淨、放鬆養生與會員套票預約。客人可先購買套票，確認付款後於預約時直接扣次使用。
+              以安靜、乾淨、柔和的 head spa 節奏，提供頭皮檢測、深層潔淨、放鬆養生與會員套票預約。
+              客人可先購買套票，付款確認後於預約時直接扣次使用。
             </p>
             <div className="vh-action-row">
               <Link href="/booking" className="vh-btn vh-btn-primary">
@@ -88,24 +89,27 @@ export default function HomePage() {
 
           <div className="vh-info-card vh-headspa-card">
             <span className="vh-eyebrow">Calm scalp ritual</span>
-            <h2>{settings.shop_name || 'PANDORA HEAD SPA'}</h2>
-            <p className="vh-muted">
-              全自助頭皮護理中心。未確認的地址、電話和營業時間可於管理後台更新，前台會即時讀取最新設定。
-            </p>
+            <h2>{shopName}</h2>
+            <p className="vh-muted">店舖資料、聯絡方式、營業時間與社交連結可於後台設定，即時同步到前台主要入口。</p>
             <dl>
               <div>
                 <dt>地址</dt>
-                <dd>{settings.address || '請於後台設定店舖地址'}</dd>
+                <dd>{settings.address || '店舖地址待後台設定'}</dd>
               </div>
               <div>
                 <dt>電話 / WhatsApp</dt>
-                <dd>{settings.phone || '請於後台設定聯絡電話'}</dd>
+                <dd>{phone || '聯絡電話待後台設定'}</dd>
               </div>
               <div>
                 <dt>營業時間</dt>
                 <dd>{businessHours}</dd>
               </div>
             </dl>
+            {mapUrl ? (
+              <a href={mapUrl} target="_blank" rel="noreferrer" className="vh-text-link">
+                開啟 Google Map
+              </a>
+            ) : null}
           </div>
         </div>
       </section>
@@ -143,7 +147,7 @@ export default function HomePage() {
           </div>
 
           {loading ? (
-            <p className="vh-muted">載入服務中...</p>
+            <p className="vh-muted">正在載入服務...</p>
           ) : (
             <div className="vh-card-grid">
               {services.map((service) => (
@@ -182,14 +186,14 @@ export default function HomePage() {
                 <article key={ticket.id} className="vh-package-card">
                   <h3>{ticket.name}</h3>
                   <strong>{formatCurrency(ticket.price)}</strong>
-                  <p>{ticket.description || `${ticket.count || 0} 次頭皮護理，可於會員預約時使用。`}</p>
+                  <p>{ticket.description || `${ticket.count || ticket.times || 0} 次頭皮護理，可於會員預約時使用。`}</p>
                 </article>
               ))
             ) : (
               <article className="vh-package-card">
                 <h3>頭皮護理套票</h3>
                 <strong>後台設定</strong>
-                <p>管理員可於後台新增套票，會員購買後待付款確認，便可於預約使用。</p>
+                <p>管理員可於後台新增套票；會員購買並完成付款後，即可於預約時扣次使用。</p>
               </article>
             )}
           </div>
@@ -204,6 +208,7 @@ export default function HomePage() {
             <p>
               會員可查看自己的套票、待付款訂單和預約紀錄；管理員可確認付款、發放套票，並用 CSV 匯入舊套票餘額。
             </p>
+            {settings.checkout_notice ? <p className="vh-muted">{settings.checkout_notice}</p> : null}
           </div>
           <div className="vh-action-row">
             <Link href="/account/tickets" className="vh-btn vh-btn-secondary">

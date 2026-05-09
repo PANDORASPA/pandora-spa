@@ -1196,14 +1196,16 @@ const normalizeNullableNumber = (value) => {
   const saveSettings = async (newSettings) => {
     setSaving(true)
     try {
-      const entries = Object.entries(newSettings || {})
-
-      for (const [key, value] of entries) {
-        const { error } = await supabase.from('settings').upsert({ key, value }, { onConflict: 'key' })
-        if (error) {
-          await loadBaseData({ showLoading: false })
-          throw new Error(`設定 ${key} 儲存失敗：${error.message}`)
-        }
+      const response = await fetch('/api/admin/settings/bulk-save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ settings: newSettings || {} }),
+      })
+      const result = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        await loadBaseData({ showLoading: false })
+        throw new Error(result?.error || '設定儲存失敗')
       }
       await bumpAvailabilityCacheVersion()
       await loadBaseData({ showLoading: false })
