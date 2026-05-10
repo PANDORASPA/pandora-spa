@@ -1497,6 +1497,19 @@ const normalizeNullableNumber = (value) => {
       tone: stats.activeTickets ? 'success' : 'neutral',
     },
   ]
+  const tabCounters = {
+    bookings: stats.pending ? `${stats.pending}` : '',
+    orders: pendingOrderCount ? `${pendingOrderCount}` : '',
+    inventory: `${products.length + servicePackages.length + tickets.length}`,
+    services: `${services.length}`,
+    customers: `${users.length}`,
+    tickets: `${stats.activeTickets}`,
+    articles: `${articles.length}`,
+    faqs: `${faqs.length}`,
+    staff: `${staff.length}`,
+    locations: `${locations.length}`,
+    resources: `${resources.length}`,
+  }
 
   const activeTabMeta = tabMeta[activeTab] || {
     title: '管理後台',
@@ -1662,7 +1675,8 @@ const normalizeNullableNumber = (value) => {
                           cursor: 'pointer',
                         }}
                       >
-                        {tab.name}
+                        <span>{tab.name}</span>
+                        {tabCounters[tab.id] ? <span className="admin-nav-count">{tabCounters[tab.id]}</span> : null}
                       </button>
                     )
                   })}

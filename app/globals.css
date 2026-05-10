@@ -905,11 +905,29 @@ label {
   transition: all 0.2s;
   border: none;
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
 }
 
 .admin-tab-btn:hover:not(.active) {
   background: rgba(166, 139, 106, 0.05);
   color: var(--primary);
+}
+
+.admin-nav-count {
+  min-width: 24px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(166, 139, 106, 0.12);
+  color: #7C6245;
+  font-size: 12px;
+  font-weight: 800;
 }
 
 .admin-shell {
