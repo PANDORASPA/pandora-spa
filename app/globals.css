@@ -912,6 +912,108 @@ label {
   color: var(--primary);
 }
 
+.admin-shell {
+  min-height: 100vh;
+  background:
+    linear-gradient(180deg, rgba(250, 248, 245, 0.96), rgba(246, 247, 244, 0.98)),
+    #F8F9FA;
+}
+
+.admin-topbar {
+  background: #2F312C;
+  color: #fff;
+  padding: 12px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  box-shadow: 0 8px 24px rgba(39, 42, 37, 0.18);
+}
+
+.admin-topbar-link,
+.admin-topbar-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.16);
+  background: rgba(255,255,255,0.1);
+  color: #fff;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.admin-topbar-button.ghost {
+  background: transparent;
+}
+
+.admin-workspace {
+  max-width: 1440px;
+  margin: 0 auto;
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.admin-sidebar {
+  padding: 18px;
+  top: 20px;
+  align-self: flex-start;
+  flex-shrink: 0;
+}
+
+.admin-ops-grid {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.admin-ops-tile {
+  min-height: 108px;
+  padding: 14px;
+  border: 1px solid rgba(166, 139, 106, 0.16);
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 10px 26px rgba(63, 49, 36, 0.05);
+}
+
+.admin-ops-tile.success {
+  border-color: rgba(22, 163, 74, 0.18);
+}
+
+.admin-ops-tile.warning {
+  border-color: rgba(180, 83, 9, 0.22);
+  background: linear-gradient(180deg, #fff, #FFFBEB);
+}
+
+.admin-ops-label {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: #8A7A67;
+}
+
+.admin-ops-value {
+  margin-top: 8px;
+  font-size: 20px;
+  font-weight: 850;
+  color: var(--text);
+}
+
+.admin-ops-note {
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-light);
+}
+
 /* ============ PANDORA HEAD SPA storefront ============ */
 .vh-container {
   width: min(1120px, calc(100% - 32px));

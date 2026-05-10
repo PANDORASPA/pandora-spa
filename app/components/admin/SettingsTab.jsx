@@ -38,6 +38,21 @@ const SECTION_OPTIONS = [
     description: '對照 ThinkShops 後台的網站狀態、公開網址、SEO 與功能開關。',
   },
   {
+    key: 'theme',
+    title: '主題 / 外觀',
+    description: '設定前台視覺語氣、主圖、分享圖與品牌外觀備註。',
+  },
+  {
+    key: 'navigation',
+    title: '選單目錄',
+    description: '管理前台主選單、主要 CTA 與需要公開的功能入口。',
+  },
+  {
+    key: 'policies',
+    title: '條款及細則',
+    description: '集中管理預約、更改、退款、私隱與套票使用條款。',
+  },
+  {
     key: 'seo',
     title: 'SEO / 分享設定',
     description: '管理主要公開頁面的標題、描述、關鍵字與 canonical path。',
@@ -78,6 +93,11 @@ const SECTION_OPTIONS = [
     description: '管理 WhatsApp、查詢訊息與預約提醒文字。',
   },
   {
+    key: 'integrations',
+    title: '與其他平台連接',
+    description: '管理 Google Analytics、Meta Pixel、Instagram Shop 與外部平台備註。',
+  },
+  {
     key: 'availability',
     title: '假期 / 公休日',
     description: '設定店舖營業時間、時段步長與預約緩衝時間。',
@@ -93,9 +113,14 @@ const SECTION_OPTIONS = [
     description: '查看哪些會員已具備後台管理權限，並同步登入狀態。',
   },
   {
+    key: 'apps',
+    title: 'Apps / 功能模組',
+    description: '對照 ThinkShops Apps，把預約、商品、套票、內容模組清楚標記啟用狀態。',
+  },
+  {
     key: 'launchAudit',
     title: '上線清潔檢查',
-    description: '用 ThinkShops 架構檢查 demo 頁、SEO 空白、舊網域、付款與會員設定。',
+    description: '用 ThinkShops 架構檢查示範頁、SEO 空白、舊網域、付款與會員設定。',
   },
 ]
 const parseBusinessHours = (value) => {
@@ -204,6 +229,9 @@ export default function SettingsTab({
     () => ({
       profile: draft?.shop_name ? '已填店舖資料' : '待填店舖資料',
       website: draft?.site_url ? '已填公開網址' : '待填公開網址',
+      theme: draft?.theme_name || draft?.hero_image_url || draft?.og_image_url ? '已設定外觀' : '待設定外觀',
+      navigation: draft?.primary_cta_label || draft?.primary_cta_path ? '已設定主選單' : '待設定主選單',
+      policies: draft?.booking_policy || draft?.refund_policy || draft?.terms_notice ? '已填條款' : '待補條款',
       seo: draft?.seo_title && draft?.seo_description ? '已填主 SEO' : '待補 SEO',
       payment: draft?.stripe_enabled === 'true' || draft?.manual_payment_enabled === 'true' ? '已設定付款方向' : '待設定付款方向',
       fulfillment: draft?.fulfillment_note ? '已填到店說明' : '待填使用說明',
@@ -212,11 +240,13 @@ export default function SettingsTab({
       rewards: draft?.reward_points_enabled === 'true' ? '已啟用積分' : '未啟用積分',
       social: draft?.instagram_url || draft?.facebook_url || draft?.google_map_url ? '已填社交連結' : '待填社交連結',
       messaging: draft?.whatsapp ? '已填 WhatsApp' : '待填訊息入口',
+      integrations: draft?.google_analytics_id || draft?.facebook_pixel_id ? '已填追蹤工具' : '待接追蹤工具',
       availability: draft?.business_hours ? '已設定營業時間' : '未設定營業時間',
       daysOff: daysOff.length ? `已選 ${daysOff.length} 日` : '沒有全店公休日',
       admins: adminDraft.filter((profile) => profile?.is_admin === true).length
         ? `${adminDraft.filter((profile) => profile?.is_admin === true).length} 位管理員`
         : '未指定管理員',
+      apps: '核心模組已列出',
       launchAudit: '待逐項核對',
     }),
     [adminDraft, daysOff.length, draft],
@@ -257,7 +287,7 @@ export default function SettingsTab({
         return (
           <div style={{ display: 'grid', gap: '16px' }}>
             <div style={{ color: 'var(--text-light)', fontSize: '13px', lineHeight: 1.7 }}>
-              ThinkShops 對照項目：網站狀態、公開網域、主頁 SEO、404 頁、商品/活動/預約/網誌功能開關。正式上線前，避免公開頁仍留有 demo theme 頁或舊 Palace 命名。
+              ThinkShops 對照項目：網站狀態、公開網域、主頁 SEO、404 頁、商品/活動/預約/網誌功能開關。正式上線前，避免公開頁仍留有示範主題頁或舊 Palace 命名。
             </div>
             <label style={{ display: 'grid', gap: '8px' }}>
               <span style={{ fontSize: '13px', fontWeight: 800 }}>公開網站 URL</span>
@@ -277,6 +307,79 @@ export default function SettingsTab({
               <span style={{ fontSize: '13px', fontWeight: 800 }}>SEO 描述</span>
               <textarea value={draft.seo_description || ''} onChange={(event) => updateSetting('seo_description', event.target.value)} style={{ ...fieldStyle, minHeight: '92px', resize: 'vertical' }} placeholder="提供頭皮檢測、深層潔淨、頭皮養護、網上預約及會員套票服務。" />
             </label>
+          </div>
+        )
+      case 'theme':
+        return (
+          <div style={{ display: 'grid', gap: '16px' }}>
+            <div style={{ color: 'var(--text-light)', fontSize: '13px', lineHeight: 1.7 }}>
+              ThinkShops 的外觀設定會影響前台第一印象。PANDORA 預設以暖白、霧米、深木色、鼠尾草綠和柔金作 head spa wellness 風格。
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
+              <label style={{ display: 'grid', gap: '8px' }}>
+                <span style={{ fontSize: '13px', fontWeight: 800 }}>主題名稱</span>
+                <input type="text" value={draft.theme_name || ''} onChange={(event) => updateSetting('theme_name', event.target.value)} style={fieldStyle} placeholder="Pandora Wellness" />
+              </label>
+              <label style={{ display: 'grid', gap: '8px' }}>
+                <span style={{ fontSize: '13px', fontWeight: 800 }}>品牌語氣</span>
+                <input type="text" value={draft.brand_tone || ''} onChange={(event) => updateSetting('brand_tone', event.target.value)} style={fieldStyle} placeholder="高級、安靜、乾淨、頭皮養生" />
+              </label>
+            </div>
+            <label style={{ display: 'grid', gap: '8px' }}>
+              <span style={{ fontSize: '13px', fontWeight: 800 }}>首頁主圖 URL</span>
+              <input type="url" value={draft.hero_image_url || ''} onChange={(event) => updateSetting('hero_image_url', event.target.value)} style={fieldStyle} placeholder="https://..." />
+            </label>
+            <label style={{ display: 'grid', gap: '8px' }}>
+              <span style={{ fontSize: '13px', fontWeight: 800 }}>分享圖片 / OG Image URL</span>
+              <input type="url" value={draft.og_image_url || ''} onChange={(event) => updateSetting('og_image_url', event.target.value)} style={fieldStyle} placeholder="https://..." />
+            </label>
+          </div>
+        )
+      case 'navigation':
+        return (
+          <div style={{ display: 'grid', gap: '16px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
+              <label style={{ display: 'grid', gap: '8px' }}>
+                <span style={{ fontSize: '13px', fontWeight: 800 }}>主要 CTA 文字</span>
+                <input type="text" value={draft.primary_cta_label || ''} onChange={(event) => updateSetting('primary_cta_label', event.target.value)} style={fieldStyle} placeholder="立即預約" />
+              </label>
+              <label style={{ display: 'grid', gap: '8px' }}>
+                <span style={{ fontSize: '13px', fontWeight: 800 }}>主要 CTA 路徑</span>
+                <input type="text" value={draft.primary_cta_path || ''} onChange={(event) => updateSetting('primary_cta_path', event.target.value)} style={fieldStyle} placeholder="/booking" />
+              </label>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
+              {[
+                ['nav_services_enabled', '服務'],
+                ['nav_tickets_enabled', '套票'],
+                ['nav_products_enabled', '產品'],
+                ['nav_articles_enabled', '文章'],
+                ['nav_faq_enabled', 'FAQ'],
+                ['nav_account_enabled', '會員中心'],
+              ].map(([key, label]) => (
+                <label key={key} style={{ display: 'inline-flex', alignItems: 'center', gap: '10px', fontSize: '13px', fontWeight: 800 }}>
+                  <input type="checkbox" checked={draft[key] !== 'false'} onChange={(event) => updateSetting(key, event.target.checked ? 'true' : 'false')} />
+                  顯示{label}
+                </label>
+              ))}
+            </div>
+          </div>
+        )
+      case 'policies':
+        return (
+          <div style={{ display: 'grid', gap: '16px' }}>
+            {[
+              ['booking_policy', '預約及改期政策', '例如：如需更改預約，請提前 24 小時聯絡。'],
+              ['ticket_terms', '套票使用條款', '例如：套票只限本人使用，逾期或已使用次數不設退款。'],
+              ['refund_policy', '退款政策', '例如：已確認付款的套票按店舖政策處理。'],
+              ['privacy_notice', '私隱政策摘要', '例如：會員資料只作預約、訂單與客服用途。'],
+              ['terms_notice', '一般條款摘要', '例如：PANDORA HEAD SPA 保留服務安排之最終決定權。'],
+            ].map(([key, label, placeholder]) => (
+              <label key={key} style={{ display: 'grid', gap: '8px' }}>
+                <span style={{ fontSize: '13px', fontWeight: 800 }}>{label}</span>
+                <textarea value={draft[key] || ''} onChange={(event) => updateSetting(key, event.target.value)} style={{ ...fieldStyle, minHeight: '84px', resize: 'vertical' }} placeholder={placeholder} />
+              </label>
+            ))}
           </div>
         )
       case 'seo':
@@ -440,6 +543,38 @@ export default function SettingsTab({
             </label>
           </div>
         )
+      case 'integrations':
+        return (
+          <div style={{ display: 'grid', gap: '16px' }}>
+            <div style={{ color: 'var(--text-light)', fontSize: '13px', lineHeight: 1.7 }}>
+              這裡對齊 ThinkShops 的外部平台連接。第一版先保存追蹤 ID 與營運備註，正式埋碼時由前台讀取設定接入。
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
+              <label style={{ display: 'grid', gap: '8px' }}>
+                <span style={{ fontSize: '13px', fontWeight: 800 }}>Google Analytics ID</span>
+                <input type="text" value={draft.google_analytics_id || ''} onChange={(event) => updateSetting('google_analytics_id', event.target.value)} style={fieldStyle} placeholder="G-XXXXXXXXXX" />
+              </label>
+              <label style={{ display: 'grid', gap: '8px' }}>
+                <span style={{ fontSize: '13px', fontWeight: 800 }}>Meta Pixel ID</span>
+                <input type="text" value={draft.facebook_pixel_id || ''} onChange={(event) => updateSetting('facebook_pixel_id', event.target.value)} style={fieldStyle} placeholder="1234567890" />
+              </label>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
+              <label style={{ display: 'inline-flex', alignItems: 'center', gap: '10px', fontSize: '13px', fontWeight: 800 }}>
+                <input type="checkbox" checked={draft.meta_catalog_enabled === 'true'} onChange={(event) => updateSetting('meta_catalog_enabled', event.target.checked ? 'true' : 'false')} />
+                Meta Catalog / Shop 已準備
+              </label>
+              <label style={{ display: 'inline-flex', alignItems: 'center', gap: '10px', fontSize: '13px', fontWeight: 800 }}>
+                <input type="checkbox" checked={draft.instagram_shop_enabled === 'true'} onChange={(event) => updateSetting('instagram_shop_enabled', event.target.checked ? 'true' : 'false')} />
+                Instagram Shop 已準備
+              </label>
+            </div>
+            <label style={{ display: 'grid', gap: '8px' }}>
+              <span style={{ fontSize: '13px', fontWeight: 800 }}>平台連接備註</span>
+              <textarea value={draft.integration_note || ''} onChange={(event) => updateSetting('integration_note', event.target.value)} style={{ ...fieldStyle, minHeight: '92px', resize: 'vertical' }} placeholder="記錄 GA、Meta、IG Shop、Google Business Profile 等接入狀態。" />
+            </label>
+          </div>
+        )
       case 'availability':
         return (
           <div style={{ display: 'grid', gap: '16px' }}>
@@ -506,11 +641,38 @@ export default function SettingsTab({
             </div>
           </div>
         )
+      case 'apps':
+        return (
+          <div style={{ display: 'grid', gap: '16px' }}>
+            <div style={{ color: 'var(--text-light)', fontSize: '13px', lineHeight: 1.7 }}>
+              這不是安裝新外掛，而是把 PANDORA 目前已實作的營運模組按 ThinkShops Apps 方式列出，方便上線前確認前台及後台是否開放。
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
+              {[
+                ['feature_booking_enabled', '預約模組'],
+                ['feature_tickets_enabled', '套票模組'],
+                ['feature_products_enabled', '產品模組'],
+                ['feature_coupons_enabled', '優惠碼模組'],
+                ['feature_articles_enabled', '文章模組'],
+                ['feature_faq_enabled', 'FAQ 模組'],
+              ].map(([key, label]) => (
+                <label key={key} style={{ display: 'inline-flex', alignItems: 'center', gap: '10px', fontSize: '13px', fontWeight: 800 }}>
+                  <input type="checkbox" checked={draft[key] !== 'false'} onChange={(event) => updateSetting(key, event.target.checked ? 'true' : 'false')} />
+                  {label}
+                </label>
+              ))}
+            </div>
+            <label style={{ display: 'grid', gap: '8px' }}>
+              <span style={{ fontSize: '13px', fontWeight: 800 }}>功能模組備註</span>
+              <textarea value={draft.apps_note || ''} onChange={(event) => updateSetting('apps_note', event.target.value)} style={{ ...fieldStyle, minHeight: '92px', resize: 'vertical' }} placeholder="例如：正式上線先開預約、套票、產品；文章可先隱藏。" />
+            </label>
+          </div>
+        )
       case 'launchAudit':
         return (
           <div style={{ display: 'grid', gap: '12px' }}>
             <div style={{ color: 'var(--text-light)', fontSize: '13px', lineHeight: 1.7 }}>
-              此檢查會讀取後台 settings，並掃描 app / lib / launch 文件中是否仍有舊品牌、亂碼或 demo/test 字眼。
+              此檢查會讀取後台 settings，並掃描 app / lib / launch 文件中是否仍有舊品牌、亂碼或示範測試字眼。
             </div>
             {auditLoading ? <div style={{ padding: '14px', color: 'var(--text-light)' }}>正在檢查...</div> : null}
             {audit?.error ? <div style={{ padding: '14px', border: '1px solid #FECACA', borderRadius: '12px', background: '#FEF2F2', color: '#B91C1C' }}>{audit.error}</div> : null}

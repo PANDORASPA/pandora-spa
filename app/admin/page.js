@@ -1463,6 +1463,40 @@ const normalizeNullableNumber = (value) => {
     orderRevenue: orders.reduce((sum, order) => sum + Number(order.total || 0), 0),
     activeTickets: userTickets.filter((ticket) => Number(ticket?.remaining_count || 0) > 0).length,
   }
+  const pendingOrderCount = orders.filter((order) => ['awaiting_payment', 'pending', 'processing'].includes(String(order?.status || '').toLowerCase())).length
+  const publicSiteUrl = settings.site_url || '/'
+  const adminOpsTiles = [
+    {
+      label: '網站狀態',
+      value: settings.site_url ? '已連公開網址' : '待填正式網域',
+      note: settings.shop_name || 'PANDORA HEAD SPA',
+      tone: settings.site_url ? 'success' : 'warning',
+    },
+    {
+      label: '今日預約',
+      value: `${stats.todayBookings} 個`,
+      note: `${stats.pending} 個待確認`,
+      tone: stats.pending ? 'warning' : 'success',
+    },
+    {
+      label: '待處理訂單',
+      value: `${pendingOrderCount} 張`,
+      note: '含套票人工付款與處理中訂單',
+      tone: pendingOrderCount ? 'warning' : 'success',
+    },
+    {
+      label: '付款方式',
+      value: settings.stripe_enabled === 'true' ? 'Stripe 已啟用' : 'Stripe 待檢查',
+      note: settings.manual_payment_enabled !== 'false' ? '保留人工確認付款' : '只用線上付款',
+      tone: settings.stripe_enabled === 'true' ? 'success' : 'warning',
+    },
+    {
+      label: '會員套票',
+      value: `${stats.activeTickets} 張可用`,
+      note: '可追蹤扣次與回補紀錄',
+      tone: stats.activeTickets ? 'success' : 'neutral',
+    },
+  ]
 
   const activeTabMeta = tabMeta[activeTab] || {
     title: '管理後台',
@@ -1575,21 +1609,27 @@ const normalizeNullableNumber = (value) => {
   if (!isAuthenticated) return <div style={{ padding: '100px', textAlign: 'center' }}>正在檢查管理權限...</div>
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f8f9fa' }}>
-      <header style={{ background: '#3D3D3D', color: '#fff', padding: '12px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-        <h2 style={{ fontSize: '18px', margin: 0 }}>PANDORA HEAD SPA 管理後台</h2>
-        <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
-          <button onClick={fetchData} style={{ padding: '6px 12px', background: '#555', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>
+    <div className="admin-shell">
+      <header className="admin-topbar">
+        <div>
+          <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.12em', color: 'rgba(255,255,255,0.68)' }}>PANDORA HEAD SPA</div>
+          <h2 style={{ fontSize: '18px', margin: '4px 0 0' }}>管理後台</h2>
+        </div>
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+          <a href={publicSiteUrl} target="_blank" rel="noreferrer" className="admin-topbar-link">
+            查看網站
+          </a>
+          <button onClick={fetchData} className="admin-topbar-button">
             重新整理
           </button>
-          <button onClick={handleLogout} style={{ padding: '6px 12px', background: 'transparent', color: '#fff', border: '1px solid #666', borderRadius: '6px', cursor: 'pointer' }}>
+          <button onClick={handleLogout} className="admin-topbar-button ghost">
             登出
           </button>
         </div>
       </header>
 
-      <div style={{ maxWidth: '1400px', margin: '0 auto', padding: isCompactAdmin ? '14px' : '20px', display: 'flex', gap: '20px', alignItems: 'flex-start', flexWrap: 'wrap', flexDirection: isCompactAdmin ? 'column' : 'row' }}>
-        <aside className="admin-card" style={{ width: isCompactAdmin ? '100%' : '280px', padding: '18px', position: isCompactAdmin ? 'static' : 'sticky', top: '20px', alignSelf: 'flex-start', flexShrink: 0 }}>
+      <div className="admin-workspace" style={{ padding: isCompactAdmin ? '14px' : '20px', flexDirection: isCompactAdmin ? 'column' : 'row' }}>
+        <aside className="admin-card admin-sidebar" style={{ width: isCompactAdmin ? '100%' : '280px', position: isCompactAdmin ? 'static' : 'sticky' }}>
           <div style={{ fontSize: '12px', fontWeight: 800, letterSpacing: '0.08em', color: '#A68B6A' }}>管理導航</div>
           <h3 style={{ margin: '8px 0 0', fontSize: '20px', fontWeight: 800 }}>營運控制台</h3>
           <p style={{ margin: '10px 0 18px', fontSize: '13px', lineHeight: 1.6, color: 'var(--text-light)' }}>
@@ -1633,6 +1673,15 @@ const normalizeNullableNumber = (value) => {
         </aside>
 
         <main style={{ flex: '1 1 900px', minWidth: 0, width: isCompactAdmin ? '100%' : 'auto' }}>
+          <div className="admin-ops-grid" style={{ gridTemplateColumns: isCompactAdmin ? '1fr' : 'repeat(auto-fit, minmax(170px, 1fr))' }}>
+            {adminOpsTiles.map((tile) => (
+              <div key={tile.label} className={`admin-ops-tile ${tile.tone}`}>
+                <div className="admin-ops-label">{tile.label}</div>
+                <div className="admin-ops-value">{tile.value}</div>
+                <div className="admin-ops-note">{tile.note}</div>
+              </div>
+            ))}
+          </div>
           <div className="admin-card" style={{ padding: '22px', marginBottom: '20px', border: '1px solid rgba(166, 139, 106, 0.18)', background: 'linear-gradient(135deg, #fff, #FBF8F4)' }}>
             <div style={{ fontSize: '12px', fontWeight: 800, letterSpacing: '0.08em', color: '#A68B6A' }}>{activeTabMeta.eyebrow}</div>
             <div style={{ marginTop: '6px', fontSize: isCompactAdmin ? '20px' : '24px', fontWeight: 800, color: 'var(--text)' }}>{activeTabMeta.title}</div>
