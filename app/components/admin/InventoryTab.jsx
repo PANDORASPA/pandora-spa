@@ -1,8 +1,15 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'react-hot-toast'
 import { supabase } from '../../../lib/supabase'
+import { EmptyState, Pill, RecordFilterBar, fieldStyle } from './opsUi'
+
+const TAB_META = {
+  products: { label: '產品', addLabel: '新增產品', table: 'products' },
+  packages: { label: '展示套票', addLabel: '新增展示套票', table: 'service_packages' },
+  tickets: { label: '會員套票', addLabel: '新增會員套票', table: 'tickets' },
+}
 
 const normalizeItem = (item) => ({
   ...item,
@@ -23,12 +30,6 @@ const stripTransientFields = (item) => {
   delete payload.__isNew
   delete payload.__deleted
   return payload
-}
-
-const tableMap = {
-  products: 'products',
-  packages: 'service_packages',
-  tickets: 'tickets',
 }
 
 const normalizeImportMessage = (message) => {
@@ -53,18 +54,12 @@ const normalizeImportResult = (result = {}) => {
   }
 }
 
-export default function InventoryTab({
-  products: initialProducts,
-  packages: initialPackages,
-  tickets: initialTickets,
-  services,
-  fetchData,
-  saveInventory,
-}) {
+export default function InventoryTab({ products: initialProducts, packages: initialPackages, tickets: initialTickets, fetchData, saveInventory }) {
   const [products, setProducts] = useState(() => (initialProducts || []).map(normalizeItem))
   const [packagesState, setPackagesState] = useState(() => (initialPackages || []).map(normalizeItem))
   const [ticketsState, setTicketsState] = useState(() => (initialTickets || []).map(normalizeTicketItem))
   const [subTab, setSubTab] = useState('products')
+  const [searchTerm, setSearchTerm] = useState('')
   const [saving, setSaving] = useState(false)
   const [ticketCsv, setTicketCsv] = useState('')
   const [ticketImportPreview, setTicketImportPreview] = useState(null)
@@ -82,14 +77,30 @@ export default function InventoryTab({
   }
 
   const createItemForKind = (kind) => {
-    if (kind === 'packages') {
-      return { id: Date.now(), name: '新套票展示', price: 0, description: '', enabled: true, __isNew: true, __deleted: false }
-    }
-    if (kind === 'tickets') {
-      return { id: Date.now(), name: '新會員套票', price: 0, times: 10, orig: 0, features: '', emoji: 'SP', enabled: true, __isNew: true, __deleted: false }
-    }
-    return { id: Date.now(), name: '新產品', price: 0, stock: 0, enabled: true, __isNew: true, __deleted: false }
+    const id = Date.now()
+    if (kind === 'packages') return { id, name: '新展示套票', price: 0, description: '', enabled: true, __isNew: true, __deleted: false }
+    if (kind === 'tickets') return { id, name: '新會員套票', price: 0, times: 10, orig: 0, features: '', emoji: 'SP', enabled: true, __isNew: true, __deleted: false }
+    return { id, name: '新產品', price: 0, stock: 0, enabled: true, __isNew: true, __deleted: false }
   }
+
+  const allRows = { products, packages: packagesState, tickets: ticketsState }
+  const [activeRows] = getStateForKind(subTab)
+  const filteredRows = useMemo(() => {
+    const needle = searchTerm.trim().toLowerCase()
+    return (activeRows || []).filter((item) => {
+      const haystack = [item.name, item.description, item.features, item.price, item.stock, item.times].filter(Boolean).join(' ').toLowerCase()
+      return !needle || haystack.includes(needle)
+    })
+  }, [activeRows, searchTerm])
+
+  const summary = useMemo(() => {
+    const rows = allRows[subTab] || []
+    return {
+      total: rows.length,
+      enabled: rows.filter((item) => item.enabled && !item.__deleted).length,
+      pendingDelete: rows.filter((item) => item.__deleted).length,
+    }
+  }, [allRows, subTab])
 
   const updateItem = (kind, id, updater) => {
     const [, setState] = getStateForKind(kind)
@@ -110,7 +121,7 @@ export default function InventoryTab({
           if (item.__isNew) return null
           return { ...item, __deleted: !item.__deleted }
         })
-        .filter(Boolean)
+        .filter(Boolean),
     )
   }
 
@@ -123,7 +134,7 @@ export default function InventoryTab({
       return
     }
 
-    const table = tableMap[kind]
+    const table = TAB_META[kind]?.table
     if (!table) throw new Error('Unknown inventory kind')
 
     for (const item of activeItems) {
@@ -146,7 +157,7 @@ export default function InventoryTab({
     setSaving(true)
     try {
       await persistCollection(kind, state)
-      if (!saveInventory) toast.success('已儲存')
+      toast.success('已儲存變更')
     } catch (error) {
       toast.error(`儲存失敗：${error?.message || '未知錯誤'}`)
     } finally {
@@ -205,205 +216,203 @@ export default function InventoryTab({
     }
   }
 
-  const renderItemCard = (kind, item, renderFields) => {
-    const deleted = Boolean(item.__deleted)
-    return (
-      <div key={item.id} className="admin-card" style={{ padding: '20px', opacity: deleted ? 0.55 : 1, border: deleted ? '1px dashed #dc2626' : undefined }}>
-        {renderFields(item, deleted)}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '16px', paddingTop: '16px', borderTop: '1px solid var(--gray)' }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', margin: 0 }}>
-            <input type="checkbox" checked={Boolean(item.enabled)} onChange={(e) => updateItem(kind, item.id, (current) => ({ ...current, enabled: e.target.checked }))} style={{ width: 'auto' }} disabled={deleted} />
-            <span style={{ fontSize: '14px' }}>啟用</span>
-          </label>
-          <button onClick={() => toggleDelete(kind, item.id)} className="btn-interactive" type="button" style={{ color: deleted ? '#166534' : '#ef4444', background: deleted ? '#ecfdf5' : '#fef2f2', border: 'none', padding: '6px 12px', borderRadius: '6px', fontSize: '12px', cursor: 'pointer', fontWeight: 600 }}>
-            {deleted ? '還原' : '刪除'}
+  return (
+    <div className="admin-page-stack">
+      <div className="admin-card admin-command-panel">
+        <div>
+          <div className="admin-eyebrow">庫存 / 套票</div>
+          <div className="admin-command-title">產品、展示套票與會員套票</div>
+          <div className="admin-command-description">以同一套後台工作台管理可售產品、前台展示套票，以及可購買/發放的會員套票。</div>
+        </div>
+        <div className="admin-inline-actions">
+          <Pill>{summary.total} 筆</Pill>
+          <Pill tone="success">{summary.enabled} 啟用</Pill>
+          {summary.pendingDelete ? <Pill tone="danger">{summary.pendingDelete} 待刪除</Pill> : null}
+        </div>
+      </div>
+
+      <div className="admin-card admin-subnav">
+        {Object.entries(TAB_META).map(([key, meta]) => (
+          <button key={key} onClick={() => setSubTab(key)} className={`admin-subnav-button ${subTab === key ? 'active' : ''}`} type="button">
+            {meta.label}
+            <span>{(allRows[key] || []).length}</span>
           </button>
-        </div>
-        {deleted && <div style={{ marginTop: '10px', fontSize: '12px', color: '#b91c1c', fontWeight: 700 }}>儲存後會刪除此項目</div>}
+        ))}
       </div>
-    )
-  }
 
-  const renderProducts = () => (
-    <div>
-      <Toolbar onAdd={() => addItem('products')} onSave={() => handleSave('products')} saving={saving} addLabel="新增產品" />
-      <div className="grid">
-        {products.map((item) =>
-          renderItemCard('products', item, (current, deleted) => (
-            <>
-              <Field label="產品名稱" value={current.name || ''} disabled={deleted} onChange={(value) => updateItem('products', current.id, (row) => ({ ...row, name: value }))} bold />
-              <div className="grid" style={{ gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
-                <Field label="價格 ($)" type="number" value={current.price || 0} disabled={deleted} onChange={(value) => updateItem('products', current.id, (row) => ({ ...row, price: parseInt(value) || 0 }))} />
-                <Field label="庫存" type="number" value={current.stock || 0} disabled={deleted} onChange={(value) => updateItem('products', current.id, (row) => ({ ...row, stock: parseInt(value) || 0 }))} />
-              </div>
-            </>
-          )),
-        )}
-      </div>
+      <RecordFilterBar columns="minmax(220px, 1fr) auto auto">
+        <input type="text" placeholder="搜尋名稱、描述、價錢..." value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} style={fieldStyle} />
+        <button onClick={() => addItem(subTab)} className="btn btn-small btn-interactive" type="button">
+          {TAB_META[subTab].addLabel}
+        </button>
+        <button onClick={() => handleSave(subTab)} disabled={saving} className="btn btn-small btn-interactive" type="button" style={{ background: '#34D399' }}>
+          {saving ? '儲存中...' : '儲存變更'}
+        </button>
+      </RecordFilterBar>
+
+      {subTab === 'tickets' ? (
+        <TicketImportPanel
+          ticketCsv={ticketCsv}
+          setTicketCsv={(value) => {
+            setTicketCsv(value)
+            setTicketImportPreview(null)
+          }}
+          preview={ticketImportPreview}
+          loading={ticketImportLoading}
+          committing={ticketImportCommitting}
+          onPreview={handleTicketImportPreview}
+          onCommit={handleTicketImportCommit}
+        />
+      ) : null}
+
+      {filteredRows.length === 0 ? (
+        <EmptyState title="暫時沒有資料" description="請新增項目，或放寬搜尋條件。" />
+      ) : (
+        <div className="admin-inventory-grid">
+          {filteredRows.map((item) => (
+            <InventoryCard key={item.id} kind={subTab} item={item} updateItem={updateItem} toggleDelete={toggleDelete} />
+          ))}
+        </div>
+      )}
     </div>
   )
+}
 
-  const renderPackages = () => (
-    <div>
-      <Toolbar onAdd={() => addItem('packages')} onSave={() => handleSave('packages')} saving={saving} addLabel="新增展示套票" />
-      <div className="grid">
-        {packagesState.map((item) =>
-          renderItemCard('packages', item, (current, deleted) => (
-            <>
-              <Field label="展示套票名稱" value={current.name || ''} disabled={deleted} onChange={(value) => updateItem('packages', current.id, (row) => ({ ...row, name: value }))} bold />
-              <Field label="價格 ($)" type="number" value={current.price || 0} disabled={deleted} onChange={(value) => updateItem('packages', current.id, (row) => ({ ...row, price: parseInt(value) || 0 }))} />
-              <TextArea label="描述" value={current.description || ''} disabled={deleted} placeholder="輸入展示套票描述..." onChange={(value) => updateItem('packages', current.id, (row) => ({ ...row, description: value }))} />
-            </>
-          )),
-        )}
+function InventoryCard({ kind, item, updateItem, toggleDelete }) {
+  const deleted = Boolean(item.__deleted)
+  return (
+    <div className="admin-card admin-inventory-card" style={{ opacity: deleted ? 0.55 : 1, border: deleted ? '1px dashed #dc2626' : undefined }}>
+      <div className="admin-inline-actions" style={{ justifyContent: 'space-between' }}>
+        <Pill tone={deleted ? 'danger' : item.enabled ? 'success' : 'muted'}>{deleted ? '待刪除' : item.enabled ? '啟用中' : '已隱藏'}</Pill>
+        {item.__isNew ? <Pill>新草稿</Pill> : null}
       </div>
-    </div>
-  )
-
-  const renderTickets = () => (
-    <div>
-      <Toolbar onAdd={() => addItem('tickets')} onSave={() => handleSave('tickets')} saving={saving} addLabel="新增會員套票" />
-      <div className="admin-card" style={{ padding: '20px', border: '1px solid var(--gray)', marginBottom: '20px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap', marginBottom: '14px' }}>
-          <div>
-            <div style={{ fontSize: '12px', fontWeight: 800, letterSpacing: '0.08em', color: '#A68B6A' }}>CSV 匯入</div>
-            <div style={{ marginTop: '4px', fontSize: '18px', fontWeight: 800 }}>舊會員套票餘額</div>
-            <div style={{ marginTop: '6px', fontSize: '13px', color: 'var(--text-light)' }}>
-              貼上 CSV，先預覽每行錯誤，再提交乾淨的匯入批次。
-            </div>
-          </div>
-          <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
-            <button onClick={handleTicketImportPreview} disabled={ticketImportLoading || ticketImportCommitting} className="btn btn-small btn-interactive" type="button" style={{ background: '#fff' }}>
-              {ticketImportLoading ? '預覽中...' : '預覽 CSV'}
-            </button>
-            <button onClick={handleTicketImportCommit} disabled={!ticketImportPreview || ticketImportPreview.errors.length > 0 || ticketImportCommitting || ticketImportLoading} className="btn btn-small btn-interactive" type="button" style={{ background: '#34D399' }}>
-              {ticketImportCommitting ? '匯入中...' : '確認匯入'}
-            </button>
-          </div>
-        </div>
-        <textarea value={ticketCsv} onChange={(e) => { setTicketCsv(e.target.value); setTicketImportPreview(null) }} placeholder={'email,phone,full_name,ticket_name,service_name,remaining_count,expiry_date,note\ncustomer@example.com,91234567,陳小姐,頭皮護理套票,深層頭皮潔淨,10,2027-04-29,BANK-001'} style={{ minHeight: '140px', resize: 'vertical', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace' }} />
-        {ticketImportPreview ? (
-          <div style={{ display: 'grid', gap: '14px', marginTop: '16px' }}>
-            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-              <span className="badge badge-outline">預覽行數：{ticketImportPreview.rows.length}</span>
-              <span className="badge badge-outline" style={{ background: ticketImportPreview.errors.length ? '#FEF2F2' : '#ECFDF5', color: ticketImportPreview.errors.length ? '#DC2626' : '#047857' }}>錯誤：{ticketImportPreview.errors.length}</span>
-              <span className="badge badge-outline" style={{ background: ticketImportPreview.warnings.length ? '#FEF3C7' : '#F8FAFC', color: ticketImportPreview.warnings.length ? '#B45309' : 'var(--text-light)' }}>警告：{ticketImportPreview.warnings.length}</span>
-            </div>
-            {ticketImportPreview.errors.length > 0 ? <ImportMessageList title="錯誤" tone="danger" messages={ticketImportPreview.errors} /> : null}
-            {ticketImportPreview.warnings.length > 0 ? <ImportMessageList title="警告" tone="warning" messages={ticketImportPreview.warnings} /> : null}
-            {ticketImportPreview.rows.length > 0 ? <ImportPreviewTable rows={ticketImportPreview.rows} /> : null}
-          </div>
+      <div className="admin-form-grid compact">
+        <Field label={kind === 'products' ? '產品名稱' : kind === 'packages' ? '展示套票名稱' : '套票名稱'} value={item.name || ''} disabled={deleted} onChange={(value) => updateItem(kind, item.id, (row) => ({ ...row, name: value }))} />
+        <Field label="價格 ($)" type="number" value={item.price || 0} disabled={deleted} onChange={(value) => updateItem(kind, item.id, (row) => ({ ...row, price: parseInt(value, 10) || 0 }))} />
+        {kind === 'products' ? (
+          <Field label="庫存" type="number" value={item.stock || 0} disabled={deleted} onChange={(value) => updateItem(kind, item.id, (row) => ({ ...row, stock: parseInt(value, 10) || 0 }))} />
+        ) : null}
+        {kind === 'tickets' ? (
+          <>
+            <Field label="可用次數" type="number" value={item.times || 0} disabled={deleted} onChange={(value) => updateItem(kind, item.id, (row) => ({ ...row, times: parseInt(value, 10) || 0 }))} />
+            <Field label="原價 ($)" type="number" value={item.orig || 0} disabled={deleted} onChange={(value) => updateItem(kind, item.id, (row) => ({ ...row, orig: parseInt(value, 10) || 0 }))} />
+            <Field label="圖示文字" value={item.emoji || ''} disabled={deleted} onChange={(value) => updateItem(kind, item.id, (row) => ({ ...row, emoji: value }))} />
+          </>
         ) : null}
       </div>
-      <div className="grid">
-        {ticketsState.map((item) =>
-          renderItemCard('tickets', item, (current, deleted) => (
-            <>
-              <Field label="套票名稱" value={current.name || ''} disabled={deleted} onChange={(value) => updateItem('tickets', current.id, (row) => ({ ...row, name: value }))} bold />
-              <div className="grid" style={{ gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
-                <Field label="價格 ($)" type="number" value={current.price || 0} disabled={deleted} onChange={(value) => updateItem('tickets', current.id, (row) => ({ ...row, price: parseInt(value) || 0 }))} />
-                <Field label="可用次數" type="number" value={current.times || 0} disabled={deleted} onChange={(value) => updateItem('tickets', current.id, (row) => ({ ...row, times: parseInt(value) || 0 }))} />
-              </div>
-              <Field label="原價 ($)" type="number" value={current.orig || 0} disabled={deleted} onChange={(value) => updateItem('tickets', current.id, (row) => ({ ...row, orig: parseInt(value) || 0 }))} />
-              <TextArea label="套票特色 / 條款" value={current.features || ''} disabled={deleted} onChange={(value) => updateItem('tickets', current.id, (row) => ({ ...row, features: value }))} />
-              <Field label="圖示文字" value={current.emoji || ''} disabled={deleted} onChange={(value) => updateItem('tickets', current.id, (row) => ({ ...row, emoji: value }))} />
-            </>
-          )),
-        )}
+      {kind !== 'products' ? (
+        <TextArea label={kind === 'tickets' ? '套票特色 / 條款' : '描述'} value={kind === 'tickets' ? item.features || '' : item.description || ''} disabled={deleted} onChange={(value) => updateItem(kind, item.id, (row) => ({ ...row, [kind === 'tickets' ? 'features' : 'description']: value }))} />
+      ) : null}
+      <div className="admin-detail-actions">
+        <label className="admin-inline-actions" style={{ margin: 0, fontSize: '13px', fontWeight: 800 }}>
+          <input type="checkbox" checked={Boolean(item.enabled)} onChange={(event) => updateItem(kind, item.id, (current) => ({ ...current, enabled: event.target.checked }))} style={{ width: 'auto' }} disabled={deleted} />
+          啟用
+        </label>
+        <button onClick={() => toggleDelete(kind, item.id)} className="btn btn-small btn-interactive" type="button" style={{ background: deleted ? '#ECFDF5' : '#FEF2F2', color: deleted ? '#166534' : '#DC2626', border: deleted ? '1px solid #BBF7D0' : '1px solid #FECACA' }}>
+          {deleted ? '還原' : '刪除'}
+        </button>
+      </div>
+      {deleted ? <div className="admin-muted-line" style={{ color: '#B91C1C', fontWeight: 800 }}>儲存後會刪除此項目。</div> : null}
+    </div>
+  )
+}
+
+function TicketImportPanel({ ticketCsv, setTicketCsv, preview, loading, committing, onPreview, onCommit }) {
+  return (
+    <div className="admin-card admin-command-panel" style={{ alignItems: 'stretch' }}>
+      <div style={{ flex: '1 1 420px' }}>
+        <div className="admin-eyebrow">CSV 匯入</div>
+        <div className="admin-command-title">舊會員套票餘額</div>
+        <div className="admin-command-description">貼上 CSV 後先預覽錯誤，再確認匯入。固定欄位：email, phone, full_name, ticket_name, service_name, remaining_count, expiry_date, note。</div>
+        <textarea
+          value={ticketCsv}
+          onChange={(event) => setTicketCsv(event.target.value)}
+          placeholder={'email,phone,full_name,ticket_name,service_name,remaining_count,expiry_date,note\ncustomer@example.com,91234567,陳小姐,頭皮護理套票,深層頭皮潔淨,10,2027-04-29,BANK-001'}
+          style={{ ...fieldStyle, minHeight: '140px', resize: 'vertical', marginTop: '14px', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace' }}
+        />
+      </div>
+      <div style={{ flex: '0 1 320px', display: 'grid', gap: '12px', alignContent: 'start' }}>
+        <button onClick={onPreview} disabled={loading || committing} className="btn btn-small btn-interactive" type="button" style={{ background: '#fff' }}>
+          {loading ? '預覽中...' : '預覽 CSV'}
+        </button>
+        <button onClick={onCommit} disabled={!preview || preview.errors.length > 0 || committing || loading} className="btn btn-small btn-interactive" type="button" style={{ background: '#34D399' }}>
+          {committing ? '匯入中...' : '確認匯入'}
+        </button>
+        {preview ? <ImportResult preview={preview} /> : null}
       </div>
     </div>
   )
+}
 
+function ImportResult({ preview }) {
   return (
-    <div>
-      <div className="admin-card hide-scrollbar" style={{ display: 'flex', gap: '10px', marginBottom: '24px', padding: '12px', overflowX: 'auto' }}>
-        <SubTabButton active={subTab === 'products'} onClick={() => setSubTab('products')}>產品</SubTabButton>
-        <SubTabButton active={subTab === 'packages'} onClick={() => setSubTab('packages')}>展示套票</SubTabButton>
-        <SubTabButton active={subTab === 'tickets'} onClick={() => setSubTab('tickets')}>會員套票</SubTabButton>
+    <div style={{ display: 'grid', gap: '10px' }}>
+      <div className="admin-inline-actions">
+        <Pill>{preview.rows.length} 行</Pill>
+        <Pill tone={preview.errors.length ? 'danger' : 'success'}>{preview.errors.length} 錯誤</Pill>
+        <Pill tone={preview.warnings.length ? 'warning' : 'muted'}>{preview.warnings.length} 警告</Pill>
       </div>
-      {subTab === 'products' && renderProducts()}
-      {subTab === 'packages' && renderPackages()}
-      {subTab === 'tickets' && renderTickets()}
+      {preview.errors.length ? <MessageList title="錯誤" messages={preview.errors} tone="danger" /> : null}
+      {preview.warnings.length ? <MessageList title="警告" messages={preview.warnings} tone="warning" /> : null}
+      {preview.rows.length ? <ImportPreviewTable rows={preview.rows} /> : null}
     </div>
   )
 }
 
-function Toolbar({ onAdd, onSave, saving, addLabel }) {
-  return (
-    <div style={{ marginBottom: '20px', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-      <button onClick={onAdd} className="btn btn-small btn-interactive" type="button">+ {addLabel}</button>
-      <button onClick={onSave} disabled={saving} className="btn btn-small btn-interactive" type="button" style={{ background: '#34D399' }}>
-        {saving && <span className="spinner"></span>}
-        {saving ? '儲存中...' : '儲存變更'}
-      </button>
-    </div>
-  )
-}
-
-function Field({ label, value, onChange, disabled, type = 'text', bold = false }) {
-  return (
-    <div style={{ marginBottom: '12px' }}>
-      <label>{label}</label>
-      <input type={type} value={value} onChange={(event) => onChange(event.target.value)} style={{ fontWeight: bold ? 700 : undefined }} disabled={disabled} />
-    </div>
-  )
-}
-
-function TextArea({ label, value, onChange, disabled, placeholder = '' }) {
-  return (
-    <div style={{ marginBottom: '12px' }}>
-      <label>{label}</label>
-      <textarea value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} style={{ minHeight: '100px', resize: 'vertical' }} disabled={disabled} />
-    </div>
-  )
-}
-
-function SubTabButton({ active, onClick, children }) {
-  return (
-    <button onClick={onClick} className={`admin-tab-btn ${active ? 'active' : ''}`} type="button" style={{ padding: '10px 20px', background: active ? 'var(--primary)' : 'transparent', color: active ? '#fff' : 'var(--text-light)', borderRadius: '10px', fontSize: '14px', fontWeight: 600, whiteSpace: 'nowrap' }}>
-      {children}
-    </button>
-  )
-}
-
-function ImportMessageList({ title, tone, messages }) {
+function MessageList({ title, messages, tone }) {
   const colors = tone === 'danger' ? { background: '#FEF2F2', color: '#B91C1C', border: '#FECACA' } : { background: '#FEF3C7', color: '#92400E', border: '#FDE68A' }
   return (
     <div style={{ background: colors.background, color: colors.color, border: `1px solid ${colors.border}`, borderRadius: '8px', padding: '12px' }}>
       <div style={{ fontSize: '13px', fontWeight: 800, marginBottom: '8px' }}>{title}</div>
       <div style={{ display: 'grid', gap: '6px', fontSize: '13px', lineHeight: 1.5 }}>
-        {messages.slice(0, 8).map((message, index) => <div key={`${title}-${index}`}>{message}</div>)}
-        {messages.length > 8 ? <div style={{ fontWeight: 700 }}>另有 {messages.length - 8} 項</div> : null}
+        {messages.slice(0, 6).map((message, index) => <div key={`${title}-${index}`}>{message}</div>)}
+        {messages.length > 6 ? <div style={{ fontWeight: 700 }}>另有 {messages.length - 6} 項</div> : null}
       </div>
     </div>
   )
 }
 
 function ImportPreviewTable({ rows }) {
-  const normalizedRows = rows.slice(0, 8).map((row) => {
+  const normalizedRows = rows.slice(0, 6).map((row) => {
     if (!row || typeof row !== 'object') return { value: row }
     const { member, ticket, service, ...rest } = row
     return { ...rest, member: member?.full_name || member?.email || member?.phone || '', ticket: ticket?.name || '', service: service?.name || '' }
   })
-  const columns = Array.from(new Set(normalizedRows.flatMap((row) => Object.keys(row)))).slice(0, 8)
-  if (columns.length === 0) return null
+  const columns = Array.from(new Set(normalizedRows.flatMap((row) => Object.keys(row)))).slice(0, 6)
+  if (!columns.length) return null
   return (
     <div style={{ overflowX: 'auto', border: '1px solid var(--gray)', borderRadius: '8px' }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', minWidth: '620px' }}>
+      <table className="admin-data-table" style={{ minWidth: '520px' }}>
         <thead>
-          <tr style={{ background: '#FAF8F5' }}>
-            {columns.map((column) => <th key={column} style={{ padding: '10px', textAlign: 'left', color: 'var(--text-light)', borderBottom: '1px solid var(--gray)' }}>{column}</th>)}
-          </tr>
+          <tr>{columns.map((column) => <th key={column}>{column}</th>)}</tr>
         </thead>
         <tbody>
           {normalizedRows.map((row, index) => (
-            <tr key={index} style={{ borderBottom: '1px solid #f6f6f6' }}>
-              {columns.map((column) => <td key={column} style={{ padding: '10px', verticalAlign: 'top' }}>{Array.isArray(row[column]) ? row[column].join('; ') : String(row[column] ?? '')}</td>)}
+            <tr key={index}>
+              {columns.map((column) => <td key={column}>{Array.isArray(row[column]) ? row[column].join('; ') : String(row[column] ?? '')}</td>)}
             </tr>
           ))}
         </tbody>
       </table>
       {rows.length > normalizedRows.length ? <div style={{ padding: '10px', fontSize: '12px', color: 'var(--text-light)' }}>只顯示前 {normalizedRows.length} 行，共 {rows.length} 行。</div> : null}
     </div>
+  )
+}
+
+function Field({ label, value, onChange, disabled, type = 'text' }) {
+  return (
+    <label style={{ display: 'grid', gap: '8px' }}>
+      <span style={{ fontSize: '13px', fontWeight: 800 }}>{label}</span>
+      <input type={type} value={value} onChange={(event) => onChange(event.target.value)} style={fieldStyle} disabled={disabled} />
+    </label>
+  )
+}
+
+function TextArea({ label, value, onChange, disabled }) {
+  return (
+    <label style={{ display: 'grid', gap: '8px', marginTop: '14px' }}>
+      <span style={{ fontSize: '13px', fontWeight: 800 }}>{label}</span>
+      <textarea value={value} onChange={(event) => onChange(event.target.value)} style={{ ...fieldStyle, minHeight: '92px', resize: 'vertical' }} disabled={disabled} />
+    </label>
   )
 }
