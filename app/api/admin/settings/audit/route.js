@@ -3,6 +3,8 @@ import { readFileSync, readdirSync, statSync } from 'fs'
 import { join } from 'path'
 import { loadAdminSettingsContext } from '../_context'
 
+const text = (value) => JSON.parse(`"${value}"`)
+
 const IMPORTANT_SETTING_KEYS = [
   'shop_name',
   'site_url',
@@ -15,12 +17,29 @@ const IMPORTANT_SETTING_KEYS = [
   'business_hours',
 ]
 
+const MOJIBAKE_TOKENS = [
+  '\\u951b',
+  '\\u95cb',
+  '\\u7480',
+  '\\u9428',
+  '\\u7477',
+  '\\u6753',
+  '\\u6fc2',
+  '\\u9366',
+  '\\u93c8',
+  '\\u6942',
+  '\\u752f',
+  '\\u941d',
+  '\\u6434',
+  '\\u6f0f',
+].map(text)
+
 const SCAN_PATTERNS = [
-  { key: 'oldBrand', label: '舊品牌字眼', pattern: new RegExp(`${'VI'}${'VA'}\\s+${'HA'}${'IR'}`, 'i') },
-  { key: 'oldSalon', label: '舊沙龍英文語境', pattern: new RegExp(`${'Hair'} ${'Salon'}`, 'i') },
-  { key: 'oldChineseSalon', label: '舊剪染造型語境', pattern: new RegExp(`${'剪'}${'髮'}|${'美'}${'髮'}`) },
-  { key: 'mojibake', label: '亂碼特徵', pattern: new RegExp(['锛', '闋', '璀', '鐨', '瑷', '杓', '濂', '鍦', '鏈', '楂', '甯', '鐝', '搴', '漏'].join('|')) },
-  { key: 'sampleWords', label: '示範 / 測試字眼', pattern: new RegExp(`\\b${'demo'}\\b|\\b${'test'}\\b|${'lorem'}`, 'i') },
+  { key: 'oldBrand', label: text('\\u820a\\u54c1\\u724c\\u5b57\\u773c'), pattern: new RegExp(`${'VI'}${'VA'}\\s+${'HA'}${'IR'}`, 'i') },
+  { key: 'oldSalon', label: text('\\u820a salon \\u82f1\\u6587\\u8a9e\\u5883'), pattern: new RegExp(`${'Hair'} ${'Salon'}`, 'i') },
+  { key: 'oldChineseSalon', label: text('\\u820a\\u526a\\u9aee\\u9020\\u578b\\u8a9e\\u5883'), pattern: new RegExp(`${text('\\u526a')}${text('\\u9aee')}|${text('\\u7f8e')}${text('\\u9aee')}`) },
+  { key: 'mojibake', label: text('\\u4e82\\u78bc\\u7279\\u5fb5'), pattern: new RegExp(MOJIBAKE_TOKENS.join('|')) },
+  { key: 'sampleWords', label: text('\\u793a\\u7bc4 / \\u6e2c\\u8a66\\u5b57\\u773c'), pattern: new RegExp(`\\b${'demo'}\\b|\\b${'test'}\\b|${'lorem'}`, 'i') },
 ]
 
 const walkFiles = (dir, files = []) => {
@@ -50,15 +69,15 @@ const scanContent = () => {
   return SCAN_PATTERNS.map((rule) => {
     const matches = []
     for (const file of files) {
-      const text = readFileSync(file, 'utf8')
-      if (rule.pattern.test(text)) matches.push(file.replace(cwd, '').replace(/^[\\/]/, ''))
+      const fileText = readFileSync(file, 'utf8')
+      if (rule.pattern.test(fileText)) matches.push(file.replace(cwd, '').replace(/^[\\/]/, ''))
       if (matches.length >= 8) break
     }
     return {
       id: `content_${rule.key}`,
       label: rule.label,
       status: matches.length ? 'warning' : 'pass',
-      detail: matches.length ? matches.join(', ') : '未發現',
+      detail: matches.length ? matches.join(', ') : text('\\u672a\\u767c\\u73fe'),
     }
   })
 }
@@ -80,21 +99,21 @@ export async function GET() {
       id: `setting_${key}`,
       label: key,
       status: settings[key] ? 'pass' : 'warning',
-      detail: settings[key] ? '已填寫' : '待補資料',
+      detail: settings[key] ? text('\\u5df2\\u586b\\u5beb') : text('\\u5f85\\u88dc\\u8cc7\\u6599'),
     }))
 
     const paymentChecks = [
       {
         id: 'payment_stripe',
-        label: 'Stripe 線上付款',
+        label: 'Stripe',
         status: settings.stripe_enabled === 'true' ? 'pass' : 'warning',
-        detail: settings.stripe_enabled === 'true' ? '已啟用' : '未啟用或待確認',
+        detail: settings.stripe_enabled === 'true' ? text('\\u5df2\\u555f\\u7528') : text('\\u672a\\u555f\\u7528\\u6216\\u5f85\\u78ba\\u8a8d'),
       },
       {
         id: 'payment_manual',
-        label: '人工確認付款',
+        label: text('\\u4eba\\u5de5\\u78ba\\u8a8d\\u4ed8\\u6b3e'),
         status: settings.manual_payment_enabled !== 'false' ? 'pass' : 'warning',
-        detail: settings.manual_payment_enabled !== 'false' ? '已保留後備付款' : '已停用',
+        detail: settings.manual_payment_enabled !== 'false' ? text('\\u5df2\\u4fdd\\u7559\\u5f8c\\u5099\\u4ed8\\u6b3e') : text('\\u5df2\\u505c\\u7528'),
       },
     ]
 

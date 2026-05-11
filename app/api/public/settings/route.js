@@ -1,38 +1,48 @@
 import { NextResponse } from 'next/server'
 import { getServiceClient } from '../../../../lib/supabase/service'
 
+const SEO_PAGES = ['home', 'services', 'tickets', 'products', 'booking', 'account', 'contact', 'faq', 'articles']
+const text = (value) => JSON.parse(`"${value}"`)
+
 const DEFAULT_SETTINGS = {
   shop_name: 'PANDORA HEAD SPA',
   site_url: process.env.NEXT_PUBLIC_SITE_URL || 'https://www.pandoraheadspa.com',
-  seo_title: 'PANDORA HEAD SPA｜全自助頭皮護理中心',
-  seo_description: 'PANDORA HEAD SPA 全自助頭皮護理中心，提供頭皮檢測、深層潔淨、頭皮養護、網上預約及會員套票服務。',
-  seo_keywords: 'PANDORA HEAD SPA,頭皮護理,Head Spa,頭皮檢測,深層潔淨,會員套票',
+  seo_title: text('PANDORA HEAD SPA\\uff5c\\u5168\\u81ea\\u52a9\\u982d\\u76ae\\u8b77\\u7406\\u4e2d\\u5fc3'),
+  seo_description: text('PANDORA HEAD SPA \\u5168\\u81ea\\u52a9\\u982d\\u76ae\\u8b77\\u7406\\u4e2d\\u5fc3\\uff0c\\u63d0\\u4f9b\\u982d\\u76ae\\u6aa2\\u6e2c\\u3001\\u6df1\\u5c64\\u6f54\\u6de8\\u3001\\u982d\\u76ae\\u990a\\u8b77\\u3001\\u7db2\\u4e0a\\u9810\\u7d04\\u53ca\\u6703\\u54e1\\u5957\\u7968\\u670d\\u52d9\\u3002'),
+  seo_keywords: text('PANDORA HEAD SPA,\\u982d\\u76ae\\u8b77\\u7406,Head Spa,\\u982d\\u76ae\\u6aa2\\u6e2c,\\u6df1\\u5c64\\u6f54\\u6de8,\\u6703\\u54e1\\u5957\\u7968'),
   address: '',
   phone: '',
   whatsapp: '',
+  whatsapp_default_message: text('\\u4f60\\u597d\\uff0c\\u6211\\u60f3\\u67e5\\u8a62 PANDORA HEAD SPA \\u982d\\u76ae\\u8b77\\u7406\\u670d\\u52d9\\u3002'),
+  booking_reminder_note: text('\\u8acb\\u6e96\\u6642\\u5230\\u5e97\\uff0c\\u5982\\u9700\\u66f4\\u6539\\u9810\\u7d04\\u8acb\\u63d0\\u524d\\u806f\\u7d61\\u3002'),
   instagram_url: '',
   facebook_url: '',
   google_map_url: '',
+  google_place_id: '',
   stripe_enabled: 'true',
   manual_payment_enabled: 'true',
   fps_enabled: 'false',
+  fps_note: '',
   pay_at_shop_enabled: 'false',
-  checkout_notice: '完成付款後，套票會自動加入會員帳戶；如選擇人工付款，需由店員確認後才會發放。',
-  fulfillment_note: '套票及預約服務無需配送，到店使用。',
-  product_fulfillment_note: '產品可到店取貨；如需配送，請先與店員確認。',
-  payment_success_notice: '付款成功後，可到會員中心查看套票或訂單狀態。',
+  checkout_notice: text('\\u5b8c\\u6210\\u4ed8\\u6b3e\\u5f8c\\uff0c\\u5957\\u7968\\u6703\\u81ea\\u52d5\\u52a0\\u5165\\u6703\\u54e1\\u5e33\\u6236\\uff1b\\u5982\\u9078\\u64c7\\u4eba\\u5de5\\u4ed8\\u6b3e\\uff0c\\u9700\\u7531\\u5e97\\u54e1\\u78ba\\u8a8d\\u5f8c\\u624d\\u6703\\u767c\\u653e\\u3002'),
+  fulfillment_note: text('\\u5957\\u7968\\u53ca\\u9810\\u7d04\\u670d\\u52d9\\u7121\\u9700\\u914d\\u9001\\uff0c\\u5230\\u5e97\\u4f7f\\u7528\\u3002'),
+  product_fulfillment_note: text('\\u7522\\u54c1\\u53ef\\u5230\\u5e97\\u53d6\\u8ca8\\uff1b\\u5982\\u9700\\u914d\\u9001\\uff0c\\u8acb\\u5148\\u8207\\u5e97\\u54e1\\u78ba\\u8a8d\\u3002'),
+  payment_success_notice: text('\\u4ed8\\u6b3e\\u6210\\u529f\\u5f8c\\uff0c\\u53ef\\u5230\\u6703\\u54e1\\u4e2d\\u5fc3\\u67e5\\u770b\\u5957\\u7968\\u6216\\u8a02\\u55ae\\u72c0\\u614b\\u3002'),
   member_registration_enabled: 'true',
-  member_label: '會員',
+  member_label: text('\\u6703\\u54e1'),
   ticket_visibility: 'show_active_and_pending',
   reward_points_enabled: 'false',
+  reward_points_note: '',
   business_hours: '11:00 - 20:00',
+  slot_step_min: '30',
+  default_buffer_min: '15',
   days_off: [],
   availability_cache_version: '',
   theme_name: 'Pandora Wellness',
-  brand_tone: '高級、安靜、乾淨、頭皮養生',
+  brand_tone: text('\\u9ad8\\u7d1a\\u3001\\u5b89\\u975c\\u3001\\u4e7e\\u6de8\\u3001\\u982d\\u76ae\\u990a\\u751f'),
   hero_image_url: '',
   og_image_url: '',
-  primary_cta_label: '立即預約',
+  primary_cta_label: text('\\u7acb\\u5373\\u9810\\u7d04'),
   primary_cta_path: '/booking',
   nav_services_enabled: 'true',
   nav_tickets_enabled: 'true',
@@ -59,25 +69,32 @@ const DEFAULT_SETTINGS = {
   apps_note: '',
 }
 
+for (const page of SEO_PAGES) {
+  DEFAULT_SETTINGS[`seo.${page}.path`] = page === 'home' ? '/' : `/${page}`
+  DEFAULT_SETTINGS[`seo.${page}.title`] = ''
+  DEFAULT_SETTINGS[`seo.${page}.description`] = ''
+  DEFAULT_SETTINGS[`seo.${page}.keywords`] = ''
+}
+
 const PUBLIC_SETTING_KEYS = Object.keys(DEFAULT_SETTINGS)
 
 const parseDaysOff = (value) => {
   if (!value) return []
   if (Array.isArray(value)) return value.map((item) => String(item).trim()).filter(Boolean)
 
-  const text = String(value).trim()
-  if (!text) return []
+  const textValue = String(value).trim()
+  if (!textValue) return []
 
-  if (text.startsWith('[')) {
+  if (textValue.startsWith('[')) {
     try {
-      const parsed = JSON.parse(text)
+      const parsed = JSON.parse(textValue)
       return Array.isArray(parsed) ? parsed.map((item) => String(item).trim()).filter(Boolean) : []
     } catch {
       return []
     }
   }
 
-  return text.split(',').map((item) => item.trim()).filter(Boolean)
+  return textValue.split(',').map((item) => item.trim()).filter(Boolean)
 }
 
 export async function GET() {
