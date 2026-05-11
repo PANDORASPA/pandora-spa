@@ -3,6 +3,21 @@
 import { useEffect, useMemo, useState } from 'react'
 import { EmptyState, Pill, RecordFilterBar, SectionHeader, fieldStyle, formatMoney, smallFieldStyle } from './opsUi'
 
+const KIND_OPTIONS = [
+  { value: 'sale', label: '銷售' },
+  { value: 'refund', label: '退款' },
+  { value: 'adjustment', label: '調整' },
+  { value: 'deposit', label: '訂金' },
+]
+
+const STATUS_OPTIONS = [
+  { value: 'pending', label: '待處理' },
+  { value: 'paid', label: '已付款' },
+  { value: 'failed', label: '失敗' },
+  { value: 'reconciled', label: '已對帳' },
+  { value: 'cancelled', label: '已取消' },
+]
+
 const normalize = (row) => ({
   ...row,
   __isNew: Boolean(row?.__isNew),
@@ -32,24 +47,16 @@ const getCustomerLabel = (customer) => customer?.name || customer?.full_name || 
 const getBookingLabel = (booking) => booking?.ref || booking?.booking_ref || booking?.code || `預約 #${booking?.id || ''}`
 const getOrderLabel = (order) => order?.ref || order?.order_no || order?.code || `訂單 #${order?.id || ''}`
 const getLocationLabel = (location) => location?.name || location?.title || location?.code || '地點'
-const getProviderGroupLabel = (group) => group?.name || group?.title || group?.code || '供應者群組'
-const getKindLabel = (kind) =>
-  ({
-    sale: '銷售',
-    refund: '退款',
-    adjustment: '調整',
-    deposit: '訂金',
-  })[kind] || kind || '-'
-const getStatusLabel = (status) =>
-  ({
-    pending: '待處理',
-    paid: '已付款',
-    failed: '失敗',
-    reconciled: '已對帳',
-    cancelled: '已取消',
-  })[status] || status || '-'
+const getProviderGroupLabel = (group) => group?.name || group?.title || group?.code || '服務供應者群組'
+const getKindLabel = (kind) => KIND_OPTIONS.find((item) => item.value === kind)?.label || kind || '-'
+const getStatusLabel = (status) => STATUS_OPTIONS.find((item) => item.value === status)?.label || status || '-'
 const getLinkedLocationId = (row) => row?.location_id ?? row?.branch_id ?? row?.location?.id ?? row?.branch?.id ?? ''
 const getLinkedProviderGroupId = (row) => row?.provider_group_id ?? row?.group_id ?? row?.provider_group?.id ?? ''
+const formatDateTime = (value, fallback) => {
+  const source = value || fallback
+  if (!source) return '-'
+  return new Date(source).toLocaleString('zh-HK')
+}
 
 export default function TransactionsTab({
   transactions: initialTransactions = [],
@@ -73,46 +80,56 @@ export default function TransactionsTab({
     setTransactions((initialTransactions || []).map(normalize))
   }, [initialTransactions])
 
-  const bookingLookup = useMemo(() => {
-    return (bookings || []).reduce((acc, booking) => {
-      acc[String(booking.id)] = booking
-      if (booking.ref != null) acc[String(booking.ref)] = booking
-      if (booking.booking_ref != null) acc[String(booking.booking_ref)] = booking
-      return acc
-    }, {})
-  }, [bookings])
+  const bookingLookup = useMemo(
+    () =>
+      (bookings || []).reduce((acc, booking) => {
+        acc[String(booking.id)] = booking
+        if (booking.ref != null) acc[String(booking.ref)] = booking
+        if (booking.booking_ref != null) acc[String(booking.booking_ref)] = booking
+        return acc
+      }, {}),
+    [bookings],
+  )
 
-  const orderLookup = useMemo(() => {
-    return (orders || []).reduce((acc, order) => {
-      acc[String(order.id)] = order
-      if (order.ref != null) acc[String(order.ref)] = order
-      if (order.order_no != null) acc[String(order.order_no)] = order
-      return acc
-    }, {})
-  }, [orders])
+  const orderLookup = useMemo(
+    () =>
+      (orders || []).reduce((acc, order) => {
+        acc[String(order.id)] = order
+        if (order.ref != null) acc[String(order.ref)] = order
+        if (order.order_no != null) acc[String(order.order_no)] = order
+        return acc
+      }, {}),
+    [orders],
+  )
 
-  const customerLookup = useMemo(() => {
-    return (customers || []).reduce((acc, customer) => {
-      acc[String(customer.id)] = customer
-      if (customer.email != null) acc[String(customer.email)] = customer
-      if (customer.phone != null) acc[String(customer.phone)] = customer
-      return acc
-    }, {})
-  }, [customers])
+  const customerLookup = useMemo(
+    () =>
+      (customers || []).reduce((acc, customer) => {
+        acc[String(customer.id)] = customer
+        if (customer.email != null) acc[String(customer.email)] = customer
+        if (customer.phone != null) acc[String(customer.phone)] = customer
+        return acc
+      }, {}),
+    [customers],
+  )
 
-  const locationLookup = useMemo(() => {
-    return (locations || []).reduce((acc, location) => {
-      acc[String(location.id)] = location
-      return acc
-    }, {})
-  }, [locations])
+  const locationLookup = useMemo(
+    () =>
+      (locations || []).reduce((acc, location) => {
+        acc[String(location.id)] = location
+        return acc
+      }, {}),
+    [locations],
+  )
 
-  const providerGroupLookup = useMemo(() => {
-    return (providerGroups || []).reduce((acc, group) => {
-      acc[String(group.id)] = group
-      return acc
-    }, {})
-  }, [providerGroups])
+  const providerGroupLookup = useMemo(
+    () =>
+      (providerGroups || []).reduce((acc, group) => {
+        acc[String(group.id)] = group
+        return acc
+      }, {}),
+    [providerGroups],
+  )
 
   const enrichedTransactions = useMemo(() => {
     return transactions.map((row) => {
@@ -149,14 +166,10 @@ export default function TransactionsTab({
         __customer: resolvedCustomer,
         __location: location,
         __providerGroup: providerGroup,
-        __linkedLabel: getText(
-          booking ? getBookingLabel(booking) : '',
-          order ? getOrderLabel(order) : '',
-          resolvedCustomer ? getCustomerLabel(resolvedCustomer) : row.customer_name || '',
-        ),
+        __linkedLabel: getText(booking ? getBookingLabel(booking) : '', order ? getOrderLabel(order) : '', resolvedCustomer ? getCustomerLabel(resolvedCustomer) : row.customer_name || ''),
       }
     })
-  }, [transactions, bookingLookup, orderLookup, customerLookup, locationLookup, providerGroupLookup, bookings, orders, customers])
+  }, [transactions, bookingLookup, orderLookup, customerLookup, locationLookup, providerGroupLookup, bookings, orders, customers, locations, providerGroups])
 
   const filteredTransactions = useMemo(() => {
     const needle = searchTerm.toLowerCase().trim()
@@ -180,28 +193,26 @@ export default function TransactionsTab({
         .join(' ')
         .toLowerCase()
 
-      return (
-        (!needle || haystack.includes(needle)) &&
-        (kindFilter === 'all' || (row.kind || 'sale') === kindFilter) &&
-        (statusFilter === 'all' || (row.status || 'completed') === statusFilter)
-      )
+      return (!needle || haystack.includes(needle)) && (kindFilter === 'all' || (row.kind || 'sale') === kindFilter) && (statusFilter === 'all' || (row.status || 'completed') === statusFilter)
     })
   }, [enrichedTransactions, searchTerm, kindFilter, statusFilter])
 
-  const summary = useMemo(() => {
-    return filteredTransactions.reduce(
-      (acc, row) => {
-        acc.rows += 1
-        acc.amount += Number(row.amount || 0)
-        if (row.__booking) acc.linkedBookings += 1
-        if (row.__order) acc.linkedOrders += 1
-        if (row.__customer) acc.linkedCustomers += 1
-        if (row.status === 'reconciled') acc.reconciled += 1
-        return acc
-      },
-      { rows: 0, amount: 0, linkedBookings: 0, linkedOrders: 0, linkedCustomers: 0, reconciled: 0 },
-    )
-  }, [filteredTransactions])
+  const summary = useMemo(
+    () =>
+      filteredTransactions.reduce(
+        (acc, row) => {
+          acc.rows += 1
+          acc.amount += Number(row.amount || 0)
+          if (row.__booking) acc.linkedBookings += 1
+          if (row.__order) acc.linkedOrders += 1
+          if (row.__customer) acc.linkedCustomers += 1
+          if (row.status === 'reconciled') acc.reconciled += 1
+          return acc
+        },
+        { rows: 0, amount: 0, linkedBookings: 0, linkedOrders: 0, linkedCustomers: 0, reconciled: 0 },
+      ),
+    [filteredTransactions],
+  )
 
   const update = (id, patch) => {
     setTransactions((current) => current.map((item) => (item.id === id ? { ...item, ...patch } : item)))
@@ -263,103 +274,65 @@ export default function TransactionsTab({
   }
 
   if (!available) {
-    return (
-      <div className="admin-card" style={{ padding: '28px', color: 'var(--text-light)' }}>
-        交易表暫時未可用。請先完成最新 migration 以啟用帳目式付款追蹤。
-      </div>
-    )
+    return <EmptyState title="交易表暫時未可用" description="請先完成最新 migration，以啟用帳目式付款追蹤。" />
   }
 
   const isSaving = Boolean(saving || localSaving)
 
   return (
-    <div style={{ display: 'grid', gap: '20px' }}>
+    <div className="admin-page-stack">
       <SectionHeader
         eyebrow="交易紀錄"
         title="營運帳目"
-        description="追蹤交易參考編號、付款方式、已連結預約，以及已解析的營運範圍。"
+        description="追蹤交易參考編號、付款方式、已連結預約、訂單、顧客，以及已解析的營運範圍。"
         actions={
-          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+          <div className="admin-inline-actions">
             <Pill>{filteredTransactions.length} 可見</Pill>
-            <Pill>{summary.linkedBookings} 個預約連結</Pill>
-            <Pill>{summary.linkedOrders} 個訂單連結</Pill>
-            {saveTransactions && (
+            <Pill>{summary.linkedBookings} 預約連結</Pill>
+            <Pill>{summary.linkedOrders} 訂單連結</Pill>
+            {saveTransactions ? (
               <button type="button" onClick={handleSave} disabled={isSaving} className="btn btn-small btn-interactive" style={{ background: '#34D399' }}>
-                {isSaving && <span className="spinner"></span>}
                 {isSaving ? '儲存中...' : '儲存變更'}
               </button>
-            )}
+            ) : null}
           </div>
         }
       />
 
-      <RecordFilterBar
-        columns="repeat(auto-fit, minmax(180px, 1fr))"
-        actions={
-          <button type="button" onClick={addTransaction} className="btn btn-small btn-interactive">
-            + 新增交易
-          </button>
-        }
-      >
-        <input type="text" placeholder="搜尋參考編號、顧客、預約、訂單、備註..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} style={fieldStyle} />
-        <select value={kindFilter} onChange={(e) => setKindFilter(e.target.value)} style={fieldStyle}>
+      <RecordFilterBar columns="repeat(auto-fit, minmax(180px, 1fr))" actions={<button type="button" onClick={addTransaction} className="btn btn-small btn-interactive">+ 新增交易</button>}>
+        <input type="text" placeholder="搜尋參考編號、顧客、預約、訂單、備註..." value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} style={fieldStyle} />
+        <select value={kindFilter} onChange={(event) => setKindFilter(event.target.value)} style={fieldStyle}>
           <option value="all">全部類型</option>
-          <option value="sale">銷售</option>
-          <option value="refund">退款</option>
-          <option value="adjustment">調整</option>
-          <option value="deposit">訂金</option>
+          {KIND_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
         </select>
-        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={fieldStyle}>
+        <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} style={fieldStyle}>
           <option value="all">全部狀態</option>
-          <option value="pending">待處理</option>
-          <option value="paid">已付款</option>
-          <option value="failed">失敗</option>
-          <option value="reconciled">已對帳</option>
-          <option value="cancelled">已取消</option>
+          {STATUS_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
         </select>
       </RecordFilterBar>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
-        <div className="admin-card" style={{ padding: '16px', border: '1px solid var(--gray)' }}>
-          <div style={{ fontSize: '12px', fontWeight: 800, color: '#A68B6A', marginBottom: '6px' }}>記錄數</div>
-          <div style={{ fontSize: '22px', fontWeight: 800 }}>{summary.rows}</div>
-        </div>
-        <div className="admin-card" style={{ padding: '16px', border: '1px solid var(--gray)' }}>
-          <div style={{ fontSize: '12px', fontWeight: 800, color: '#A68B6A', marginBottom: '6px' }}>帳目總額</div>
-          <div style={{ fontSize: '22px', fontWeight: 800, color: 'var(--primary)' }}>{formatMoney(summary.amount, 'HKD')}</div>
-        </div>
-        <div className="admin-card" style={{ padding: '16px', border: '1px solid var(--gray)' }}>
-          <div style={{ fontSize: '12px', fontWeight: 800, color: '#A68B6A', marginBottom: '6px' }}>已連結顧客</div>
-          <div style={{ fontSize: '22px', fontWeight: 800 }}>{summary.linkedCustomers}</div>
-        </div>
-        <div className="admin-card" style={{ padding: '16px', border: '1px solid var(--gray)' }}>
-          <div style={{ fontSize: '12px', fontWeight: 800, color: '#A68B6A', marginBottom: '6px' }}>已對帳</div>
-          <div style={{ fontSize: '22px', fontWeight: 800 }}>{summary.reconciled}</div>
-        </div>
+      <div className="admin-metric-grid">
+        <Metric label="記錄數" value={summary.rows} />
+        <Metric label="帳目總額" value={formatMoney(summary.amount, 'HKD')} tone="primary" />
+        <Metric label="已連結顧客" value={summary.linkedCustomers} />
+        <Metric label="已對帳" value={summary.reconciled} />
       </div>
 
-      <div className="admin-card" style={{ overflow: 'hidden' }}>
+      <div className="admin-card admin-table-shell">
         <div className="hide-scrollbar" style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', minWidth: '1360px' }}>
+          <table className="admin-data-table" style={{ minWidth: '1360px' }}>
             <thead>
-              <tr style={{ background: '#FAF8F5', borderBottom: '1px solid var(--gray)' }}>
-                <th style={{ padding: '14px 12px', textAlign: 'left', color: 'var(--text-light)' }}>時間</th>
-                <th style={{ padding: '14px 12px', textAlign: 'left', color: 'var(--text-light)' }}>參考編號</th>
-                <th style={{ padding: '14px 12px', textAlign: 'left', color: 'var(--text-light)' }}>類型</th>
-                <th style={{ padding: '14px 12px', textAlign: 'left', color: 'var(--text-light)' }}>金額</th>
-                <th style={{ padding: '14px 12px', textAlign: 'left', color: 'var(--text-light)' }}>付款方式</th>
-                <th style={{ padding: '14px 12px', textAlign: 'left', color: 'var(--text-light)' }}>預約 / 訂單</th>
-                <th style={{ padding: '14px 12px', textAlign: 'left', color: 'var(--text-light)' }}>範圍 / 連結</th>
-                <th style={{ padding: '14px 12px', textAlign: 'left', color: 'var(--text-light)' }}>備註</th>
-                <th style={{ padding: '14px 12px', textAlign: 'left', color: 'var(--text-light)' }}>狀態</th>
-                <th style={{ padding: '14px 12px', textAlign: 'center', color: 'var(--text-light)' }}>操作</th>
+              <tr>
+                {['時間', '參考編號', '類型', '金額', '付款方式', '預約 / 訂單', '範圍 / 連結', '備註', '狀態', '操作'].map((label) => (
+                  <th key={label} style={{ textAlign: label === '操作' ? 'center' : 'left' }}>{label}</th>
+                ))}
               </tr>
             </thead>
             <tbody>
               {filteredTransactions.length === 0 ? (
                 <tr>
                   <td colSpan="10">
-                    <EmptyState title="暫無交易記錄" description="當訂單、預約或調整同步後，交易會顯示於此。" />
+                    <EmptyState title="暫時沒有交易紀錄" description="當訂單、預約或調整同步後，交易會顯示在這裡。" />
                   </td>
                 </tr>
               ) : (
@@ -369,153 +342,52 @@ export default function TransactionsTab({
                   const bookingLabel = row.__booking ? getBookingLabel(row.__booking) : row.booking_id ? `預約 #${row.booking_id}` : '-'
                   const orderLabel = row.__order ? getOrderLabel(row.__order) : row.order_id ? `訂單 #${row.order_id}` : '-'
                   const customerLabel = row.__customer ? getCustomerLabel(row.__customer) : row.customer_name || '-'
-                  const scopeParts = [
-                    row.__location ? getLocationLabel(row.__location) : row.location_name || '',
-                    row.__providerGroup ? getProviderGroupLabel(row.__providerGroup) : row.provider_group_name || '',
-                  ].filter(Boolean)
+                  const scopeParts = [row.__location ? getLocationLabel(row.__location) : row.location_name || '', row.__providerGroup ? getProviderGroupLabel(row.__providerGroup) : row.provider_group_name || ''].filter(Boolean)
 
                   return (
-                    <tr
-                      key={row.id}
-                      className="admin-table-row"
-                      style={{ borderBottom: '1px solid #f6f6f6', opacity: deleted ? 0.55 : 1, cursor: 'pointer' }}
-                      onClick={() => setSelectedTransaction(row)}
-                    >
-                      <td style={{ padding: '12px' }}>{row.occurred_at ? new Date(row.occurred_at).toLocaleString() : row.created_at ? new Date(row.created_at).toLocaleString() : '-'}</td>
-                      <td style={{ padding: '12px' }}>
-                        <input
-                          value={row.ref || ''}
-                          onChange={(e) => update(row.id, { ref: e.target.value })}
-                          style={smallFieldStyle}
-                          disabled={deleted}
-                          onClick={(event) => event.stopPropagation()}
-                        />
+                    <tr key={row.id} className="admin-table-row" style={{ opacity: deleted ? 0.55 : 1 }} onClick={() => setSelectedTransaction(row)}>
+                      <td>{formatDateTime(row.occurred_at, row.created_at)}</td>
+                      <td>
+                        <input value={row.ref || ''} onChange={(event) => update(row.id, { ref: event.target.value })} style={smallFieldStyle} disabled={deleted} onClick={(event) => event.stopPropagation()} />
                       </td>
-                      <td style={{ padding: '12px' }}>
-                        <select value={row.kind || 'sale'} onChange={(e) => update(row.id, { kind: e.target.value })} style={smallFieldStyle} disabled={deleted} onClick={(event) => event.stopPropagation()}>
-                          <option value="sale">銷售</option>
-                          <option value="refund">退款</option>
-                          <option value="adjustment">調整</option>
-                          <option value="deposit">訂金</option>
+                      <td>
+                        <select value={row.kind || 'sale'} onChange={(event) => update(row.id, { kind: event.target.value })} style={smallFieldStyle} disabled={deleted} onClick={(event) => event.stopPropagation()}>
+                          {KIND_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                         </select>
                       </td>
-                      <td style={{ padding: '12px' }}>
-                        <input
-                          type="number"
-                          value={row.amount || 0}
-                          onChange={(e) => update(row.id, { amount: parseInt(e.target.value, 10) || 0 })}
-                          style={smallFieldStyle}
-                          disabled={deleted}
-                          onClick={(event) => event.stopPropagation()}
-                        />
+                      <td>
+                        <input type="number" value={row.amount || 0} onChange={(event) => update(row.id, { amount: parseInt(event.target.value, 10) || 0 })} style={smallFieldStyle} disabled={deleted} onClick={(event) => event.stopPropagation()} />
                       </td>
-                      <td style={{ padding: '12px' }}>
-                        <input
-                          value={row.payment_method || ''}
-                          onChange={(e) => update(row.id, { payment_method: e.target.value })}
-                          placeholder="現金 / 信用卡 / 銀行轉帳"
-                          style={smallFieldStyle}
-                          disabled={deleted}
-                          onClick={(event) => event.stopPropagation()}
-                        />
-                        <div style={{ fontSize: '11px', color: 'var(--text-light)', marginTop: '4px' }}>{row.provider || row.payment_ref || ''}</div>
+                      <td>
+                        <input value={row.payment_method || ''} onChange={(event) => update(row.id, { payment_method: event.target.value })} placeholder="現金 / 信用卡 / 銀行轉帳" style={smallFieldStyle} disabled={deleted} onClick={(event) => event.stopPropagation()} />
+                        <div className="admin-muted-line">{row.provider || row.payment_ref || ''}</div>
                       </td>
-                      <td style={{ padding: '12px' }}>
-                        <div style={{ marginBottom: '6px' }}>
-                          <span
-                            className="badge"
-                            style={{
-                              border: 'none',
-                              background: row.__location || row.__providerGroup ? '#ECFDF5' : '#FEF3C7',
-                              color: row.__location || row.__providerGroup ? '#047857' : '#B45309',
-                            }}
-                          >
-                            {row.__location || row.__providerGroup ? '已設定' : '缺少範圍'}
-                          </span>
-                        </div>
-                        <div style={{ fontWeight: 700 }}>{bookingLabel}</div>
-                        <div style={{ fontSize: '11px', color: 'var(--text-light)', marginTop: '4px' }}>{orderLabel}</div>
-                        <div style={{ fontSize: '11px', color: 'var(--text-light)', marginTop: '4px' }}>{customerLabel}</div>
+                      <td>
+                        <div style={{ fontWeight: 800 }}>{bookingLabel}</div>
+                        <div className="admin-muted-line">{orderLabel}</div>
+                        <div className="admin-muted-line">{customerLabel}</div>
                       </td>
-                      <td style={{ padding: '12px' }}>
-                        <div style={{ fontWeight: 700 }}>{scopeParts.length ? scopeParts.join(' / ') : '-'}</div>
-                        <div style={{ fontSize: '11px', color: 'var(--text-light)', marginTop: '4px' }}>
-                          {row.currency || 'HKD'}
-                          {row.location_id ? ` - 地點 #${row.location_id}` : ''}
-                        </div>
+                      <td>
+                        <Pill tone={row.__location || row.__providerGroup ? 'success' : 'warning'}>{row.__location || row.__providerGroup ? '已設定' : '缺少範圍'}</Pill>
+                        <div style={{ marginTop: '6px', fontWeight: 700 }}>{scopeParts.length ? scopeParts.join(' / ') : '-'}</div>
+                        <div className="admin-muted-line">{row.currency || 'HKD'}{row.location_id ? ` / 地點 #${row.location_id}` : ''}</div>
                       </td>
-                      <td style={{ padding: '12px' }}>
-                        <textarea
-                          value={row.notes || ''}
-                          onChange={(e) => update(row.id, { notes: e.target.value })}
-                          placeholder="營運備註"
-                          style={{ ...smallFieldStyle, minHeight: '68px', resize: 'vertical', width: '100%' }}
-                          disabled={deleted}
-                          onClick={(event) => event.stopPropagation()}
-                        />
+                      <td>
+                        <textarea value={row.notes || ''} onChange={(event) => update(row.id, { notes: event.target.value })} placeholder="營運備註" style={{ ...smallFieldStyle, minHeight: '68px', resize: 'vertical', width: '100%' }} disabled={deleted} onClick={(event) => event.stopPropagation()} />
                       </td>
-                      <td style={{ padding: '12px' }}>
-                        <select value={row.status || 'pending'} onChange={(e) => update(row.id, { status: e.target.value })} style={smallFieldStyle} disabled={deleted} onClick={(event) => event.stopPropagation()}>
-                          <option value="pending">待處理</option>
-                          <option value="paid">已付款</option>
-                          <option value="failed">失敗</option>
-                          <option value="reconciled">已對帳</option>
-                          <option value="cancelled">已取消</option>
+                      <td>
+                        <select value={row.status || 'pending'} onChange={(event) => update(row.id, { status: event.target.value })} style={smallFieldStyle} disabled={deleted} onClick={(event) => event.stopPropagation()}>
+                          {STATUS_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                         </select>
-                        <div style={{ marginTop: '6px' }}>
-                          <span
-                            className="badge"
-                            style={{
-                              border: 'none',
-                              background: tone === 'success' ? '#ECFDF5' : tone === 'warning' ? '#FEF3C7' : tone === 'danger' ? '#FEF2F2' : '#E5E7EB',
-                              color: tone === 'success' ? '#047857' : tone === 'warning' ? '#B45309' : tone === 'danger' ? '#DC2626' : '#374151',
-                            }}
-                          >
-                          {getStatusLabel(row.status || 'pending')}
-                        </span>
-                      </div>
-                    </td>
-                      <td style={{ padding: '12px', textAlign: 'center' }}>
-                        <button
-                          type="button"
-                          onClick={(event) => {
-                            event.stopPropagation()
-                            setSelectedTransaction(row)
-                          }}
-                          className="btn-interactive"
-                          style={{
-                            padding: '7px 12px',
-                            borderRadius: '8px',
-                            border: '1px solid var(--gray)',
-                            background: '#fff',
-                            cursor: 'pointer',
-                            fontSize: '12px',
-                            fontWeight: 700,
-                            marginRight: '8px',
-                          }}
-                        >
-                          詳情
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(event) => {
-                            event.stopPropagation()
-                            toggleDelete(row.id)
-                          }}
-                          className="btn-interactive"
-                          style={{
-                            padding: '7px 12px',
-                            borderRadius: '8px',
-                            border: 'none',
-                            background: deleted ? '#ECFDF5' : '#FEF2F2',
-                            color: deleted ? '#166534' : '#DC2626',
-                            cursor: 'pointer',
-                            fontSize: '12px',
-                            fontWeight: 700,
-                          }}
-                        >
-                          {deleted ? '還原' : '刪除'}
-                        </button>
+                        <div style={{ marginTop: '6px' }}><Pill tone={tone}>{getStatusLabel(row.status || 'pending')}</Pill></div>
+                      </td>
+                      <td style={{ textAlign: 'center' }}>
+                        <div className="admin-row-actions">
+                          <button type="button" onClick={(event) => { event.stopPropagation(); setSelectedTransaction(row) }} className="btn btn-small btn-interactive" style={{ background: '#fff' }}>詳情</button>
+                          <button type="button" onClick={(event) => { event.stopPropagation(); toggleDelete(row.id) }} className="btn btn-small btn-interactive" style={{ background: deleted ? '#ECFDF5' : '#FEF2F2', color: deleted ? '#166534' : '#DC2626' }}>
+                            {deleted ? '還原' : '刪除'}
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   )
@@ -526,71 +398,52 @@ export default function TransactionsTab({
         </div>
       </div>
 
-      {selectedTransaction && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0,0,0,0.55)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1200,
-            padding: '20px',
-            backdropFilter: 'blur(4px)',
-          }}
-          onClick={() => setSelectedTransaction(null)}
-        >
-          <div className="admin-card" style={{ width: '100%', maxWidth: '760px', padding: '24px', position: 'relative' }} onClick={(event) => event.stopPropagation()}>
-              <button type="button" onClick={() => setSelectedTransaction(null)} style={{ position: 'absolute', top: '16px', right: '16px', background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#999' }}>
-              關閉
-            </button>
-
+      {selectedTransaction ? (
+        <div className="vh-dialog-backdrop" onClick={() => setSelectedTransaction(null)}>
+          <div className="admin-card admin-detail-drawer" onClick={(event) => event.stopPropagation()}>
+            <button type="button" onClick={() => setSelectedTransaction(null)} className="admin-close-button">關閉</button>
             <div style={{ marginBottom: '18px' }}>
-              <div style={{ fontSize: '12px', fontWeight: 800, color: '#A68B6A', letterSpacing: '0.08em' }}>交易詳情</div>
+              <div className="admin-eyebrow">交易詳情</div>
               <h3 style={{ margin: '6px 0 0', fontSize: '18px' }}>{selectedTransaction.ref || selectedTransaction.id}</h3>
             </div>
-
-            <div style={{ display: 'grid', gap: '14px' }}>
-              <div style={{ background: '#f9fafb', padding: '16px', borderRadius: '12px' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
-                  <DetailBlock label="時間" value={selectedTransaction.occurred_at ? new Date(selectedTransaction.occurred_at).toLocaleString() : selectedTransaction.created_at ? new Date(selectedTransaction.created_at).toLocaleString() : '-'} />
+            <div className="admin-page-stack">
+              <div className="admin-card" style={{ padding: '16px', border: '1px solid var(--gray)' }}>
+                <div className="admin-detail-grid">
+                  <DetailBlock label="時間" value={formatDateTime(selectedTransaction.occurred_at, selectedTransaction.created_at)} />
                   <DetailBlock label="類型" value={getKindLabel(selectedTransaction.kind)} />
                   <DetailBlock label="狀態" value={getStatusLabel(selectedTransaction.status || 'pending')} />
                   <DetailBlock label="金額" value={formatMoney(Number(selectedTransaction.amount || 0), selectedTransaction.currency || 'HKD')} />
                 </div>
               </div>
-
               <div className="admin-card" style={{ padding: '16px', border: '1px solid var(--gray)' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px', marginBottom: '12px' }}>
+                <div className="admin-detail-grid">
                   <DetailBlock label="預約" value={selectedTransaction.__booking ? getBookingLabel(selectedTransaction.__booking) : selectedTransaction.booking_id ? `預約 #${selectedTransaction.booking_id}` : '-'} />
                   <DetailBlock label="訂單" value={selectedTransaction.__order ? getOrderLabel(selectedTransaction.__order) : selectedTransaction.order_id ? `訂單 #${selectedTransaction.order_id}` : '-'} />
                   <DetailBlock label="顧客" value={selectedTransaction.__customer ? getCustomerLabel(selectedTransaction.__customer) : selectedTransaction.customer_name || '-'} />
                   <DetailBlock label="付款方式" value={selectedTransaction.payment_method || selectedTransaction.__order?.payment_method || selectedTransaction.__booking?.payment_method || '-'} />
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
                   <DetailBlock label="地點" value={selectedTransaction.__location ? getLocationLabel(selectedTransaction.__location) : selectedTransaction.location_name || selectedTransaction.__order?.location_name || selectedTransaction.__booking?.location_name || '-'} />
                   <DetailBlock label="供應者群組" value={selectedTransaction.__providerGroup ? getProviderGroupLabel(selectedTransaction.__providerGroup) : selectedTransaction.provider_group_name || selectedTransaction.__order?.provider_group_name || selectedTransaction.__booking?.provider_group_name || '-'} />
                   <DetailBlock label="供應者參考" value={selectedTransaction.provider || selectedTransaction.__order?.provider || selectedTransaction.__booking?.provider || '-'} />
                   <DetailBlock label="付款參考" value={selectedTransaction.payment_ref || selectedTransaction.__order?.payment_ref || selectedTransaction.__booking?.payment_ref || '-'} />
                 </div>
               </div>
-
               <div className="admin-card" style={{ padding: '16px', border: '1px solid var(--gray)' }}>
-                <div style={{ fontSize: '12px', color: 'var(--text-light)', fontWeight: 700, marginBottom: '4px' }}>備註</div>
+                <div className="admin-detail-label">備註</div>
                 <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.7 }}>{selectedTransaction.notes || '沒有備註。'}</div>
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-                <button type="button" onClick={() => setSelectedTransaction(null)} className="btn btn-small btn-interactive" style={{ background: '#fff' }}>
-                  關閉
-                </button>
               </div>
             </div>
           </div>
         </div>
-      )}
+      ) : null}
+    </div>
+  )
+}
+
+function Metric({ label, value, tone }) {
+  return (
+    <div className="admin-card admin-metric-card">
+      <div className="admin-metric-label">{label}</div>
+      <div className="admin-metric-value" style={{ color: tone === 'primary' ? 'var(--primary)' : 'var(--text)' }}>{value}</div>
     </div>
   )
 }
@@ -598,7 +451,7 @@ export default function TransactionsTab({
 function DetailBlock({ label, value }) {
   return (
     <div>
-      <div style={{ fontSize: '12px', color: 'var(--text-light)', fontWeight: 700, marginBottom: '4px' }}>{label}</div>
+      <div className="admin-detail-label">{label}</div>
       <div style={{ fontWeight: 700 }}>{value || '-'}</div>
     </div>
   )
