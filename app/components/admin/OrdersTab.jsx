@@ -15,8 +15,27 @@ const STATUS_OPTIONS = [
   { value: 'cancelled', label: '已取消', tone: 'danger' },
 ]
 
+const actionButtonStyle = {
+  padding: '7px 12px',
+  background: '#8BA58B',
+  color: '#fff',
+  border: 'none',
+  borderRadius: '8px',
+  cursor: 'pointer',
+  fontSize: '12px',
+  fontWeight: 800,
+}
+
+const normalizeOrder = (order) => ({
+  ...order,
+  __isNew: Boolean(order?.__isNew),
+  __deleted: Boolean(order?.__deleted),
+})
+
 const getCustomerName = (order) => order.user_name || order.customer_name || order.name || order.__customer?.name || '顧客'
 const getCustomerPhone = (order) => order.phone || order.user_phone || order.customer_phone || order.__customer?.phone || ''
+const getDateText = (order) => (order.created_at ? new Date(order.created_at).toLocaleString('zh-HK') : '-')
+
 const getItemsText = (order) => {
   if (Array.isArray(order.items)) {
     return order.items
@@ -26,6 +45,7 @@ const getItemsText = (order) => {
   }
   return order.items || order.product_name || order.description || '-'
 }
+
 const getDeliveryText = (order) => {
   const value = order.delivery || order.delivery_method || ''
   if (value === 'digital-ticket') return '套票 / 到店使用'
@@ -33,33 +53,25 @@ const getDeliveryText = (order) => {
   if (value === 'delivery') return '配送'
   return value || '未設定'
 }
+
 const getPaymentText = (order) => {
   const value = order.payment || order.payment_method || ''
   if (value === 'stripe') return 'Stripe'
   if (value === 'manual' || value === 'manual-admin') return '人工確認'
   return value || '未設定'
 }
-const getDateText = (order) => (order.created_at ? new Date(order.created_at).toLocaleString('zh-HK') : '-')
-const getOrderStatusMeta = (status) => STATUS_OPTIONS.find((option) => option.value === status) || { value: status || 'pending', label: status || '待處理', tone: 'warning' }
+
+const getOrderStatusMeta = (status) =>
+  STATUS_OPTIONS.find((option) => option.value === status) || { value: status || 'pending', label: status || '待處理', tone: 'warning' }
+
 const isTicketPackageOrder = (order) => {
   const text = [order.delivery, order.items, order.ticket_id, order.package_id].filter(Boolean).join(' ').toLowerCase()
   return text.includes('digital-ticket') || text.includes('package') || text.includes('ticket') || text.includes('套票')
 }
+
 const canConfirmPayment = (order) => String(order.status || '') === 'awaiting_payment' && isTicketPackageOrder(order)
 
-const normalizeOrder = (order) => ({
-  ...order,
-  __isNew: Boolean(order?.__isNew),
-  __deleted: Boolean(order?.__deleted),
-})
-
-export default function OrdersTab({
-  orders: initialOrders = [],
-  bookings = [],
-  customers = [],
-  transactions = [],
-  saving = false,
-}) {
+export default function OrdersTab({ orders: initialOrders = [], bookings = [], customers = [], transactions = [], saving = false }) {
   const [orders, setOrders] = useState(() => (initialOrders || []).map(normalizeOrder))
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
@@ -72,29 +84,35 @@ export default function OrdersTab({
     setOrders((initialOrders || []).map(normalizeOrder))
   }, [initialOrders])
 
-  const transactionByOrderId = useMemo(() => {
-    return (transactions || []).reduce((acc, tx) => {
-      const orderId = Number(tx?.order_id)
-      if (!Number.isFinite(orderId)) return acc
-      if (!acc[orderId]) acc[orderId] = []
-      acc[orderId].push(tx)
-      return acc
-    }, {})
-  }, [transactions])
+  const transactionByOrderId = useMemo(
+    () =>
+      (transactions || []).reduce((acc, tx) => {
+        const orderId = Number(tx?.order_id)
+        if (!Number.isFinite(orderId)) return acc
+        if (!acc[orderId]) acc[orderId] = []
+        acc[orderId].push(tx)
+        return acc
+      }, {}),
+    [transactions],
+  )
 
-  const customerLookup = useMemo(() => {
-    return (customers || []).reduce((acc, customer) => {
-      if (customer?.id != null) acc[String(customer.id)] = customer
-      return acc
-    }, {})
-  }, [customers])
+  const customerLookup = useMemo(
+    () =>
+      (customers || []).reduce((acc, customer) => {
+        if (customer?.id != null) acc[String(customer.id)] = customer
+        return acc
+      }, {}),
+    [customers],
+  )
 
-  const bookingLookup = useMemo(() => {
-    return (bookings || []).reduce((acc, booking) => {
-      if (booking?.id != null) acc[String(booking.id)] = booking
-      return acc
-    }, {})
-  }, [bookings])
+  const bookingLookup = useMemo(
+    () =>
+      (bookings || []).reduce((acc, booking) => {
+        if (booking?.id != null) acc[String(booking.id)] = booking
+        return acc
+      }, {}),
+    [bookings],
+  )
 
   const enrichedOrders = useMemo(() => {
     return orders.map((order) => {
@@ -134,19 +152,21 @@ export default function OrdersTab({
     })
   }, [enrichedOrders, paymentFilter, searchTerm, statusFilter])
 
-  const summary = useMemo(() => {
-    return filteredOrders.reduce(
-      (acc, order) => {
-        acc.rows += 1
-        acc.revenue += Number(order.total || 0)
-        if (String(order.status || '') === 'awaiting_payment') acc.awaiting += 1
-        if (String(order.status || '') === 'completed') acc.completed += 1
-        if (String(getPaymentText(order)).toLowerCase() === 'stripe') acc.stripe += 1
-        return acc
-      },
-      { rows: 0, revenue: 0, awaiting: 0, completed: 0, stripe: 0 },
-    )
-  }, [filteredOrders])
+  const summary = useMemo(
+    () =>
+      filteredOrders.reduce(
+        (acc, order) => {
+          acc.rows += 1
+          acc.revenue += Number(order.total || 0)
+          if (String(order.status || '') === 'awaiting_payment') acc.awaiting += 1
+          if (String(order.status || '') === 'completed') acc.completed += 1
+          if (String(getPaymentText(order)).toLowerCase() === 'stripe') acc.stripe += 1
+          return acc
+        },
+        { rows: 0, revenue: 0, awaiting: 0, completed: 0, stripe: 0 },
+      ),
+    [filteredOrders],
+  )
 
   const updateStatus = async (id, status) => {
     try {
@@ -195,23 +215,23 @@ export default function OrdersTab({
   const isRowSaving = (order) => saving || savingId === order.id || confirmingId === order.id
 
   return (
-    <div style={{ display: 'grid', gap: '20px' }}>
+    <div className="admin-page-stack">
       <SectionHeader
         eyebrow="訂單"
         title="訂單與付款"
-        description="查看產品與套票訂單、付款方式、Stripe 狀態，以及人工確認付款後發放套票。"
+        description="集中查看商品與套票訂單、付款方式、Stripe 狀態，以及人工確認付款後發放套票。"
         actions={
-          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+          <div className="admin-inline-actions">
             <Pill>{filteredOrders.length} 筆顯示</Pill>
-            <Pill>{summary.awaiting} 筆待付款</Pill>
+            <Pill tone={summary.awaiting ? 'warning' : 'success'}>{summary.awaiting} 待付款</Pill>
             <Pill>{summary.stripe} 筆 Stripe</Pill>
           </div>
         }
       />
 
       <RecordFilterBar columns="repeat(auto-fit, minmax(180px, 1fr))">
-        <input type="text" placeholder="搜尋訂單、顧客、項目、付款方式..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} style={fieldStyle} />
-        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={fieldStyle}>
+        <input type="text" placeholder="搜尋訂單、顧客、項目、付款方式..." value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} style={fieldStyle} />
+        <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} style={fieldStyle}>
           <option value="all">全部狀態</option>
           {STATUS_OPTIONS.map((option) => (
             <option key={option.value} value={option.value}>
@@ -219,7 +239,7 @@ export default function OrdersTab({
             </option>
           ))}
         </select>
-        <select value={paymentFilter} onChange={(e) => setPaymentFilter(e.target.value)} style={fieldStyle}>
+        <select value={paymentFilter} onChange={(event) => setPaymentFilter(event.target.value)} style={fieldStyle}>
           <option value="all">全部付款方式</option>
           {paymentValues.map((value) => (
             <option key={value} value={value}>
@@ -229,20 +249,20 @@ export default function OrdersTab({
         </select>
       </RecordFilterBar>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
+      <div className="admin-metric-grid">
         <Metric label="訂單數" value={summary.rows} />
         <Metric label="營業額" value={formatMoney(summary.revenue, '')} tone="primary" />
-        <Metric label="待付款" value={summary.awaiting} />
+        <Metric label="待付款" value={summary.awaiting} tone={summary.awaiting ? 'warning' : ''} />
         <Metric label="已完成" value={summary.completed} />
       </div>
 
-      <div className="admin-card" style={{ overflow: 'hidden' }}>
+      <div className="admin-card admin-table-shell">
         <div className="hide-scrollbar" style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', minWidth: '960px' }}>
+          <table className="admin-data-table" style={{ minWidth: '960px' }}>
             <thead>
-              <tr style={{ background: '#FAF8F5', borderBottom: '1px solid var(--gray)' }}>
+              <tr>
                 {['日期', '顧客', '項目', '金額', '交付方式', '付款方式', '狀態', '操作'].map((label) => (
-                  <th key={label} style={{ padding: '14px 12px', textAlign: label === '操作' ? 'center' : 'left', color: 'var(--text-light)' }}>
+                  <th key={label} style={{ textAlign: label === '操作' ? 'center' : 'left' }}>
                     {label}
                   </th>
                 ))}
@@ -259,24 +279,24 @@ export default function OrdersTab({
                 filteredOrders.map((order) => {
                   const statusMeta = getOrderStatusMeta(order.status || 'pending')
                   return (
-                    <tr key={order.id} className="admin-table-row" style={{ borderBottom: '1px solid #f6f6f6', cursor: 'pointer' }} onClick={() => setSelectedOrder(order)}>
-                      <td style={{ padding: '14px 12px' }}>{getDateText(order)}</td>
-                      <td style={{ padding: '14px 12px' }}>
+                    <tr key={order.id} className="admin-table-row" onClick={() => setSelectedOrder(order)}>
+                      <td>{getDateText(order)}</td>
+                      <td>
                         <div style={{ fontWeight: 800 }}>{getCustomerName(order)}</div>
-                        <div style={{ fontSize: '11px', color: 'var(--text-light)', marginTop: '3px' }}>{getCustomerPhone(order)}</div>
+                        <div className="admin-muted-line">{getCustomerPhone(order)}</div>
                       </td>
-                      <td style={{ padding: '14px 12px', maxWidth: '260px', lineHeight: 1.5 }}>{getItemsText(order)}</td>
-                      <td style={{ padding: '14px 12px', fontWeight: 800, color: 'var(--primary)' }}>{formatMoney(order.total, order.currency || '')}</td>
-                      <td style={{ padding: '14px 12px' }}>{getDeliveryText(order)}</td>
-                      <td style={{ padding: '14px 12px' }}>
+                      <td style={{ maxWidth: '260px', lineHeight: 1.5 }}>{getItemsText(order)}</td>
+                      <td style={{ fontWeight: 800, color: 'var(--primary)' }}>{formatMoney(order.total, order.currency || '')}</td>
+                      <td>{getDeliveryText(order)}</td>
+                      <td>
                         <div style={{ fontWeight: 700 }}>{getPaymentText(order)}</div>
-                        <div style={{ fontSize: '11px', color: 'var(--text-light)', marginTop: '3px' }}>{order.payment_ref || order.__transaction?.payment_ref || ''}</div>
+                        <div className="admin-muted-line">{order.payment_ref || order.__transaction?.payment_ref || ''}</div>
                       </td>
-                      <td style={{ padding: '14px 12px' }}>
+                      <td>
                         <StatusBadge meta={statusMeta} />
                       </td>
-                      <td style={{ padding: '14px 12px', textAlign: 'center' }}>
-                        <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                      <td style={{ textAlign: 'center' }}>
+                        <div className="admin-row-actions">
                           {canConfirmPayment(order) ? (
                             <button
                               type="button"
@@ -315,46 +335,43 @@ export default function OrdersTab({
 
       {selectedOrder ? (
         <div className="vh-dialog-backdrop" onClick={() => setSelectedOrder(null)}>
-          <div className="admin-card" style={{ width: '100%', maxWidth: '760px', padding: '24px', position: 'relative' }} onClick={(event) => event.stopPropagation()}>
-            <button type="button" onClick={() => setSelectedOrder(null)} style={{ position: 'absolute', top: '16px', right: '16px', background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#999' }}>
+          <div className="admin-card admin-detail-drawer" onClick={(event) => event.stopPropagation()}>
+            <button type="button" onClick={() => setSelectedOrder(null)} className="admin-close-button">
               關閉
             </button>
 
             <div style={{ marginBottom: '18px' }}>
-              <div style={{ fontSize: '12px', fontWeight: 800, color: '#8BA58B', letterSpacing: '0.08em' }}>訂單詳情</div>
+              <div className="admin-eyebrow">訂單詳情</div>
               <h3 style={{ margin: '6px 0 0', fontSize: '18px' }}>{selectedOrder.ref || `訂單 #${selectedOrder.id}`}</h3>
             </div>
 
-            <div style={{ display: 'grid', gap: '14px' }}>
-              <div className="admin-card" style={{ padding: '16px', border: '1px solid var(--gray)' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
-                  <DetailBlock label="顧客" value={getCustomerName(selectedOrder)} />
-                  <DetailBlock label="電話" value={getCustomerPhone(selectedOrder)} />
-                  <DetailBlock label="日期" value={getDateText(selectedOrder)} />
-                  <DetailBlock label="狀態" value={getOrderStatusMeta(selectedOrder.status).label} />
-                  <DetailBlock label="項目" value={getItemsText(selectedOrder)} />
-                  <DetailBlock label="總額" value={formatMoney(selectedOrder.total, selectedOrder.currency || '')} />
-                  <DetailBlock label="交付方式" value={getDeliveryText(selectedOrder)} />
-                  <DetailBlock label="付款方式" value={getPaymentText(selectedOrder)} />
-                  <DetailBlock label="地址" value={selectedOrder.address || '-'} />
-                  <DetailBlock label="付款參考" value={selectedOrder.payment_ref || selectedOrder.__transaction?.payment_ref || '-'} />
-                </div>
+            <div className="admin-card" style={{ padding: '16px', border: '1px solid var(--gray)' }}>
+              <div className="admin-detail-grid">
+                <DetailBlock label="顧客" value={getCustomerName(selectedOrder)} />
+                <DetailBlock label="電話" value={getCustomerPhone(selectedOrder)} />
+                <DetailBlock label="日期" value={getDateText(selectedOrder)} />
+                <DetailBlock label="狀態" value={getOrderStatusMeta(selectedOrder.status).label} />
+                <DetailBlock label="項目" value={getItemsText(selectedOrder)} />
+                <DetailBlock label="總額" value={formatMoney(selectedOrder.total, selectedOrder.currency || '')} />
+                <DetailBlock label="交付方式" value={getDeliveryText(selectedOrder)} />
+                <DetailBlock label="付款方式" value={getPaymentText(selectedOrder)} />
+                <DetailBlock label="地址" value={selectedOrder.address || '-'} />
+                <DetailBlock label="付款參考" value={selectedOrder.payment_ref || selectedOrder.__transaction?.payment_ref || '-'} />
               </div>
+            </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
-                <label>
-                  狀態
-                  <select value={selectedOrder.status || 'pending'} onChange={(event) => updateStatus(selectedOrder.id, event.target.value)} disabled={isRowSaving(selectedOrder)} style={{ ...smallFieldStyle, maxWidth: '220px' }}>
-                    {STATUS_OPTIONS.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', flexWrap: 'wrap' }}>
+            <div className="admin-detail-actions">
+              <label style={{ display: 'grid', gap: '8px', fontSize: '13px', fontWeight: 800 }}>
+                狀態
+                <select value={selectedOrder.status || 'pending'} onChange={(event) => updateStatus(selectedOrder.id, event.target.value)} disabled={isRowSaving(selectedOrder)} style={{ ...smallFieldStyle, minWidth: '220px' }}>
+                  {STATUS_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <div className="admin-inline-actions">
                 {canConfirmPayment(selectedOrder) ? (
                   <button type="button" onClick={() => confirmPayment(selectedOrder)} className="btn btn-small btn-interactive" disabled={isRowSaving(selectedOrder)} style={{ background: '#8BA58B', color: '#fff' }}>
                     {confirmingId === selectedOrder.id ? '確認中...' : '確認收款並發放套票'}
@@ -370,17 +387,6 @@ export default function OrdersTab({
       ) : null}
     </div>
   )
-}
-
-const actionButtonStyle = {
-  padding: '6px 12px',
-  background: '#8BA58B',
-  color: '#fff',
-  border: 'none',
-  borderRadius: '8px',
-  cursor: 'pointer',
-  fontSize: '12px',
-  fontWeight: 700,
 }
 
 function StatusBadge({ meta }) {
@@ -401,10 +407,11 @@ function StatusBadge({ meta }) {
 }
 
 function Metric({ label, value, tone }) {
+  const color = tone === 'primary' ? 'var(--primary)' : tone === 'warning' ? '#B45309' : 'var(--text)'
   return (
-    <div className="admin-card" style={{ padding: '16px', border: '1px solid var(--gray)' }}>
-      <div style={{ fontSize: '12px', fontWeight: 800, color: '#8BA58B', marginBottom: '6px' }}>{label}</div>
-      <div style={{ fontSize: '22px', fontWeight: 800, color: tone === 'primary' ? 'var(--primary)' : 'var(--text)' }}>{value}</div>
+    <div className="admin-card admin-metric-card">
+      <div className="admin-metric-label">{label}</div>
+      <div className="admin-metric-value" style={{ color }}>{value}</div>
     </div>
   )
 }
@@ -412,7 +419,7 @@ function Metric({ label, value, tone }) {
 function DetailBlock({ label, value }) {
   return (
     <div>
-      <div style={{ fontSize: '12px', color: 'var(--text-light)', fontWeight: 700, marginBottom: '4px' }}>{label}</div>
+      <div className="admin-detail-label">{label}</div>
       <div style={{ fontWeight: 700 }}>{value || '-'}</div>
     </div>
   )

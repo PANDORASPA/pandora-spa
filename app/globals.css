@@ -1032,6 +1032,201 @@ label {
   color: var(--text-light);
 }
 
+.admin-page-stack {
+  display: grid;
+  gap: 20px;
+}
+
+.admin-inline-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.admin-command-panel {
+  padding: 20px 22px;
+  background: linear-gradient(135deg, #fff, #FBF8F4);
+  border: 1px solid rgba(166, 139, 106, 0.22);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.admin-eyebrow {
+  color: #A68B6A;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.admin-command-title {
+  margin-top: 4px;
+  font-size: 20px;
+  font-weight: 850;
+  color: var(--text);
+}
+
+.admin-command-description {
+  margin-top: 6px;
+  color: var(--text-light);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.admin-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.admin-metric-card {
+  padding: 16px;
+  border: 1px solid var(--gray);
+  border-radius: 14px;
+}
+
+.admin-metric-label {
+  font-size: 12px;
+  font-weight: 800;
+  color: #8BA58B;
+  margin-bottom: 6px;
+}
+
+.admin-metric-value {
+  font-size: 22px;
+  font-weight: 850;
+}
+
+.admin-table-shell {
+  overflow: hidden;
+  border: 1px solid rgba(166, 139, 106, 0.16);
+}
+
+.admin-data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.admin-data-table th {
+  padding: 12px;
+  background: #FAF8F5;
+  border-bottom: 1px solid var(--gray);
+  color: #7A6B5A;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.admin-data-table td {
+  padding: 13px 12px;
+  border-bottom: 1px solid #F3EEE7;
+  vertical-align: middle;
+}
+
+.admin-data-table tbody tr {
+  cursor: pointer;
+}
+
+.admin-row-selected {
+  background: #FFFBF5;
+}
+
+.admin-muted-line {
+  margin-top: 3px;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--text-light);
+}
+
+.admin-row-actions {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.admin-detail-drawer {
+  width: 100%;
+  max-width: 760px;
+  padding: 24px;
+  position: relative;
+}
+
+.admin-close-button {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  background: #fff;
+  border: 1px solid var(--gray);
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+  color: var(--text-light);
+}
+
+.admin-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.admin-detail-label {
+  font-size: 12px;
+  color: var(--text-light);
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.admin-detail-actions {
+  margin-top: 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.admin-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+}
+
+.admin-form-grid.compact {
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+}
+
+.admin-relation-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 14px;
+}
+
+.admin-relation-row {
+  padding: 12px;
+  border: 1px solid #EEE7DE;
+  border-radius: 12px;
+  display: grid;
+  gap: 10px;
+  background: #fff;
+}
+
+.admin-relation-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 120px 120px auto;
+  gap: 10px;
+  align-items: end;
+}
+
+.admin-relation-controls.provider {
+  grid-template-columns: minmax(0, 1fr) 140px auto;
+}
+
 /* ============ PANDORA HEAD SPA storefront ============ */
 .vh-container {
   width: min(1120px, calc(100% - 32px));
@@ -1538,6 +1733,22 @@ label {
   .admin-card {
     border-radius: 18px;
     box-shadow: 0 10px 26px rgba(63, 49, 36, 0.06);
+  }
+
+  .admin-command-panel,
+  .admin-detail-actions {
+    align-items: stretch;
+  }
+
+  .admin-inline-actions,
+  .admin-row-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .admin-relation-controls,
+  .admin-relation-controls.provider {
+    grid-template-columns: 1fr;
   }
 
   .vh-container {

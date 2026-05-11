@@ -76,7 +76,7 @@ function SectionField({ label, children, hint }) {
 
 function RelationRow({ children, meta }) {
   return (
-    <div style={{ padding: '12px', border: '1px solid #EEE7DE', borderRadius: '12px', display: 'grid', gap: '10px' }}>
+    <div className="admin-relation-row">
       {children}
       {meta ? <div style={helperTextStyle}>{meta}</div> : null}
     </div>
@@ -132,8 +132,11 @@ export default function ServicesTab({
   const visibleServices = useMemo(() => [...services].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0)), [services])
   const selectedService = useMemo(
     () => visibleServices.find((service) => String(service.id) === String(selectedServiceId)) || null,
-    [selectedServiceId, visibleServices]
+    [selectedServiceId, visibleServices],
   )
+
+  const activeCount = visibleServices.filter((service) => service.enabled && !service.__deleted).length
+  const deletedCount = visibleServices.filter((service) => service.__deleted).length
 
   const updateService = (id, updater) => {
     setServices((current) => current.map((item) => (item.id === id ? updater(item) : item)))
@@ -192,21 +195,21 @@ export default function ServicesTab({
 
   const addLocationLink = (serviceId) => {
     const unused = (locations || []).find(
-      (location) => !locationLinks.some((row) => String(row.service_id) === String(serviceId) && Number(row.location_id) === Number(location.id))
+      (location) => !locationLinks.some((row) => String(row.service_id) === String(serviceId) && Number(row.location_id) === Number(location.id)),
     )
     setLocationLinks((current) => [...current, normalizeLocationLink({ service_id: serviceId, location_id: unused?.id ?? '', extra_price: 0, enabled: true })])
   }
 
   const addProviderGroupLink = (serviceId) => {
     const unused = (providerGroups || []).find(
-      (group) => !providerGroupLinks.some((row) => String(row.service_id) === String(serviceId) && Number(row.provider_group_id) === Number(group.id))
+      (group) => !providerGroupLinks.some((row) => String(row.service_id) === String(serviceId) && Number(row.provider_group_id) === Number(group.id)),
     )
     setProviderGroupLinks((current) => [...current, normalizeProviderGroupLink({ service_id: serviceId, provider_group_id: unused?.id ?? '', assignment_mode: 'any' })])
   }
 
   const addResourceLink = (serviceId) => {
     const unused = (resources || []).find(
-      (resource) => !resourceLinks.some((row) => String(row.service_id) === String(serviceId) && Number(row.resource_id) === Number(resource.id))
+      (resource) => !resourceLinks.some((row) => String(row.service_id) === String(serviceId) && Number(row.resource_id) === Number(resource.id)),
     )
     setResourceLinks((current) => [...current, normalizeResourceLink({ service_id: serviceId, resource_id: unused?.id ?? '', quantity: 1, required: true })])
   }
@@ -241,50 +244,54 @@ export default function ServicesTab({
   const currentResourceLinks = selectedService ? relationsForService(resourceLinks, selectedService.id) : []
 
   return (
-    <div style={{ display: 'grid', gap: '20px' }}>
-      <div className="admin-card" style={{ padding: '20px 22px', background: 'linear-gradient(135deg, #fff, #fbf7f1)', border: '1px solid rgba(166, 139, 106, 0.22)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+    <div className="admin-page-stack">
+      <div className="admin-card admin-command-panel">
         <div>
-          <div style={{ color: '#A68B6A', fontSize: '12px', fontWeight: 800, letterSpacing: '0.08em' }}>服務設定</div>
-          <div style={{ marginTop: '4px', fontSize: '20px', fontWeight: 800 }}>列表管理服務內容與預約規則</div>
-          <div style={{ marginTop: '4px', color: 'var(--text-light)', fontSize: '13px', lineHeight: 1.6 }}>
-            先在列表選擇服務，再進入單一編輯畫面修改基本資料、時間、地點、群組及資源設定。
+          <div className="admin-eyebrow">服務設定</div>
+          <div className="admin-command-title">服務內容與預約規則</div>
+          <div className="admin-command-description">
+            左側管理服務列表，右側編輯價格、時長、預約模式、地點、服務人員群組與資源容量。
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+        <div className="admin-inline-actions">
+          <StatusPill tone="success">{activeCount} 項啟用</StatusPill>
+          {deletedCount ? <StatusPill tone="danger">{deletedCount} 項待刪除</StatusPill> : null}
           <StatusPill tone="accent">{visibleServices.length} 項服務</StatusPill>
-          <button onClick={addService} className="btn btn-small btn-interactive" type="button">新增服務</button>
+          <button onClick={addService} className="btn btn-small btn-interactive" type="button">
+            新增服務
+          </button>
           <button onClick={handleSave} disabled={saving} className="btn btn-small btn-interactive" type="button" style={{ background: '#34D399', minWidth: '122px' }}>
-            {saving ? '儲存中...' : '儲存服務設定'}
+            {saving ? '儲存中...' : '儲存設定'}
           </button>
         </div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : 'minmax(360px, 420px) minmax(0, 1fr)', gap: '18px', alignItems: 'start' }}>
-        <div className="admin-card" style={{ padding: '18px', border: '1px solid rgba(166, 139, 106, 0.16)' }}>
+        <div className="admin-card admin-table-shell">
           {visibleServices.length === 0 ? (
-            <EmptyState title="尚未建立服務" description="請先新增服務，再設定價格、時長與關聯規則。" />
+            <EmptyState title="尚未建立服務" description="請先新增服務，再設定價格、時長與預約規則。" />
           ) : (
             <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <table className="admin-data-table">
                 <thead>
                   <tr>
-                    <th style={{ ...listTableCellStyle, textAlign: 'left', fontSize: '12px', color: '#8B7355' }}>服務</th>
-                    <th style={{ ...listTableCellStyle, textAlign: 'left', fontSize: '12px', color: '#8B7355' }}>價格</th>
-                    <th style={{ ...listTableCellStyle, textAlign: 'left', fontSize: '12px', color: '#8B7355' }}>時長</th>
-                    <th style={{ ...listTableCellStyle, textAlign: 'left', fontSize: '12px', color: '#8B7355' }}>狀態</th>
-                    <th style={{ ...listTableCellStyle, textAlign: 'left', fontSize: '12px', color: '#8B7355' }}>操作</th>
+                    {['服務', '價格', '時長', '狀態', '操作'].map((label) => (
+                      <th key={label} style={{ textAlign: 'left' }}>
+                        {label}
+                      </th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody>
                   {visibleServices.map((service) => {
                     const isSelected = String(service.id) === String(selectedServiceId)
                     return (
-                      <tr key={service.id} style={{ background: isSelected ? '#FFFBF5' : 'transparent' }}>
+                      <tr key={service.id} className={isSelected ? 'admin-row-selected' : ''}>
                         <td style={listTableCellStyle}>
                           <div style={{ fontWeight: 800, color: 'var(--text)' }}>{service.name || '未命名服務'}</div>
-                          <div style={{ marginTop: '4px', fontSize: '12px', color: 'var(--text-light)' }}>
+                          <div className="admin-muted-line">
                             {service.category || '未分類'}
-                            {service.__isNew ? ' · 新增草稿' : ''}
+                            {service.__isNew ? ' / 新增草稿' : ''}
                           </div>
                         </td>
                         <td style={listTableCellStyle}>${Number(service.price || 0).toLocaleString()}</td>
@@ -295,12 +302,14 @@ export default function ServicesTab({
                           </StatusPill>
                         </td>
                         <td style={listTableCellStyle}>
-                          <button type="button" className="btn btn-small btn-interactive" onClick={() => setSelectedServiceId(service.id)} style={{ marginRight: '8px' }}>
-                            {isSelected ? '編輯中' : '編輯'}
-                          </button>
-                          <button onClick={() => toggleDeleteService(service.id)} className="btn btn-small btn-interactive" type="button" style={{ background: service.__deleted ? '#ECFDF5' : '#FEF2F2', color: service.__deleted ? '#166534' : '#DC2626', border: '1px solid rgba(220,38,38,0.15)' }}>
-                            {service.__deleted ? '還原' : '刪除'}
-                          </button>
+                          <div className="admin-row-actions" style={{ justifyContent: 'flex-start' }}>
+                            <button type="button" className="btn btn-small btn-interactive" onClick={() => setSelectedServiceId(service.id)}>
+                              {isSelected ? '編輯中' : '編輯'}
+                            </button>
+                            <button onClick={() => toggleDeleteService(service.id)} className="btn btn-small btn-interactive" type="button" style={{ background: service.__deleted ? '#ECFDF5' : '#FEF2F2', color: service.__deleted ? '#166534' : '#DC2626', border: '1px solid rgba(220,38,38,0.15)' }}>
+                              {service.__deleted ? '還原' : '刪除'}
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     )
@@ -312,26 +321,20 @@ export default function ServicesTab({
         </div>
 
         {selectedService ? (
-          <div style={{ display: 'grid', gap: '16px' }}>
-            <div className="admin-card" style={{ padding: '20px', border: '1px solid rgba(166, 139, 106, 0.16)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '16px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
-                <div>
-                  <div style={{ fontSize: '12px', color: '#A68B6A', fontWeight: 800, letterSpacing: '0.08em' }}>編輯服務</div>
-                  <div style={{ marginTop: '4px', fontSize: '24px', fontWeight: 900 }}>{selectedService.name || '未命名服務'}</div>
-                  <div style={{ marginTop: '6px', color: 'var(--text-light)', fontSize: '13px' }}>
-                    預設地點：{selectedService.default_location_id ? lookupLabel(locationLookup, selectedService.default_location_id) : '未設定'}
-                    {' · '}
-                    預設群組：{selectedService.default_provider_group_id ? lookupLabel(providerGroupLookup, selectedService.default_provider_group_id) : '未設定'}
-                  </div>
+          <div className="admin-page-stack">
+            <div className="admin-card admin-command-panel">
+              <div>
+                <div className="admin-eyebrow">編輯服務</div>
+                <div className="admin-command-title">{selectedService.name || '未命名服務'}</div>
+                <div className="admin-command-description">
+                  預設地點：{selectedService.default_location_id ? lookupLabel(locationLookup, selectedService.default_location_id) : '未設定'} / 預設群組：{selectedService.default_provider_group_id ? lookupLabel(providerGroupLookup, selectedService.default_provider_group_id) : '未設定'}
                 </div>
-                <StatusPill tone={selectedService.enabled ? 'success' : 'neutral'}>
-                  {selectedService.enabled ? '啟用中' : '已隱藏'}
-                </StatusPill>
               </div>
+              <StatusPill tone={selectedService.enabled ? 'success' : 'neutral'}>{selectedService.enabled ? '啟用中' : '已隱藏'}</StatusPill>
             </div>
 
             <AdminSection eyebrow="基本資料" title="服務資訊" description="管理前台顯示名稱、分類、介紹與圖片。">
-            <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
+              <div className="admin-form-grid">
                 <SectionField label="服務名稱">
                   <input value={selectedService.name || ''} onChange={(event) => updateService(selectedService.id, (item) => ({ ...item, name: event.target.value }))} style={fieldStyle} />
                 </SectionField>
@@ -344,7 +347,7 @@ export default function ServicesTab({
                 <SectionField label="排序">
                   <input type="number" value={selectedService.sort_order} onChange={(event) => updateService(selectedService.id, (item) => ({ ...item, sort_order: Number(event.target.value || 0) }))} style={fieldStyle} />
                 </SectionField>
-                <SectionField label="圖片 URL" hint="可留空，維持現有圖片來源。">
+                <SectionField label="圖片 URL" hint="可留空，前台會使用預設視覺。">
                   <input value={selectedService.image_url || ''} onChange={(event) => updateService(selectedService.id, (item) => ({ ...item, image_url: event.target.value }))} style={fieldStyle} />
                 </SectionField>
                 <SectionField label="狀態">
@@ -361,23 +364,31 @@ export default function ServicesTab({
               </div>
             </AdminSection>
 
-            <AdminSection eyebrow="價格與時間" title="商業與預約規則" description="時長與步進改成安全選項，避免異常時段。">
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '14px' }}>
+            <AdminSection eyebrow="價格與時長" title="商業與預約規則" description="控制前台價格、服務時長、緩衝時間與可預約數量。">
+              <div className="admin-form-grid compact">
                 <SectionField label="價格">
                   <input type="number" min="0" value={selectedService.price} onChange={(event) => updateService(selectedService.id, (item) => ({ ...item, price: Number(event.target.value || 0) }))} style={fieldStyle} />
                 </SectionField>
                 <SectionField label="服務時長">
                   <select value={selectedService.time} onChange={(event) => updateService(selectedService.id, (item) => ({ ...item, time: Number(event.target.value || 60) }))} style={fieldStyle}>
-                    {DURATION_OPTIONS.map((duration) => <option key={duration} value={duration}>{duration} 分鐘</option>)}
+                    {DURATION_OPTIONS.map((duration) => (
+                      <option key={duration} value={duration}>
+                        {duration} 分鐘
+                      </option>
+                    ))}
                   </select>
                 </SectionField>
                 <SectionField label="緩衝時間">
                   <input type="number" min="0" step="5" value={selectedService.buffer_min} onChange={(event) => updateService(selectedService.id, (item) => ({ ...item, buffer_min: Number(event.target.value || 0) }))} style={fieldStyle} />
                 </SectionField>
-                <SectionField label="時段步進" hint="未設定時跟隨系統預設。">
+                <SectionField label="時段步長" hint="未設定時使用系統預設。">
                   <select value={selectedService.slot_step_min === '' ? '' : Number(selectedService.slot_step_min)} onChange={(event) => updateService(selectedService.id, (item) => ({ ...item, slot_step_min: event.target.value === '' ? '' : Number(event.target.value) }))} style={fieldStyle}>
                     <option value="">跟隨系統預設</option>
-                    {SLOT_STEP_OPTIONS.filter(Boolean).map((step) => <option key={step} value={step}>{step} 分鐘</option>)}
+                    {SLOT_STEP_OPTIONS.filter(Boolean).map((step) => (
+                      <option key={step} value={step}>
+                        {step} 分鐘
+                      </option>
+                    ))}
                   </select>
                 </SectionField>
                 <SectionField label="最少數量">
@@ -386,7 +397,7 @@ export default function ServicesTab({
                 <SectionField label="最多數量">
                   <input type="number" min="1" value={selectedService.max_booking_qty} onChange={(event) => updateService(selectedService.id, (item) => ({ ...item, max_booking_qty: Number(event.target.value || 1) }))} style={fieldStyle} />
                 </SectionField>
-                <SectionField label="預約模式" hint="維持 phase2 既有 routing truth。">
+                <SectionField label="預約模式" hint="支援現有 availability routing。">
                   <select value={selectedService.booking_mode} onChange={(event) => updateService(selectedService.id, (item) => ({ ...item, booking_mode: event.target.value }))} style={fieldStyle}>
                     <option value="staff">服務供應者</option>
                     <option value="provider_group">服務供應者群組</option>
@@ -397,38 +408,50 @@ export default function ServicesTab({
               </div>
             </AdminSection>
 
-            <AdminSection eyebrow="預設對應" title="地點與群組預設" description="只設定安全 fallback，不改 relation 真相。">
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
+            <AdminSection eyebrow="預設對應" title="地點與群組預設" description="設定安全 fallback，不取代下方 relation 規則。">
+              <div className="admin-form-grid">
                 <SectionField label="預設地點">
                   <select value={selectedService.default_location_id} onChange={(event) => updateService(selectedService.id, (item) => ({ ...item, default_location_id: event.target.value }))} style={fieldStyle}>
                     <option value="">未設定</option>
-                    {locations.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}
+                    {locations.map((location) => (
+                      <option key={location.id} value={location.id}>
+                        {location.name}
+                      </option>
+                    ))}
                   </select>
                 </SectionField>
                 <SectionField label="預設服務供應者群組">
                   <select value={selectedService.default_provider_group_id} onChange={(event) => updateService(selectedService.id, (item) => ({ ...item, default_provider_group_id: event.target.value }))} style={fieldStyle}>
                     <option value="">未設定</option>
-                    {providerGroups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}
+                    {providerGroups.map((group) => (
+                      <option key={group.id} value={group.id}>
+                        {group.name}
+                      </option>
+                    ))}
                   </select>
                 </SectionField>
               </div>
             </AdminSection>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '14px' }}>
-              <AdminSection eyebrow="地點關聯" title="可預約地點" description="列表方式設定這項服務可在哪些地點提供。" actions={relationAvailability.locations ? <button type="button" className="btn btn-small btn-interactive" onClick={() => addLocationLink(selectedService.id)}>新增地點</button> : null}>
+            <div className="admin-relation-grid">
+              <AdminSection eyebrow="地點關聯" title="可預約地點" description="設定這項服務可在哪些地點提供。" actions={relationAvailability.locations ? <button type="button" className="btn btn-small btn-interactive" onClick={() => addLocationLink(selectedService.id)}>新增地點</button> : null}>
                 {!relationAvailability.locations ? (
                   <EmptyState title="地點關聯未啟用" description="locations 或 service_locations 尚未可用。" />
                 ) : currentLocationLinks.length === 0 ? (
-                  <EmptyState title="未連結地點" description="請至少加入一個地點，避免前台出現保守 fallback。" />
+                  <EmptyState title="未連結地點" description="請至少加入一個地點，避免前台使用保守 fallback。" />
                 ) : (
                   <div style={{ display: 'grid', gap: '10px' }}>
                     {currentLocationLinks.map((row) => (
                       <RelationRow key={row.id} meta={`目前地點：${row.location_id ? lookupLabel(locationLookup, row.location_id) : '未指定'}`}>
-                <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : 'minmax(0, 1fr) 120px 120px auto', gap: '10px', alignItems: 'end' }}>
+                        <div className="admin-relation-controls">
                           <SectionField label="地點">
                             <select value={row.location_id} onChange={(event) => updateRelation(setLocationLinks, row.id, { location_id: event.target.value === '' ? '' : Number(event.target.value) })} style={fieldStyle}>
                               <option value="">選擇地點</option>
-                              {locations.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}
+                              {locations.map((location) => (
+                                <option key={location.id} value={location.id}>
+                                  {location.name}
+                                </option>
+                              ))}
                             </select>
                           </SectionField>
                           <SectionField label="額外價格">
@@ -440,7 +463,9 @@ export default function ServicesTab({
                               <option value="hidden">停用</option>
                             </select>
                           </SectionField>
-                          <button type="button" className="btn btn-small btn-interactive" onClick={() => removeRelation({ id: row.id, setter: setLocationLinks, deletedSetter: setDeletedServiceLocationIds })} style={{ background: '#FEF2F2', color: '#DC2626', border: '1px solid #FECACA' }}>移除</button>
+                          <button type="button" className="btn btn-small btn-interactive" onClick={() => removeRelation({ id: row.id, setter: setLocationLinks, deletedSetter: setDeletedServiceLocationIds })} style={{ background: '#FEF2F2', color: '#DC2626', border: '1px solid #FECACA' }}>
+                            移除
+                          </button>
                         </div>
                       </RelationRow>
                     ))}
@@ -448,20 +473,24 @@ export default function ServicesTab({
                 )}
               </AdminSection>
 
-              <AdminSection eyebrow="群組關聯" title="可用服務供應者群組" description="控制這項服務可由哪些群組提供。" actions={relationAvailability.providerGroups ? <button type="button" className="btn btn-small btn-interactive" onClick={() => addProviderGroupLink(selectedService.id)}>新增群組</button> : null}>
+              <AdminSection eyebrow="群組關聯" title="可用服務供應者群組" description="控制這項服務可由哪些服務人員群組提供。" actions={relationAvailability.providerGroups ? <button type="button" className="btn btn-small btn-interactive" onClick={() => addProviderGroupLink(selectedService.id)}>新增群組</button> : null}>
                 {!relationAvailability.providerGroups ? (
                   <EmptyState title="群組關聯未啟用" description="provider_groups 或 service_provider_groups 尚未可用。" />
                 ) : currentProviderGroupLinks.length === 0 ? (
-                  <EmptyState title="未連結群組" description="如服務需限定特定群組，請在此加入。" />
+                  <EmptyState title="未連結群組" description="如服務需要限定特定群組，請在此加入。" />
                 ) : (
                   <div style={{ display: 'grid', gap: '10px' }}>
                     {currentProviderGroupLinks.map((row) => (
                       <RelationRow key={row.id} meta={`目前群組：${row.provider_group_id ? lookupLabel(providerGroupLookup, row.provider_group_id) : '未指定'}`}>
-                <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : 'minmax(0, 1fr) 140px auto', gap: '10px', alignItems: 'end' }}>
+                        <div className="admin-relation-controls provider">
                           <SectionField label="服務供應者群組">
                             <select value={row.provider_group_id} onChange={(event) => updateRelation(setProviderGroupLinks, row.id, { provider_group_id: event.target.value === '' ? '' : Number(event.target.value) })} style={fieldStyle}>
                               <option value="">選擇群組</option>
-                              {providerGroups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}
+                              {providerGroups.map((group) => (
+                                <option key={group.id} value={group.id}>
+                                  {group.name}
+                                </option>
+                              ))}
                             </select>
                           </SectionField>
                           <SectionField label="分派模式">
@@ -471,7 +500,9 @@ export default function ServicesTab({
                               <option value="required">必須</option>
                             </select>
                           </SectionField>
-                          <button type="button" className="btn btn-small btn-interactive" onClick={() => removeRelation({ id: row.id, setter: setProviderGroupLinks, deletedSetter: setDeletedServiceProviderGroupIds })} style={{ background: '#FEF2F2', color: '#DC2626', border: '1px solid #FECACA' }}>移除</button>
+                          <button type="button" className="btn btn-small btn-interactive" onClick={() => removeRelation({ id: row.id, setter: setProviderGroupLinks, deletedSetter: setDeletedServiceProviderGroupIds })} style={{ background: '#FEF2F2', color: '#DC2626', border: '1px solid #FECACA' }}>
+                            移除
+                          </button>
                         </div>
                       </RelationRow>
                     ))}
@@ -489,11 +520,15 @@ export default function ServicesTab({
                 <div style={{ display: 'grid', gap: '10px' }}>
                   {currentResourceLinks.map((row) => (
                     <RelationRow key={row.id} meta={`目前資源：${row.resource_id ? lookupLabel(resourceLookup, row.resource_id) : '未指定'} x${row.quantity}`}>
-                <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : 'minmax(0, 1fr) 100px 120px auto', gap: '10px', alignItems: 'end' }}>
+                      <div className="admin-relation-controls">
                         <SectionField label="資源設備">
                           <select value={row.resource_id} onChange={(event) => updateRelation(setResourceLinks, row.id, { resource_id: event.target.value === '' ? '' : Number(event.target.value) })} style={fieldStyle}>
                             <option value="">選擇資源</option>
-                            {resources.map((resource) => <option key={resource.id} value={resource.id}>{resource.name}</option>)}
+                            {resources.map((resource) => (
+                              <option key={resource.id} value={resource.id}>
+                                {resource.name}
+                              </option>
+                            ))}
                           </select>
                         </SectionField>
                         <SectionField label="數量">
@@ -505,7 +540,9 @@ export default function ServicesTab({
                             <option value="optional">可選</option>
                           </select>
                         </SectionField>
-                        <button type="button" className="btn btn-small btn-interactive" onClick={() => removeRelation({ id: row.id, setter: setResourceLinks, deletedSetter: setDeletedServiceResourceIds })} style={{ background: '#FEF2F2', color: '#DC2626', border: '1px solid #FECACA' }}>移除</button>
+                        <button type="button" className="btn btn-small btn-interactive" onClick={() => removeRelation({ id: row.id, setter: setResourceLinks, deletedSetter: setDeletedServiceResourceIds })} style={{ background: '#FEF2F2', color: '#DC2626', border: '1px solid #FECACA' }}>
+                          移除
+                        </button>
                       </div>
                     </RelationRow>
                   ))}
