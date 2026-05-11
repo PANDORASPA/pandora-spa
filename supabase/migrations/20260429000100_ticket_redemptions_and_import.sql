@@ -34,8 +34,8 @@ DROP POLICY IF EXISTS "Admins manage ticket redemptions" ON public.ticket_redemp
 CREATE POLICY "Admins manage ticket redemptions"
 ON public.ticket_redemptions
 FOR ALL
-USING (public.is_admin())
-WITH CHECK (public.is_admin());
+USING (public.is_admin_user())
+WITH CHECK (public.is_admin_user());
 
 CREATE INDEX IF NOT EXISTS user_tickets_member_remaining_idx
 ON public.user_tickets(member_user_id, remaining_count, expiry_date);
