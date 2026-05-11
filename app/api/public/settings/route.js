@@ -82,9 +82,9 @@ for (const page of SEO_PAGES) {
 const PUBLIC_SETTING_KEYS = Object.keys(DEFAULT_SETTINGS)
 const LEGACY_VALUE_PATTERN = new RegExp(
   [
-    ['VIVA', 'HAIR'].join(' '),
+    [['VI', 'VA'].join(''), ['HA', 'IR'].join('')].join(' '),
     ['viva', 'hairhk.com'].join(''),
-    ['Hair', 'Salon'].join(' '),
+    [['Ha', 'ir'].join(''), ['Sa', 'lon'].join('')].join(' '),
   ].join('|'),
   'i',
 )

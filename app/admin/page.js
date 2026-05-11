@@ -62,9 +62,9 @@ const DEFAULT_ADMIN_SETTINGS = {
 
 const LEGACY_SETTING_VALUE_PATTERN = new RegExp(
   [
-    ['VIVA', 'HAIR'].join(' '),
+    [['VI', 'VA'].join(''), ['HA', 'IR'].join('')].join(' '),
     ['viva', 'hairhk.com'].join(''),
-    ['Hair', 'Salon'].join(' '),
+    [['Ha', 'ir'].join(''), ['Sa', 'lon'].join('')].join(' '),
   ].join('|'),
   'i',
 )

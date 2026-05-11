@@ -99,7 +99,7 @@ function LoginInner() {
           會員
           <span style={{ color: '#A68B6A' }}>登入</span>
         </h1>
-        <p style={subtitleStyle}>登入後可查看會員資料、我的預約，以及完成確認信後的後續流程。</p>
+        <p style={subtitleStyle}>登入後可查看會員資料、我的套票，以及完成確認信後的後續流程。</p>
 
         <form onSubmit={handleLogin} style={{ display: 'grid', gap: '14px' }}>
           <div>
@@ -143,7 +143,7 @@ function LoginInner() {
 
         <div style={{ marginTop: '16px', display: 'grid', gap: '10px', fontSize: '14px' }}>
           <Link href={`/register?redirectTo=${encodeURIComponent(redirectTo)}`} style={{ color: '#A68B6A', fontWeight: 700 }}>
-            註冊新帳號
+            註冊新帳戶
           </Link>
           <span style={{ color: '#999' }}>如忘記密碼，請聯絡店舖協助重設。</span>
         </div>

@@ -137,7 +137,7 @@ function RegisterInner() {
         return
       }
 
-      toast.success('註冊成功，請到電郵完成確認；確認後會進入會員中心')
+      toast.success('註冊成功，請到電郵完成確認；確認後可登入會員中心')
       router.replace(`/login?redirectTo=${encodeURIComponent('/account')}`)
     } catch (error) {
       const message = String(error?.message || '').toLowerCase()
@@ -157,7 +157,7 @@ function RegisterInner() {
         <div style={{ display: 'grid', gap: '10px' }}>
           <h1 style={titleStyle}>
             建立
-            <span style={{ color: '#A68B6A' }}>會員帳號</span>
+            <span style={{ color: '#A68B6A' }}>會員帳戶</span>
           </h1>
           <p style={subtitleStyle}>完成註冊後，請到電郵完成確認。確認成功後，系統會帶你進入會員中心。</p>
         </div>
@@ -229,7 +229,7 @@ function RegisterInner() {
               autoComplete="new-password"
               value={confirmPassword}
               onChange={(event) => setConfirmPassword(event.target.value)}
-              placeholder="請再次輸入密碼"
+              placeholder="再次輸入密碼"
               required
               style={inputStyle}
             />
@@ -246,7 +246,7 @@ function RegisterInner() {
         </form>
 
         <div style={{ display: 'grid', gap: '10px', fontSize: '14px', color: '#6B7280' }}>
-          <div>如果你已經有帳號，可以直接登入會員中心。</div>
+          <div>如果你已經有帳戶，可以直接登入會員中心。</div>
           <Link href={`/login?redirectTo=${encodeURIComponent(redirectTo)}`} style={{ color: '#A68B6A', fontWeight: 700 }}>
             返回登入
           </Link>
