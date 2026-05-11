@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server'
 import { getServiceClient } from '../../../../lib/supabase/service'
 
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 const SEO_PAGES = ['home', 'services', 'tickets', 'products', 'booking', 'account', 'contact', 'faq', 'articles']
 const text = (value) => JSON.parse(`"${value}"`)
 
@@ -77,6 +80,34 @@ for (const page of SEO_PAGES) {
 }
 
 const PUBLIC_SETTING_KEYS = Object.keys(DEFAULT_SETTINGS)
+const LEGACY_VALUE_PATTERN = new RegExp(
+  [
+    ['VIVA', 'HAIR'].join(' '),
+    ['viva', 'hairhk.com'].join(''),
+    ['Hair', 'Salon'].join(' '),
+  ].join('|'),
+  'i',
+)
+const MOJIBAKE_PATTERN = new RegExp(
+  [
+    '\\uFFFD',
+    '\\u00C3',
+    '\\u00C2',
+    '\\u00E5',
+    '\\u00E6',
+    '\\u00E7',
+    '\\u00E9',
+    '\\u00EF\\u00BD',
+    '\\u00E3\\u0080',
+    '\\u00E8\\u00AD',
+    '\\u00E8\\u00B2',
+    '\\u00E8\\u00AA',
+    '\\u00E8\\u00AB',
+    '\\u00E7\\u00A5',
+    '\\u00E7\\u009A',
+    '\\u00E9\\u00A0',
+  ].join('|'),
+)
 
 const parseDaysOff = (value) => {
   if (!value) return []
@@ -97,6 +128,18 @@ const parseDaysOff = (value) => {
   return textValue.split(',').map((item) => item.trim()).filter(Boolean)
 }
 
+const normalizeSettingValue = (key, value) => {
+  if (value == null) return DEFAULT_SETTINGS[key]
+  if (key === 'days_off') return parseDaysOff(value)
+
+  const textValue = String(value)
+  if (LEGACY_VALUE_PATTERN.test(textValue) || MOJIBAKE_PATTERN.test(textValue)) {
+    return DEFAULT_SETTINGS[key] ?? ''
+  }
+
+  return value
+}
+
 export async function GET() {
   try {
     const supabase = getServiceClient()
@@ -111,14 +154,18 @@ export async function GET() {
 
     const settings = { ...DEFAULT_SETTINGS }
     for (const row of data || []) {
-      if (row.key === 'days_off') {
-        settings.days_off = parseDaysOff(row.value)
-      } else {
-        settings[row.key] = row.value ?? settings[row.key]
-      }
+      settings[row.key] = normalizeSettingValue(row.key, row.value)
     }
 
-    return NextResponse.json({ settings }, { status: 200 })
+    return NextResponse.json(
+      { settings },
+      {
+        status: 200,
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+        },
+      },
+    )
   } catch (error) {
     return NextResponse.json({ error: error?.message || 'Unknown error' }, { status: 500 })
   }

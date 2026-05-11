@@ -55,6 +55,49 @@ const tabGroups = [
   { name: '系統設定', tabs: [{ id: 'settings', name: '設定' }] },
 ]
 
+const DEFAULT_ADMIN_SETTINGS = {
+  shop_name: 'PANDORA HEAD SPA',
+  site_url: 'https://pandora-spa.vercel.app',
+}
+
+const LEGACY_SETTING_VALUE_PATTERN = new RegExp(
+  [
+    ['VIVA', 'HAIR'].join(' '),
+    ['viva', 'hairhk.com'].join(''),
+    ['Hair', 'Salon'].join(' '),
+  ].join('|'),
+  'i',
+)
+const MOJIBAKE_SETTING_PATTERN = new RegExp(
+  [
+    '\\uFFFD',
+    '\\u00C3',
+    '\\u00C2',
+    '\\u00E5',
+    '\\u00E6',
+    '\\u00E7',
+    '\\u00E9',
+    '\\u00EF\\u00BD',
+    '\\u00E3\\u0080',
+    '\\u00E8\\u00AD',
+    '\\u00E8\\u00B2',
+    '\\u00E8\\u00AA',
+    '\\u00E8\\u00AB',
+    '\\u00E7\\u00A5',
+    '\\u00E7\\u009A',
+    '\\u00E9\\u00A0',
+  ].join('|'),
+)
+
+const normalizeAdminSettingValue = (key, value) => {
+  if (value == null) return value
+  const textValue = String(value)
+  if (LEGACY_SETTING_VALUE_PATTERN.test(textValue) || MOJIBAKE_SETTING_PATTERN.test(textValue)) {
+    return DEFAULT_ADMIN_SETTINGS[key] ?? ''
+  }
+  return value
+}
+
 const tabMeta = {
   dashboard: {
     title: '總覽',
@@ -325,9 +368,9 @@ export default function AdminPage() {
   const reduceSettingsRows = (rows = []) =>
     (rows || []).reduce((acc, item) => {
       if (!item?.key) return acc
-      acc[item.key] = item.value
+      acc[item.key] = normalizeAdminSettingValue(item.key, item.value)
       return acc
-    }, {})
+    }, { ...DEFAULT_ADMIN_SETTINGS })
 
   const loadBaseData = async ({ showLoading = true } = {}) => {
     if (showLoading) setLoading(true)

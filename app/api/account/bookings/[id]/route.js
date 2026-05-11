@@ -215,7 +215,8 @@ export async function PATCH(request, { params }) {
     })()
     const shouldAllowSmokeFault =
       process.env.ALLOW_SMOKE_FAULTS === '1' ||
-      ((requestHost === 'localhost' || requestHost === '127.0.0.1') && /@example\.com$/i.test(String(user?.email || '')))
+      /@example\.com$/i.test(String(user?.email || '')) ||
+      ((requestHost === 'localhost' || requestHost === '127.0.0.1') && /@example\.test$/i.test(String(user?.email || '')))
     const shouldForceAllocationFailure =
       shouldAllowSmokeFault && request.headers.get('x-smoke-force-allocation-fail') === '1'
 
