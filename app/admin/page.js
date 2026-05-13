@@ -1042,7 +1042,7 @@ const normalizeNullableNumber = (value) => {
           enabled: item.enabled !== false,
           schedule: normalizedSchedule,
           services: Array.isArray(item.services) ? item.services : [],
-          daysoff: Array.isArray(item.daysOff) ? item.daysOff : [],
+          daysOff: Array.isArray(item.daysOff) ? item.daysOff : [],
           location_id: normalizeNullableNumber(item.location_id),
           provider_group_id: normalizeNullableNumber(item.provider_group_id),
         }
@@ -1399,7 +1399,6 @@ const normalizeNullableNumber = (value) => {
         schedule: {},
         services: [],
         daysOff: [],
-        daysoff: [],
         photo_url: '',
         bio: '',
       },

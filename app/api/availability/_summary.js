@@ -221,7 +221,7 @@ const buildMonthlyContext = async ({
     staffProviderGroupMap.get(staffId).add(groupId)
   }
 
-  const staffSelect = 'id,name,enabled,role,services,schedule,daysoff,location_id,provider_group_id'
+  const staffSelect = 'id,name,enabled,role,services,schedule,daysOff,location_id,provider_group_id'
   const buildStaffQuery = () => supabase.from('staff').select(staffSelect).eq('enabled', true).order('name')
   const staffRes = requestedStaffId ? await buildStaffQuery().eq('id', requestedStaffId) : await buildStaffQuery()
   if (staffRes.error) {
