@@ -39,8 +39,8 @@ const futureDate = (offsetDays) => {
 const smokeDate = futureDate(30)
 const smokeConfig = {
   serviceId: 1,
-  primaryStaffId: 3,
-  secondaryStaffId: 4,
+  primaryStaffId: null,
+  secondaryStaffId: null,
   createDate: futureDate(38),
   rescheduleDate: futureDate(39),
   rollbackDate: futureDate(40),
@@ -451,9 +451,51 @@ async function cancelBooking({ cookieHeader, bookingId }) {
   })
 }
 
+async function ensureSmokeStaffPair() {
+  const { data: existingStaff, error: selectError } = await serviceSupabase
+    .from('staff')
+    .select('*')
+    .eq('enabled', true)
+    .order('id', { ascending: true })
+    .limit(2)
+  if (selectError) throw selectError
+
+  const staff = [...(existingStaff || [])]
+  while (staff.length < 2) {
+    const index = staff.length + 1
+    const { data, error } = await serviceSupabase
+      .from('staff')
+      .insert({
+        name: `Smoke Head Spa Staff ${index}`,
+        role: '頭皮護理師',
+        enabled: true,
+        schedule: {
+          0: { start: '09:00', end: '18:00' },
+          1: { start: '09:00', end: '18:00' },
+          2: { start: '09:00', end: '18:00' },
+          3: { start: '09:00', end: '18:00' },
+          4: { start: '09:00', end: '18:00' },
+          5: { start: '09:00', end: '18:00' },
+          6: { start: '09:00', end: '18:00' },
+        },
+        services: [smokeConfig.serviceId],
+        daysOff: [],
+      })
+      .select('*')
+      .single()
+    if (error) throw error
+    staff.push(data)
+  }
+
+  return staff
+}
+
 async function main() {
   const service = await maybeSingle(serviceSupabase.from('services').select('*').eq('id', smokeConfig.serviceId))
   if (!service) throw new Error(`Service ${smokeConfig.serviceId} not found`)
+  const staffPair = await ensureSmokeStaffPair()
+  smokeConfig.primaryStaffId = staffPair[0].id
+  smokeConfig.secondaryStaffId = staffPair[1].id
 
   const location = await ensureLocation()
   const providerGroup = await ensureProviderGroup()

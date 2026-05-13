@@ -324,8 +324,10 @@ export async function POST(request) {
         return NextResponse.json({ error: 'Ticket has expired.' }, { status: 400 })
       }
 
-      const ticketServiceId = Number(userTicket?.tickets?.service_id)
-      if (Number.isFinite(ticketServiceId) && ticketServiceId !== Number(context.service.id)) {
+      const rawTicketServiceId = userTicket?.tickets?.service_id
+      const ticketServiceId = Number(rawTicketServiceId)
+      const hasTicketServiceLimit = rawTicketServiceId !== null && rawTicketServiceId !== undefined && rawTicketServiceId !== ''
+      if (hasTicketServiceLimit && Number.isFinite(ticketServiceId) && ticketServiceId !== Number(context.service.id)) {
         return NextResponse.json({ error: 'Ticket does not match this service.' }, { status: 400 })
       }
       originalTicketSnapshot = await loadTicketSnapshot(supabase, userTicket.id)

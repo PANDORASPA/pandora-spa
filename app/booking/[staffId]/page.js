@@ -206,7 +206,9 @@ export default function BookingStaffPage() {
     return (userTickets || []).filter((ticket) => {
       if (Number(ticket?.remaining_count || 0) <= 0) return false
       if (ticket?.expiry_date && Date.parse(ticket.expiry_date) < now) return false
-      const ticketServiceId = Number(ticket?.tickets?.service_id)
+      const rawTicketServiceId = ticket?.tickets?.service_id
+      if (rawTicketServiceId === null || rawTicketServiceId === undefined || rawTicketServiceId === '') return true
+      const ticketServiceId = Number(rawTicketServiceId)
       return !Number.isFinite(ticketServiceId) || ticketServiceId === Number(serviceId)
     })
   }, [serviceId, userTickets])

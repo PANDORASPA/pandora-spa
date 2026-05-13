@@ -39,8 +39,8 @@ const futureDate = (offsetDays) => {
 const smokeDate = futureDate(30)
 const smokeConfig = {
   serviceId: 1,
-  staffId: 3,
-  customerId: 3,
+  staffId: null,
+  customerId: null,
   ticketId: 1,
   resourceDate: futureDate(37),
   controlledCreateDate: futureDate(38),
@@ -52,6 +52,8 @@ const smokeConfig = {
   resourceName: `SMOKE Phase2 Resource ${smokeDate}`,
   memberEmail: `codex.phase2.member.${smokeDate.replaceAll('-', '')}@example.com`,
   memberPassword: 'Phase2Smoke123!',
+  customerPhone: `987${smokeDate.replaceAll('-', '').slice(-5)}`,
+  customerEmail: `codex.phase2.customer.${smokeDate.replaceAll('-', '')}@example.com`,
   bookingRef: `SMOKE-BKG-${smokeDate.replaceAll('-', '')}`,
   orderRef: `SMOKE-ORD-${smokeDate.replaceAll('-', '')}`,
   transactionRef: `SMOKE-TX-${smokeDate.replaceAll('-', '')}`,
@@ -502,9 +504,67 @@ async function resetSmokeBooking() {
   await supabase.from('bookings').delete().eq('id', existing.id)
 }
 
+async function ensureSmokeStaff() {
+  const { data: existingStaff, error: selectError } = await supabase
+    .from('staff')
+    .select('*')
+    .eq('enabled', true)
+    .order('id', { ascending: true })
+    .limit(1)
+  if (selectError) throw selectError
+  if (existingStaff?.[0]?.id) return existingStaff[0]
+
+  const { data, error } = await supabase
+    .from('staff')
+    .insert({
+      name: 'Smoke Head Spa Staff',
+      role: '頭皮護理師',
+      enabled: true,
+      schedule: {
+        0: { start: '09:00', end: '18:00' },
+        1: { start: '09:00', end: '18:00' },
+        2: { start: '09:00', end: '18:00' },
+        3: { start: '09:00', end: '18:00' },
+        4: { start: '09:00', end: '18:00' },
+        5: { start: '09:00', end: '18:00' },
+        6: { start: '09:00', end: '18:00' },
+      },
+      services: [smokeConfig.serviceId],
+      daysOff: [],
+    })
+    .select('*')
+    .single()
+  if (error) throw error
+  return data
+}
+
+async function ensureSmokeCustomer() {
+  const existing = await maybeSingle(supabase.from('customers').select('*').eq('phone', smokeConfig.customerPhone))
+  if (existing?.id) return existing
+
+  const { data, error } = await supabase
+    .from('customers')
+    .insert({
+      name: 'Phase2 Smoke Customer',
+      phone: smokeConfig.customerPhone,
+      email: smokeConfig.customerEmail,
+      notes: 'Automated smoke test customer',
+      membership_level: 'Smoke',
+      points: 0,
+    })
+    .select('*')
+    .single()
+  if (error) throw error
+  return data
+}
+
 async function main() {
   const service = await maybeSingle(supabase.from('services').select('*').eq('id', smokeConfig.serviceId))
   if (!service) throw new Error(`Service ${smokeConfig.serviceId} not found`)
+  const staff = await ensureSmokeStaff()
+  smokeConfig.staffId = staff.id
+  const smokeCustomer = await ensureSmokeCustomer()
+  smokeConfig.customerId = smokeCustomer.id
 
   const location = await ensureLocation()
   const providerGroup = await ensureProviderGroup()
