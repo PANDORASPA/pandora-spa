@@ -156,6 +156,7 @@ export async function GET() {
     for (const row of data || []) {
       settings[row.key] = normalizeSettingValue(row.key, row.value)
     }
+    settings.stripe_checkout_ready = process.env.STRIPE_SECRET_KEY ? 'true' : 'false'
 
     return NextResponse.json(
       { settings },
