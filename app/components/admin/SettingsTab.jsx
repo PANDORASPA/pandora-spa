@@ -194,6 +194,7 @@ export default function SettingsTab({
   const [selectedSection, setSelectedSection] = useState('profile')
   const [audit, setAudit] = useState(null)
   const [auditLoading, setAuditLoading] = useState(false)
+  const [paymentRuntime, setPaymentRuntime] = useState(null)
 
   useEffect(() => {
     setDraft(settings || {})
@@ -218,6 +219,24 @@ export default function SettingsTab({
       }
     }
     loadAudit()
+  }, [selectedSection])
+
+  useEffect(() => {
+    if (selectedSection !== 'payment') return
+    let cancelled = false
+    const loadPaymentRuntime = async () => {
+      try {
+        const response = await fetch('/api/public/settings', { credentials: 'include', cache: 'no-store' })
+        const payload = await response.json().catch(() => ({}))
+        if (!cancelled) setPaymentRuntime(payload?.settings || {})
+      } catch {
+        if (!cancelled) setPaymentRuntime(null)
+      }
+    }
+    loadPaymentRuntime()
+    return () => {
+      cancelled = true
+    }
   }, [selectedSection])
 
   const businessHours = parseBusinessHours(draft?.business_hours)
@@ -419,10 +438,23 @@ export default function SettingsTab({
           </div>
         )
       case 'payment':
+        const stripeCheckoutReady = paymentRuntime?.stripe_checkout_ready === 'true'
+        const stripeEnabled = draft.stripe_enabled === 'true'
+        const stripeStatusTone = !stripeEnabled ? 'warning' : stripeCheckoutReady ? 'success' : 'danger'
+        const stripeStatusText = !stripeEnabled ? 'Stripe 未啟用' : stripeCheckoutReady ? 'Stripe Checkout 可用' : 'Stripe secret 未設定'
         return (
           <div style={{ display: 'grid', gap: '16px' }}>
             <div style={{ color: 'var(--text-light)', fontSize: '13px', lineHeight: 1.7 }}>
               PANDORA 第一版以 Stripe 線上付款為主，人工確認付款保留作後備；FPS 與到店付款只作人工確認付款的營運提示。
+            </div>
+            <div style={{ display: 'grid', gap: '10px', padding: '14px', borderRadius: '12px', border: `1px solid ${stripeCheckoutReady ? '#BBF7D0' : '#FECACA'}`, background: stripeCheckoutReady ? '#F0FDF4' : '#FEF2F2' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap' }}>
+                <strong>Stripe 上線狀態</strong>
+                <StatusPill tone={stripeStatusTone}>{stripeStatusText}</StatusPill>
+              </div>
+              <div style={{ color: 'var(--text-light)', fontSize: '12px', lineHeight: 1.7 }}>
+                Stripe secret 不會儲存在後台設定表。請在 Vercel Environment Variables 填入 <code>STRIPE_SECRET_KEY</code>、<code>STRIPE_WEBHOOK_SECRET</code>、<code>STRIPE_CURRENCY=hkd</code>，並在 Stripe Dashboard 設定 webhook endpoint：<code>https://pandora-spa.vercel.app/api/stripe/webhook</code>。未完成前，前台會自動隱藏 Stripe 並保留人工確認付款。
+              </div>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
               <label style={{ display: 'inline-flex', alignItems: 'center', gap: '10px', fontSize: '13px', fontWeight: 800 }}>

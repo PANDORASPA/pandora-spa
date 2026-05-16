@@ -106,8 +106,21 @@ export async function GET() {
       {
         id: 'payment_stripe',
         label: 'Stripe',
-        status: settings.stripe_enabled === 'true' ? 'pass' : 'warning',
-        detail: settings.stripe_enabled === 'true' ? text('\\u5df2\\u555f\\u7528') : text('\\u672a\\u555f\\u7528\\u6216\\u5f85\\u78ba\\u8a8d'),
+        status: settings.stripe_enabled !== 'true' ? 'warning' : process.env.STRIPE_SECRET_KEY ? 'pass' : 'warning',
+        detail:
+          settings.stripe_enabled !== 'true'
+            ? text('\\u672a\\u555f\\u7528\\u6216\\u5f85\\u78ba\\u8a8d')
+            : process.env.STRIPE_SECRET_KEY
+              ? text('\\u5df2\\u555f\\u7528\\uff0cCheckout secret \\u5df2\\u5b58\\u5728 Vercel/server env')
+              : text('Stripe \\u5df2\\u5728\\u5f8c\\u53f0\\u555f\\u7528\\uff0c\\u4f46 Vercel/server env \\u672a\\u8a2d STRIPE_SECRET_KEY\\uff0c\\u524d\\u53f0\\u6703\\u6539\\u7528\\u4eba\\u5de5\\u4ed8\\u6b3e'),
+      },
+      {
+        id: 'payment_stripe_webhook',
+        label: 'Stripe Webhook',
+        status: process.env.STRIPE_WEBHOOK_SECRET ? 'pass' : 'warning',
+        detail: process.env.STRIPE_WEBHOOK_SECRET
+          ? text('Webhook secret \\u5df2\\u5b58\\u5728 server env')
+          : text('\\u5f85\\u5728 Vercel \\u8a2d\\u5b9a STRIPE_WEBHOOK_SECRET\\uff0cendpoint: https://pandora-spa.vercel.app/api/stripe/webhook'),
       },
       {
         id: 'payment_manual',
