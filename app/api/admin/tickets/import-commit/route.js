@@ -1,8 +1,15 @@
-import { NextResponse } from 'next/server'
+﻿import { NextResponse } from 'next/server'
+import { tryWriteAdminAuditLog } from '../../../../../lib/admin-audit'
 import { buildTicketImportPreview, loadAdminContext } from '../_helpers'
+import { guardMutationRequest } from '../../../../../lib/security/request-guards'
 
 export async function POST(request) {
   try {
+    const guardError = await guardMutationRequest(request, {
+      rateLimit: { scope: 'admin.tickets.import-commit', limit: 8, windowMs: 60_000 },
+    })
+    if (guardError) return guardError
+
     const context = await loadAdminContext()
     if (context.error) {
       return NextResponse.json({ error: context.error }, { status: context.status })
@@ -63,14 +70,26 @@ export async function POST(request) {
     }
 
     const failed = results.filter((result) => !result.ok)
+    const summary = {
+      totalRows: results.length,
+      importedRows: results.filter((result) => result.ok).length,
+      failedRows: failed.length,
+    }
+
+    await tryWriteAdminAuditLog({
+      supabase: context.supabase,
+      request,
+      actorUserId: context.user?.id,
+      action: 'tickets.import_commit',
+      targetTable: 'user_tickets',
+      targetId: `csv:${Date.now()}`,
+      afterData: { summary },
+    })
+
     return NextResponse.json(
       {
         success: failed.length === 0,
-        summary: {
-          totalRows: results.length,
-          importedRows: results.filter((result) => result.ok).length,
-          failedRows: failed.length,
-        },
+        summary,
         results,
       },
       { status: failed.length ? 207 : 200 },

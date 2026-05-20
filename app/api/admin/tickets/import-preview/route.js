@@ -1,8 +1,14 @@
-import { NextResponse } from 'next/server'
+﻿import { NextResponse } from 'next/server'
 import { buildTicketImportPreview, loadAdminContext } from '../_helpers'
+import { guardMutationRequest } from '../../../../../lib/security/request-guards'
 
 export async function POST(request) {
   try {
+    const guardError = await guardMutationRequest(request, {
+      rateLimit: { scope: 'admin.tickets.import-preview', limit: 12, windowMs: 60_000 },
+    })
+    if (guardError) return guardError
+
     const context = await loadAdminContext()
     if (context.error) {
       return NextResponse.json({ error: context.error }, { status: context.status })

@@ -1,17 +1,43 @@
 import { NextResponse } from 'next/server'
+import { guardReadRequest } from '../../../lib/security/request-guards'
 import { getServiceClient } from '../../../lib/supabase/service'
 import { loadPhase2Context, evaluatePhase2Availability, normalizeOptionalNumber, Phase2Error } from '../../../lib/booking/phase2'
 
+const availabilityHeaders = {
+  'Cache-Control': 'public, max-age=15, stale-while-revalidate=30',
+}
+
+const isDateWithinPublicWindow = (dateISO) => {
+  const target = new Date(`${dateISO}T00:00:00.000Z`)
+  if (Number.isNaN(target.getTime())) return false
+  const today = new Date()
+  today.setUTCHours(0, 0, 0, 0)
+  const max = new Date(today)
+  max.setUTCDate(max.getUTCDate() + 180)
+  return target >= today && target <= max
+}
+
 export async function GET(request) {
   try {
+    const guardError = await guardReadRequest(request, {
+      rateLimit: { scope: 'availability.day', limit: 120, windowMs: 60_000 },
+    })
+    if (guardError) return guardError
+
     const url = new URL(request.url)
     const dateISO = url.searchParams.get('date')
     const serviceId = Number(url.searchParams.get('serviceId'))
     const staffId = normalizeOptionalNumber(url.searchParams.get('staffId'))
     const includeDebug = url.searchParams.get('debug') === '1'
+    if (includeDebug && process.env.NODE_ENV === 'production') {
+      return NextResponse.json({ error: 'Availability debug output is disabled in production.' }, { status: 403 })
+    }
 
     if (!dateISO || !/^\d{4}-\d{2}-\d{2}$/.test(dateISO)) {
       return NextResponse.json({ error: 'Invalid appointment date.' }, { status: 400 })
+    }
+    if (!isDateWithinPublicWindow(dateISO)) {
+      return NextResponse.json({ error: 'Appointment date is outside the public booking window.' }, { status: 400 })
     }
     if (!Number.isFinite(serviceId)) {
       return NextResponse.json({ error: 'Missing service.' }, { status: 400 })
@@ -70,7 +96,7 @@ export async function GET(request) {
               }
             : {}),
         },
-        { status: 200 }
+        { status: 200, headers: availabilityHeaders }
       )
     }
 
@@ -83,7 +109,7 @@ export async function GET(request) {
           locationSelectionRequired: evaluation.locationSelectionRequired,
           dateSummary: evaluation.dateSummary,
         },
-        { status: 200 }
+        { status: 200, headers: availabilityHeaders }
       )
   } catch (error) {
     if (error instanceof Phase2Error) {

@@ -1,17 +1,19 @@
-import { NextResponse } from 'next/server'
+﻿import { NextResponse } from 'next/server'
 import { getServerClient } from '../../../../lib/supabase/server'
 import { getServiceClient } from '../../../../lib/supabase/service'
 import { createCheckoutSession } from '../../../../lib/stripe'
-import { issueTicketForPaidOrder, normalizePositiveInteger } from '../../../../lib/ticket-issuance'
+import { guardMutationRequest } from '../../../../lib/security/request-guards'
 
 const normalizeText = (value) => String(value || '').trim()
-const isPaidRequest = (body) =>
-  normalizeText(body?.paymentState).toLowerCase() === 'paid' &&
-  normalizeText(body?.paymentProvider).toLowerCase() === 'manual-admin'
 const isStripeRequest = (body) => normalizeText(body?.paymentMethod || body?.paymentProvider).toLowerCase() === 'stripe'
 
 export async function POST(request) {
   try {
+    const guardError = await guardMutationRequest(request, {
+      rateLimit: { scope: 'tickets.purchase', limit: 12, windowMs: 60_000 },
+    })
+    if (guardError) return guardError
+
     const authSupabase = getServerClient()
     const {
       data: { user },
@@ -23,7 +25,6 @@ export async function POST(request) {
 
     const body = await request.json()
     const ticketId = Number(body?.ticketId)
-    const paidRequest = isPaidRequest(body)
     const stripeRequest = isStripeRequest(body)
     if (!Number.isFinite(ticketId)) {
       return NextResponse.json({ error: 'Invalid ticket.' }, { status: 400 })
@@ -47,10 +48,10 @@ export async function POST(request) {
       user_name: normalizeText(user.email) || 'Member',
       address: '',
       delivery: 'digital-ticket',
-      payment: paidRequest ? 'manual-admin' : stripeRequest ? 'stripe' : 'awaiting-payment',
+      payment: stripeRequest ? 'stripe' : 'awaiting-payment',
       items: ticketLabel,
       total: Number(ticket.price || 0),
-      status: paidRequest ? 'completed' : 'awaiting_payment',
+      status: 'awaiting_payment',
       created_at: new Date().toISOString(),
       member_user_id: user.id,
       ref: orderRef,
@@ -61,7 +62,7 @@ export async function POST(request) {
       return NextResponse.json({ error: orderError.message }, { status: 500 })
     }
 
-    if (stripeRequest && !paidRequest) {
+    if (stripeRequest) {
       try {
         const origin = normalizeText(process.env.NEXT_PUBLIC_SITE_URL) || request.nextUrl.origin
         const session = await createCheckoutSession({
@@ -105,29 +106,16 @@ export async function POST(request) {
       }
     }
 
-    if (!paidRequest) {
-      return NextResponse.json(
-        {
-          ref: orderRef,
-          order,
-          entitlementIssued: false,
-          requiresPayment: true,
-          message: 'Order created and waiting for payment confirmation before the ticket is issued.',
-        },
-        { status: 202 },
-      )
-    }
-
-    const issued = await issueTicketForPaidOrder({
-      supabase,
-      order,
-      ticketId: normalizePositiveInteger(ticket.id),
-      createdBy: user.id,
-      paymentMethod: 'manual-admin',
-      paymentRef: orderRef,
-    })
-
-    return NextResponse.json({ ticket: issued.ticket, order: issued.order, ref: orderRef, entitlementIssued: true }, { status: 200 })
+    return NextResponse.json(
+      {
+        ref: orderRef,
+        order,
+        entitlementIssued: false,
+        requiresPayment: true,
+        message: 'Order created and waiting for payment confirmation before the ticket is issued.',
+      },
+      { status: 202 },
+    )
   } catch (error) {
     return NextResponse.json({ error: error?.message || 'Unknown error' }, { status: 500 })
   }

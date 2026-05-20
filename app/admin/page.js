@@ -25,6 +25,7 @@ const LocationsTab = dynamic(() => import('../components/admin/LocationsTab'))
 const HolidaysTab = dynamic(() => import('../components/admin/HolidaysTab'))
 const ResourcesTab = dynamic(() => import('../components/admin/ResourcesTab'))
 const TransactionsTab = dynamic(() => import('../components/admin/TransactionsTab'))
+const SecurityLogsTab = dynamic(() => import('../components/admin/SecurityLogsTab'))
 
 const scheduleTableLabels = {
   staff_shifts: '日期覆蓋',
@@ -52,7 +53,7 @@ const tabGroups = [
   { name: '服務設定', tabs: [{ id: 'services', name: '服務' }] },
   { name: '顧客管理', tabs: [{ id: 'customers', name: '顧客' }] },
   { name: '內容管理', tabs: [{ id: 'articles', name: '文章' }, { id: 'faqs', name: '常見問題' }] },
-  { name: '系統設定', tabs: [{ id: 'settings', name: '設定' }] },
+  { name: '系統設定', tabs: [{ id: 'settings', name: '設定' }, { id: 'security', name: '安全紀錄' }] },
 ]
 
 const DEFAULT_ADMIN_SETTINGS = {
@@ -179,6 +180,11 @@ const tabMeta = {
     eyebrow: '系統控制',
     description: '管理全店營業時間、公休日與會影響預約規則的系統設定。',
   },
+  security: {
+    title: '安全紀錄',
+    eyebrow: '審計追蹤',
+    description: '查看管理員關鍵操作、資料寫入、付款確認與 CSV 匯入紀錄。',
+  },
 }
 const normalizeDateValue = (value) => {
   if (!value) return ''
@@ -274,6 +280,7 @@ export default function AdminPage() {
   const [serviceResources, setServiceResources] = useState([])
   const [settings, setSettings] = useState({})
   const [memberProfiles, setMemberProfiles] = useState([])
+  const [auditLogs, setAuditLogs] = useState([])
   const [availableTables, setAvailableTables] = useState({
       locations: false,
       providerGroups: false,
@@ -564,6 +571,21 @@ export default function AdminPage() {
     markTabsLoaded(['settings'])
   }
 
+  const loadAuditLogsData = async () => {
+    try {
+      const response = await fetch('/api/admin/audit-logs', { cache: 'no-store' })
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error(payload?.error || '安全紀錄載入失敗')
+      }
+      setAuditLogs(Array.isArray(payload?.logs) ? payload.logs : [])
+    } catch (error) {
+      toast.error(`安全紀錄載入失敗：${error?.message || '未知錯誤'}`)
+      setAuditLogs([])
+    }
+    markTabsLoaded(['security'])
+  }
+
   const loadTabData = async (tabId, { force = false } = {}) => {
     if (!tabId || !isAuthenticated) return
     if (tabDataLoaded[tabId] && !force) return
@@ -588,6 +610,8 @@ export default function AdminPage() {
         await loadCouponsData()
       } else if (tabId === 'settings') {
         await loadAdminProfilesData()
+      } else if (tabId === 'security') {
+        await loadAuditLogsData()
       } else {
         markTabsLoaded([tabId])
       }
@@ -1631,6 +1655,7 @@ const normalizeNullableNumber = (value) => {
     if (activeTab === 'coupons') return <CouponsTab coupons={coupons} saveCoupons={saveCoupons} />
     if (activeTab === 'articles') return <ArticlesTab articles={articles} />
     if (activeTab === 'faqs') return <FaqsTab faqs={faqs} />
+    if (activeTab === 'security') return <SecurityLogsTab logs={auditLogs} onRefresh={() => loadAuditLogsData()} />
     if (activeTab === 'customers') {
       return (
         <CustomersTab

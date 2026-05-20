@@ -16,6 +16,10 @@ export const addYears = (date, years) => {
   return next
 }
 
+const MAX_CSV_BYTES = 256 * 1024
+const MAX_CSV_ROWS = 500
+const FORMULA_INJECTION_PATTERN = /^[=+\-@]\s*[A-Za-z(]/
+
 export async function loadAdminContext() {
   const authSupabase = getServerClient()
   const {
@@ -103,8 +107,16 @@ const canonicalHeader = (header) => {
 }
 
 export function parseTicketImportCsv(csvText) {
+  const byteLength = new TextEncoder().encode(String(csvText || '')).length
+  if (byteLength > MAX_CSV_BYTES) {
+    return { headers: [], rows: [], errors: [`CSV file is too large. Maximum size is ${MAX_CSV_BYTES} bytes.`] }
+  }
+
   const rows = parseCsv(csvText)
   if (rows.length === 0) return { headers: [], rows: [] }
+  if (rows.length - 1 > MAX_CSV_ROWS) {
+    return { headers: [], rows: [], errors: [`CSV contains too many rows. Maximum import rows is ${MAX_CSV_ROWS}.`] }
+  }
 
   const headers = rows[0].map(canonicalHeader)
   return {
@@ -114,6 +126,12 @@ export function parseTicketImportCsv(csvText) {
       headers.forEach((header, cellIndex) => {
         row[header] = normalizeText(cells[cellIndex])
       })
+      row.__dangerousFormulaCells = cells
+        .map((cell, cellIndex) => ({
+          header: headers[cellIndex] || `column_${cellIndex + 1}`,
+          value: normalizeText(cell),
+        }))
+        .filter((cell) => FORMULA_INJECTION_PATTERN.test(cell.value))
       return row
     }),
   }
@@ -136,6 +154,13 @@ const normalizeDateValue = (value) => {
 
 export async function buildTicketImportPreview({ supabase, csvText }) {
   const parsed = parseTicketImportCsv(csvText)
+  if (parsed.errors?.length) {
+    return {
+      rows: [],
+      summary: { totalRows: 0, validRows: 0, errorRows: 0 },
+      errors: parsed.errors,
+    }
+  }
   const requiredHeaders = ['ticket_name', 'remaining_count']
   const missingHeaders = requiredHeaders.filter((header) => !parsed.headers.includes(header))
 
@@ -180,6 +205,9 @@ export async function buildTicketImportPreview({ supabase, csvText }) {
     if (!email && !phone) errors.push('email or phone is required')
     if (!ticketName) errors.push('ticket_name is required')
     if (!remainingCount) errors.push('remaining_count must be a positive integer')
+    if (row.__dangerousFormulaCells?.length) {
+      errors.push(`CSV contains formula-like cell values in: ${row.__dangerousFormulaCells.map((cell) => cell.header).join(', ')}`)
+    }
 
     const profileMatches = profiles.filter((profile) => {
       const profileEmail = normalizeEmail(profile.email)

@@ -1,6 +1,4 @@
 import { NextResponse } from 'next/server'
-import { readFileSync, readdirSync, statSync } from 'fs'
-import { join } from 'path'
 import { loadAdminSettingsContext } from '../_context'
 
 const text = (value) => JSON.parse(`"${value}"`)
@@ -16,71 +14,6 @@ const IMPORTANT_SETTING_KEYS = [
   'google_map_url',
   'business_hours',
 ]
-
-const MOJIBAKE_TOKENS = [
-  '\\u951b',
-  '\\u95cb',
-  '\\u7480',
-  '\\u9428',
-  '\\u7477',
-  '\\u6753',
-  '\\u6fc2',
-  '\\u9366',
-  '\\u93c8',
-  '\\u6942',
-  '\\u752f',
-  '\\u941d',
-  '\\u6434',
-  '\\u6f0f',
-].map(text)
-
-const SCAN_PATTERNS = [
-  { key: 'oldBrand', label: text('\\u820a\\u54c1\\u724c\\u5b57\\u773c'), pattern: new RegExp(`${'VI'}${'VA'}\\s+${'HA'}${'IR'}`, 'i') },
-  { key: 'oldSalon', label: text('\\u820a salon \\u82f1\\u6587\\u8a9e\\u5883'), pattern: new RegExp(`${'Hair'} ${'Salon'}`, 'i') },
-  { key: 'oldChineseSalon', label: text('\\u820a\\u526a\\u9aee\\u9020\\u578b\\u8a9e\\u5883'), pattern: new RegExp(`${text('\\u526a')}${text('\\u9aee')}|${text('\\u7f8e')}${text('\\u9aee')}`) },
-  { key: 'mojibake', label: text('\\u4e82\\u78bc\\u7279\\u5fb5'), pattern: new RegExp(MOJIBAKE_TOKENS.join('|')) },
-  { key: 'sampleWords', label: text('\\u793a\\u7bc4 / \\u6e2c\\u8a66\\u5b57\\u773c'), pattern: new RegExp(`\\b${'demo'}\\b|\\b${'test'}\\b|${'lorem'}`, 'i') },
-]
-
-const walkFiles = (dir, files = []) => {
-  for (const entry of readdirSync(dir)) {
-    if (entry === 'node_modules' || entry === '.next' || entry === '.git' || entry === '.playwright-cli') continue
-    const path = join(dir, entry)
-    const stat = statSync(path)
-    if (stat.isDirectory()) walkFiles(path, files)
-    else if (/\.(js|jsx|md|sql)$/.test(entry) && !path.includes(`${join('settings', 'audit')}`)) files.push(path)
-  }
-  return files
-}
-
-const scanContent = () => {
-  const roots = ['app', 'lib', 'README.md', 'LAUNCH_CHECKLIST.md', 'PALACEHAIRSPA_REPLACEMENT_ACCEPTANCE.md']
-  const cwd = process.cwd()
-  const files = roots.flatMap((root) => {
-    const path = join(cwd, root)
-    try {
-      const stat = statSync(path)
-      return stat.isDirectory() ? walkFiles(path) : [path]
-    } catch {
-      return []
-    }
-  })
-
-  return SCAN_PATTERNS.map((rule) => {
-    const matches = []
-    for (const file of files) {
-      const fileText = readFileSync(file, 'utf8')
-      if (rule.pattern.test(fileText)) matches.push(file.replace(cwd, '').replace(/^[\\/]/, ''))
-      if (matches.length >= 8) break
-    }
-    return {
-      id: `content_${rule.key}`,
-      label: rule.label,
-      status: matches.length ? 'warning' : 'pass',
-      detail: matches.length ? matches.join(', ') : text('\\u672a\\u767c\\u73fe'),
-    }
-  })
-}
 
 export async function GET() {
   try {
@@ -130,8 +63,7 @@ export async function GET() {
       },
     ]
 
-    const contentChecks = scanContent()
-    const checks = [...settingChecks, ...paymentChecks, ...contentChecks]
+    const checks = [...settingChecks, ...paymentChecks]
     const summary = {
       pass: checks.filter((item) => item.status === 'pass').length,
       warning: checks.filter((item) => item.status === 'warning').length,

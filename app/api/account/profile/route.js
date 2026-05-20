@@ -1,9 +1,15 @@
 import { NextResponse } from 'next/server'
+import { guardMutationRequest } from '../../../../lib/security/request-guards'
 import { getServerClient } from '../../../../lib/supabase/server'
 import { getServiceClient } from '../../../../lib/supabase/service'
 
 export async function PATCH(request) {
   try {
+    const guardError = await guardMutationRequest(request, {
+      rateLimit: { scope: 'account.profile.patch', limit: 12, windowMs: 60_000 },
+    })
+    if (guardError) return guardError
+
     const supabase = getServerClient()
     const {
       data: { user },

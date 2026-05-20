@@ -1,9 +1,16 @@
-import { NextResponse } from 'next/server'
+﻿import { NextResponse } from 'next/server'
+import { tryWriteAdminAuditLog } from '../../../../../lib/admin-audit'
 import { loadAdminContext, normalizePositiveInteger, normalizeText } from '../_helpers'
 import { issueTicketForPaidOrder, parseTicketIdFromOrder } from '../../../../../lib/ticket-issuance'
+import { guardMutationRequest } from '../../../../../lib/security/request-guards'
 
 export async function POST(request) {
   try {
+    const guardError = await guardMutationRequest(request, {
+      rateLimit: { scope: 'admin.tickets.confirm-payment', limit: 20, windowMs: 60_000 },
+    })
+    if (guardError) return guardError
+
     const context = await loadAdminContext()
     if (context.error) {
       return NextResponse.json({ error: context.error }, { status: context.status })
@@ -28,6 +35,17 @@ export async function POST(request) {
       createdBy: user.id,
       paymentMethod: normalizeText(body?.paymentMethod) || 'manual-admin',
       paymentRef: normalizeText(body?.paymentRef),
+    })
+
+    await tryWriteAdminAuditLog({
+      supabase,
+      request,
+      actorUserId: user.id,
+      action: 'tickets.confirm_payment',
+      targetTable: 'orders',
+      targetId: order.id,
+      beforeData: order,
+      afterData: { order: issued.order, user_ticket_id: issued.ticket?.id || null, already_issued: issued.alreadyIssued },
     })
 
     return NextResponse.json({ ticket: issued.ticket, order: issued.order, alreadyIssued: issued.alreadyIssued }, { status: 200 })

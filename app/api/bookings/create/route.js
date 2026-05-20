@@ -1,6 +1,7 @@
-import { NextResponse } from 'next/server'
+﻿import { NextResponse } from 'next/server'
 import { getServerClient } from '../../../../lib/supabase/server'
 import { getServiceClient } from '../../../../lib/supabase/service'
+import { guardMutationRequest } from '../../../../lib/security/request-guards'
 import {
   buildBookingPayload,
   buildResourceAllocationPayload,
@@ -203,6 +204,11 @@ const rollbackCreateBooking = async ({ supabase, bookingId, ticketSnapshot, rest
 
 export async function POST(request) {
   try {
+    const guardError = await guardMutationRequest(request, {
+      rateLimit: { scope: 'bookings.create', limit: 15, windowMs: 60_000 },
+    })
+    if (guardError) return guardError
+
     const authSupabase = getServerClient()
     const {
       data: { user },

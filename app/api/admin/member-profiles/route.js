@@ -1,6 +1,8 @@
 ﻿import { NextResponse } from 'next/server'
+import { tryWriteAdminAuditLog } from '../../../../lib/admin-audit'
 import { getServerClient } from '../../../../lib/supabase/server'
 import { getServiceClient } from '../../../../lib/supabase/service'
+import { guardMutationRequest } from '../../../../lib/security/request-guards'
 
 const normalizeProfilePayload = (rows = []) =>
   (Array.isArray(rows) ? rows : [])
@@ -126,6 +128,11 @@ export async function GET() {
 
 export async function POST(request) {
   try {
+    const guardError = await guardMutationRequest(request, {
+      rateLimit: { scope: 'admin.member-profiles.post', limit: 20, windowMs: 60_000 },
+    })
+    if (guardError) return guardError
+
     const context = await loadAdminRequestContext()
     if (context.error) {
       return NextResponse.json({ error: context.error }, { status: context.status })
@@ -150,6 +157,22 @@ export async function POST(request) {
     }
 
     const diagnostics = await enrichProfilesWithAuth(context.serviceSupabase, upsertRes.data || [])
+    await tryWriteAdminAuditLog({
+      supabase: context.serviceSupabase,
+      request,
+      actorUserId: context.user?.id,
+      action: 'member_profiles.admin_update',
+      targetTable: 'member_profiles',
+      targetId: payload.map((profile) => profile.id).join(','),
+      afterData: {
+        profiles: diagnostics.map((profile) => ({
+          id: profile.id,
+          email: profile.email,
+          is_admin: profile.is_admin,
+        })),
+      },
+    })
+
     return NextResponse.json({ success: true, profiles: diagnostics }, { status: 200 })
   } catch (error) {
     return NextResponse.json({ error: error?.message || 'Unknown error' }, { status: 500 })

@@ -1,7 +1,8 @@
-import { NextResponse } from 'next/server'
+﻿import { NextResponse } from 'next/server'
 import { getServerClient } from '../../../../lib/supabase/server'
 import { getServiceClient } from '../../../../lib/supabase/service'
 import { createCheckoutSession } from '../../../../lib/stripe'
+import { guardMutationRequest } from '../../../../lib/security/request-guards'
 
 const normalizeText = (value) => String(value || '').trim()
 const normalizeInteger = (value) => {
@@ -11,6 +12,11 @@ const normalizeInteger = (value) => {
 
 export async function POST(request) {
   try {
+    const guardError = await guardMutationRequest(request, {
+      rateLimit: { scope: 'orders.create', limit: 20, windowMs: 60_000 },
+    })
+    if (guardError) return guardError
+
     const body = await request.json()
     const name = normalizeText(body?.name)
     const phone = normalizeText(body?.phone)

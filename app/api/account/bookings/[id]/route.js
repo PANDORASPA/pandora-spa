@@ -1,6 +1,7 @@
-import { NextResponse } from 'next/server'
+﻿import { NextResponse } from 'next/server'
 import { getServerClient } from '../../../../../lib/supabase/server'
 import { getServiceClient } from '../../../../../lib/supabase/service'
+import { guardMutationRequest } from '../../../../../lib/security/request-guards'
 import {
   buildBookingPayload,
   buildResourceAllocationPayload,
@@ -188,6 +189,11 @@ const restoreBookingState = async ({ supabase, bookingId, userId, previousPayloa
 
 export async function PATCH(request, { params }) {
   try {
+    const guardError = await guardMutationRequest(request, {
+      rateLimit: { scope: 'account.bookings.patch', limit: 20, windowMs: 60_000 },
+    })
+    if (guardError) return guardError
+
     const authSupabase = getServerClient()
     const {
       data: { user },
