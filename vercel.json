@@ -1,9 +1,10 @@
 {
   "version": 2,
   "name": "salon-poke",
+  "framework": null,
   "outputDirectory": ".",
   "installCommand": "echo No install needed",
-  "buildCommand": "echo Static site — no build step",
+  "buildCommand": "echo Static site — no build step needed",
   "cleanUrls": true,
   "trailingSlash": false,
   "headers": [
@@ -35,3 +36,4 @@
     { "source": "/admin", "destination": "/admin.html" }
   ]
 }
+

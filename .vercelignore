@@ -1,0 +1,16 @@
+# Tell Vercel to ignore these when building
+node_modules/
+.git/
+*.log
+*.md
+!README.md
+!DEPLOYMENT.md
+!GO-LIVE-CHECKLIST.md
+.supabase/
+supabase/chunks/
+supabase/run_*.ps1
+supabase/verify.ps1
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
