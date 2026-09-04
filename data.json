@@ -99,5 +99,55 @@
   "admin": {
     "password": "salonpoke2026",
     "sessionHours": 12
-  }
+  },
+
+  "passTemplates": [
+    {
+      "id": "pass5",
+      "name": "5 Visit Pass",
+      "jpName": "5回パス",
+      "visitsTotal": 5,
+      "priceGbp": 95,
+      "validityDays": 90,
+      "description": "Five themed Pack Opening Nights. Use any week, any theme. Best for occasional visitors who want a discount.",
+      "badge": "STARTER",
+      "sortOrder": 1,
+      "isActive": true,
+      "accent": "#4ddb8e"
+    },
+    {
+      "id": "pass10",
+      "name": "10 Visit Pass",
+      "jpName": "10回パス",
+      "visitsTotal": 10,
+      "priceGbp": 180,
+      "validityDays": 180,
+      "description": "Ten nights, our most popular option. Save £60 vs single bundles. Includes 48-hour early pre-order access.",
+      "badge": "MOST POPULAR",
+      "sortOrder": 2,
+      "isActive": true,
+      "accent": "#ffd700"
+    },
+    {
+      "id": "pass20",
+      "name": "20 Visit Pass",
+      "jpName": "20回パス",
+      "visitsTotal": 20,
+      "priceGbp": 320,
+      "validityDays": 365,
+      "description": "Twenty nights, full year. Save £160 vs single bundles. Includes all member perks plus invite-only events.",
+      "badge": "BEST VALUE",
+      "sortOrder": 3,
+      "isActive": true,
+      "accent": "#ff8c00"
+    }
+  ],
+
+  "passFaq": [
+    {"q": "How do I use my pass?", "a": "Book any night as usual, then tick 'Use my Visit Pass' on the form. We'll automatically redeem one visit from your pass when you attend."},
+    {"q": "Do passes expire?", "a": "Yes — 5-visit passes are valid 90 days, 10-visit 180 days, 20-visit 365 days from purchase."},
+    {"q": "Can I share my pass?", "a": "Passes are tied to one email. You can bring a friend on the night but only your seat uses a visit."},
+    {"q": "What if I can't make a night?", "a": "Cancel up to 24 hours before for free. Cancellations inside 24 hours do not refund the visit."},
+    {"q": "Refunds?", "a": "Unstarted passes are refundable within 14 days. Once a visit is used the pass is non-refundable."}
+  ]
 }

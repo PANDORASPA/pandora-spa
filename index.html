@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SALON POKE — Japanese Pokemon TCG Shop, Boxes & Pack Opening Nights · Bristol UK</title>
-    <meta name="description" content="SALON POKE is Bristol's home for sealed Japanese Pokemon TCG. Shop booster boxes, singles, accessories, join weekly themed Pack Opening Nights, earn loyalty rewards, pre-order new JP releases, and chase the hits in our Park Row lounge.">
+    <meta name="description" content="SALON POKE is Bristol's home for sealed Japanese Pokemon TCG. Shop booster boxes, singles, accessories, join weekly themed Pack Opening Nights, buy Visit Passes, pre-order new JP releases, and chase the hits in our Park Row lounge.">
     <meta name="keywords" content="Pokemon TCG Bristol, Japanese Pokemon cards, sealed booster boxes, pack opening night, Pokemon singles, Pokemon grading, Park Row, BS1">
     <meta name="author" content="Salon Poke Ltd">
     <meta name="robots" content="index, follow">
@@ -13,7 +13,7 @@
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://salon-poke.vercel.app/">
     <meta property="og:title" content="SALON POKE — Bristol's Japanese Pokemon TCG Lounge">
-    <meta property="og:description" content="Sealed JP booster boxes · 6 weekly themed Pack Opening Nights · Loyalty rewards · Pre-orders · Singles & grading · 60A Park Row, Bristol.">
+    <meta property="og:description" content="Sealed JP booster boxes · 6 weekly themed Pack Opening Nights · Visit Passes · Pre-orders · Singles & grading · 60A Park Row, Bristol.">
     <meta property="og:image" content="https://salon-poke.vercel.app/imgs/black_bolt_box.jpg">
     <meta property="og:locale" content="en_GB">
     <meta property="og:site_name" content="Salon Poke">
@@ -26,6 +26,13 @@
     <meta name="theme-color" content="#0a0a0a">
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%230a0a0a'/%3E%3Ctext x='50' y='68' font-family='Arial Black,sans-serif' font-size='52' font-weight='900' text-anchor='middle' fill='%23ffd700'%3ESP%3C/text%3E%3Ccircle cx='78' cy='28' r='6' fill='%23ffd700'/%3E%3Ccircle cx='22' cy='28' r='6' fill='%23ffd700'/%3E%3C/svg%3E">
     <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%230a0a0a'/%3E%3Ctext x='50' y='68' font-family='Arial Black,sans-serif' font-size='52' font-weight='900' text-anchor='middle' fill='%23ffd700'%3ESP%3C/text%3E%3C/svg%3E">
+
+    <!-- Performance: preconnect to Supabase -->
+    <link rel="preconnect" href="https://ekyjvgkdagpolrosqogd.supabase.co" crossorigin>
+    <link rel="dns-prefetch" href="https://ekyjvgkdagpolrosqogd.supabase.co">
+
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="manifest.json">
 
     <!-- Structured Data: Local Business -->
     <script type="application/ld+json">
@@ -129,8 +136,8 @@
          "acceptedAnswer": {"@type": "Answer", "text": "Yes. Every box is sourced directly from Japanese distributors and shipped shrink-wrapped to Bristol. We never stock UK reprints, resealed boxes or unofficial sets."}},
         {"@type": "Question", "name": "Do I have to book or can I just walk in?",
          "acceptedAnswer": {"@type": "Answer", "text": "You can walk in any time during opening hours. For Pack Opening Nights, booking is strongly recommended because we cap at 10 seats. Walk-ins are welcome until seats fill up."}},
-        {"@type": "Question", "name": "How does the loyalty stamp card work?",
-         "acceptedAnswer": {"@type": "Answer", "text": "Pick up a free stamp card at the counter. Every paid night earns one stamp. After 9 stamps your 10th visit is fully free. Members also get 10% off bundles, early pre-order access and birthday bonus."}},
+        {"@type": "Question", "name": "How do Visit Passes work?",
+         "acceptedAnswer": {"@type": "Answer", "text": "Buy a 5, 10 or 20 visit pass on the website. Book any night as usual and tick 'Use my Visit Pass' on the form — we deduct one visit from your pass when you attend. 5-visit passes last 90 days, 10-visit 180 days, 20-visit 365 days."}},
         {"@type": "Question", "name": "What's the refund policy?",
          "acceptedAnswer": {"@type": "Answer", "text": "Sealed boxes are refundable within 14 days as long as the shrink-wrap is intact. Once a pack is opened, all sales are final. Pre-orders can be cancelled up to 7 days before release for a full deposit refund."}},
         {"@type": "Question", "name": "Can I hire the lounge for a private event?",
@@ -201,13 +208,16 @@
         <div class="nav-links" id="navLinks">
             <a href="#about">About</a>
             <a href="#shop">Shop</a>
+            <a href="#passes">Passes</a>
             <a href="#schedule">Schedule</a>
             <a href="#events">Events</a>
             <a href="#trade">Trade-In</a>
             <a href="#faq">FAQ</a>
             <a href="#visit">Visit</a>
+            <button class="nav-member-mobile" id="openMemberCenterNavBtnMobile" type="button">🎟️ Member Center</button>
         </div>
         <div class="nav-meta">
+            <button class="nav-member" id="openMemberCenterNavBtn" type="button" aria-label="Open member center">🎟️ Member</button>
             <span class="open-now" id="openNowBadge">
                 <span class="open-now-dot"></span>
                 <span class="open-now-text" id="openNowText">Checking hours…</span>
@@ -234,7 +244,7 @@
                 <span class="hero-title-accent" data-cfg="hero.titleAccent">Sealed Japanese Pokemon</span>
             </h1>
             <p class="hero-subtitle" data-cfg="hero.subtitle">
-                Factory-sealed booster boxes · 6 weekly themed Pack Opening Nights · Loyalty rewards · Pre-orders for new JP releases.
+                Factory-sealed booster boxes · 6 weekly themed Pack Opening Nights · Visit Passes · Pre-orders for new JP releases.
             </p>
             <div class="hero-cta">
                 <a href="#shop" class="btn btn-primary"><span data-cfg="hero.cta1">Shop Boxes</span></a>
@@ -314,12 +324,12 @@
         <div class="about-grid">
             <div class="about-text">
                 <p data-cfg="siteMeta.aboutLead">Salon Poke is where Bristol collectors come to <b>open boxes, share pulls and chase the chase</b>. We curate only <b>factory-sealed Japanese booster boxes</b> — the real deal, shrink-wrapped, straight from Tokyo.</p>
-                <p data-cfg="siteMeta.aboutBody">Six nights a week we run a <b>themed Pack Opening Night</b> with limited seats. We hold new-release <b>pre-orders</b>, run a <b>loyalty stamp card</b>, host private group nights and trade singles at the counter. Bring a friend. Bring a box. Bring your chase list.</p>
+                <p data-cfg="siteMeta.aboutBody">Six nights a week we run a <b>themed Pack Opening Night</b> with limited seats. We hold new-release <b>pre-orders</b>, sell <b>Visit Passes</b> for regulars, host private group nights and trade singles at the counter. Bring a friend. Bring a box. Bring your chase list.</p>
                 <div class="about-badges">
                     <span class="about-badge-item">✓ Authentic JP stock</span>
                     <span class="about-badge-item">✓ Original shrink-wrap</span>
                     <span class="about-badge-item">✓ 10 seats per night</span>
-                    <span class="about-badge-item">✓ Loyalty rewards</span>
+                    <span class="about-badge-item">✓ Visit Passes</span>
                 </div>
             </div>
             <div class="about-features">
@@ -434,8 +444,8 @@
                 <div class="event-detail-icon-num">4</div>
             </div>
             <div class="event-detail-body">
-                <h3>Stamp Your Loyalty Card</h3>
-                <p>Every paid visit earns a stamp. Collect 9 and your <b>10th night is on the house</b>. Members also get early access to new-release pre-orders.</p>
+                <h3>Buy a Visit Pass</h3>
+                <p>Save up to <b>£160</b> with a 5, 10 or 20-visit pass. Book any night, tick "Use my pass" and we deduct a visit when you attend.</p>
             </div>
         </div>
 
@@ -482,11 +492,11 @@
                     <div class="pricing-matrix-cell pricing-matrix-price">From £120</div>
                     <div class="pricing-matrix-cell">Birthdays · group nights</div>
                 </div>
-                <div class="pricing-matrix-row pricing-matrix-loyalty">
-                    <div class="pricing-matrix-cell"><b>Loyalty Reward</b></div>
-                    <div class="pricing-matrix-cell">10th paid visit</div>
-                    <div class="pricing-matrix-cell pricing-matrix-price">FREE</div>
-                    <div class="pricing-matrix-cell">Stamp card at counter</div>
+                <div class="pricing-matrix-row pricing-matrix-passes">
+                    <div class="pricing-matrix-cell"><b>Visit Passes</b></div>
+                    <div class="pricing-matrix-cell">5 / 10 / 20 visit bundles</div>
+                    <div class="pricing-matrix-cell pricing-matrix-price">From £95</div>
+                    <div class="pricing-matrix-cell">Buy on the Passes page · deduct per visit</div>
                 </div>
             </div>
         </div>
@@ -548,51 +558,30 @@
 </section>
 
 <!-- ============================================
-     LOYALTY PROGRAM
+     VISIT PASSES
      ============================================ -->
-<section class="loyalty" id="loyalty">
+<section class="passes" id="passes">
     <div class="container">
-        <div class="loyalty-inner">
-            <div class="loyalty-text">
-                <div class="section-kicker">Loyalty Program</div>
-                <h2 class="section-title">Open 9. The 10th is on us.</h2>
-                <p class="loyalty-lead">Every paid night earns a stamp on your Salon Poke card. Hit 9 and your next visit — bundles, box or entry — is <b>100% free</b>. Members also get:</p>
-                <ul class="loyalty-list">
-                    <li><b>10% off</b> 3-pack bundles, every night</li>
-                    <li><b>48-hour early access</b> to new JP pre-orders</li>
-                    <li><b>Birthday bonus</b> — free single pack during your birthday week</li>
-                    <li><b>Reserved seat</b> — your spot is held until 15 min before</li>
-                    <li><b>Invite-only events</b> — first looks, swap meets, JP release parties</li>
-                </ul>
-                <a href="#book" class="btn btn-primary">Get Your Stamp Card</a>
-            </div>
+        <div class="section-head">
+            <div class="section-kicker">Visit Passes</div>
+            <h2 class="section-title">Pay upfront. Open more. <br>Chase more.</h2>
+            <p class="section-sub">Buy a pass, book any night, and we deduct a visit when you attend. Pay via WhatsApp or cash for now — SumUp card payments coming soon.</p>
+        </div>
 
-            <div class="loyalty-card-wrap">
-                <div class="loyalty-card">
-                    <div class="loyalty-card-head">
-                        <div class="loyalty-card-logo">
-                            <span class="logo-mark">SP</span>
-                            <span class="logo-text">SALON<span class="logo-accent">POKE</span></span>
-                        </div>
-                        <div class="loyalty-card-tag">LOYALTY · 10</div>
-                    </div>
-                    <div class="loyalty-card-body">
-                        <div class="loyalty-stamp"><span>1</span></div>
-                        <div class="loyalty-stamp"><span>2</span></div>
-                        <div class="loyalty-stamp"><span>3</span></div>
-                        <div class="loyalty-stamp"><span>4</span></div>
-                        <div class="loyalty-stamp"><span>5</span></div>
-                        <div class="loyalty-stamp"><span>6</span></div>
-                        <div class="loyalty-stamp"><span>7</span></div>
-                        <div class="loyalty-stamp"><span>8</span></div>
-                        <div class="loyalty-stamp"><span>9</span></div>
-                        <div class="loyalty-stamp loyalty-stamp-free"><span>FREE</span></div>
-                    </div>
-                    <div class="loyalty-card-foot">
-                        <span>Collect 9 stamps · 10th visit on us</span>
-                    </div>
-                </div>
+        <div class="passes-grid" id="passesGrid">
+            <!-- Pass templates render from data.json via script.js -->
+        </div>
+
+        <div class="passes-faq">
+            <h3 class="passes-faq-title">Pass FAQ</h3>
+            <div class="passes-faq-list" id="passesFaqList">
+                <!-- FAQ renders from data.json -->
             </div>
+        </div>
+
+        <div class="passes-member-cta">
+            <span>Already have a pass?</span>
+            <button class="btn btn-ghost" id="openMemberCenterBtn">Open Member Center →</button>
         </div>
     </div>
 </section>
@@ -618,6 +607,51 @@
         </div>
     </div>
 </section>
+
+<!-- ============================================
+     PRE-ORDER RESERVE MODAL
+     ============================================ -->
+<div class="sp-modal" id="preorderModal" style="display:none;">
+    <div class="sp-modal-backdrop" data-sp-modal-close></div>
+    <div class="sp-modal-content sp-modal-narrow">
+        <button class="sp-modal-close" data-sp-modal-close aria-label="Close">×</button>
+        <div class="sp-modal-head">
+            <div class="sp-modal-kicker" id="preorderKicker">PRE-ORDER</div>
+            <h3 id="preorderTitle">Reserve a box</h3>
+            <p id="preorderDesc"></p>
+        </div>
+        <form class="sp-modal-form" id="preorderForm">
+            <input type="hidden" name="preorderItemId" id="preorderItemId">
+            <div class="form-row">
+                <label class="form-label">Your Name</label>
+                <input type="text" class="form-input" name="name" required>
+            </div>
+            <div class="form-row">
+                <label class="form-label">Email Address</label>
+                <input type="email" class="form-input" name="email" required>
+            </div>
+            <div class="form-row form-row-split">
+                <div>
+                    <label class="form-label">Phone</label>
+                    <input type="tel" class="form-input" name="phone" placeholder="+44 7...">
+                </div>
+                <div>
+                    <label class="form-label">Quantity</label>
+                    <select class="form-input" name="quantity">
+                        <option value="1">1 box</option>
+                        <option value="2">2 boxes</option>
+                        <option value="3">3 boxes</option>
+                    </select>
+                </div>
+            </div>
+            <div class="sp-modal-pay-info" id="preorderPayInfo">
+                <strong>Deposit:</strong> <span id="preorderDepositAmt">£20</span> per box secures your slot. Pay the rest on pickup day. We confirm by email within 24h.
+            </div>
+            <button type="submit" class="btn btn-primary btn-full">Confirm reservation</button>
+        </form>
+        <div class="sp-modal-success" id="preorderSuccess" style="display:none;"></div>
+    </div>
+</div>
 
 <!-- ============================================
      GALLERY
@@ -822,7 +856,7 @@
 
             <div class="testimonial">
                 <div class="testimonial-quote">"</div>
-                <p>Took my 9-year-old to the Saturday Family Open Box. Staff were brilliant with him, helped him sleeve his first holo. He's now a member with his own loyalty card.</p>
+                <p>Took my 9-year-old to the Saturday Family Open Box. Staff were brilliant with him, helped him sleeve his first holo. He's now a member with his own Visit Pass.</p>
                 <div class="testimonial-author">
                     <div class="testimonial-avatar">SK</div>
                     <div>
@@ -858,7 +892,7 @@
 
             <div class="testimonial">
                 <div class="testimonial-quote">"</div>
-                <p>I drove down from Manchester for the Black Bolt launch. Worth every mile. Real JP stock, honest pricing, and the loyalty card paid for itself in 9 visits.</p>
+                <p>I drove down from Manchester for the Black Bolt launch. Worth every mile. Real JP stock, honest pricing, and the 10-Visit Pass paid for itself in 5 weeks.</p>
                 <div class="testimonial-author">
                     <div class="testimonial-avatar">LB</div>
                     <div>
@@ -979,11 +1013,11 @@
 
             <div class="faq-item">
                 <button class="faq-q" type="button">
-                    <span>How does the loyalty stamp card work?</span>
+                    <span>How do Visit Passes work?</span>
                     <span class="faq-icon">+</span>
                 </button>
                 <div class="faq-a">
-                    <p>Pick up a free stamp card at the counter. Every paid night earns one stamp. After 9 stamps your 10th visit is fully free (highest tier you paid that night). Members also get 10% off bundles, early pre-order access and birthday bonus.</p>
+                    <p>Buy a 5, 10 or 20-visit pass on the Passes page. Then book any night as usual and tick "Use my Visit Pass" on the form — we deduct one visit from your pass when you attend. 5-visit passes last 90 days, 10-visit 180 days, 20-visit 365 days. Unstarted passes are refundable within 14 days.</p>
                 </div>
             </div>
 
@@ -1061,7 +1095,7 @@
                 </div>
             </div>
 
-            <form class="book-form" onsubmit="event.preventDefault(); salonPoke.handleBooking(event);">
+            <form class="book-form" id="bookingForm" onsubmit="event.preventDefault(); salonPoke.handleBooking(event);">
                 <div class="form-row">
                     <label class="form-label">Your Name</label>
                     <input type="text" class="form-input" name="name" placeholder="e.g. Alex Chen" required>
@@ -1107,6 +1141,14 @@
                         <label class="form-label">Date</label>
                         <input type="date" class="form-input" name="date" required>
                     </div>
+                </div>
+
+                <div class="form-row" id="usePassRow" style="display:none;">
+                    <label class="form-label">Use a Visit Pass?</label>
+                    <div class="form-radio-row" id="usePassRadios">
+                        <!-- Filled in by script.js: shows active passes for this email -->
+                    </div>
+                    <p class="form-hint" id="usePassHint"></p>
                 </div>
 
                 <div class="form-row">
@@ -1215,6 +1257,8 @@
         <div class="legal-tabs">
             <button class="legal-tab legal-tab-active" data-tab="privacy">Privacy</button>
             <button class="legal-tab" data-tab="terms">Terms of Sale</button>
+            <button class="legal-tab" data-tab="passes">Visit Passes</button>
+            <button class="legal-tab" data-tab="cancellation">Cancellation</button>
             <button class="legal-tab" data-tab="cookies">Cookies</button>
             <button class="legal-tab" data-tab="ip">IP &amp; Trademarks</button>
         </div>
@@ -1223,9 +1267,9 @@
             <div class="legal-panel legal-panel-active" data-panel="privacy">
                 <h3>Privacy Notice (GDPR-compliant)</h3>
                 <p><b>Who we are:</b> Salon Poke Ltd (Company No. 14857291), 60A Park Row, Bristol BS1 5LE. We're the "data controller" for any personal info you give us.</p>
-                <p><b>What we collect:</b> name, email, phone (optional), booking details, purchase history, loyalty stamp count. We don't collect payment card details — those are handled by our PCI-compliant processor SumUp.</p>
-                <p><b>How we use it:</b> to process your booking, contact you about reservations and events, send you the weekly newsletter (only if you opt in), and run our loyalty programme. We never sell your data.</p>
-                <p><b>How long we keep it:</b> booking &amp; purchase records for 6 years (HMRC requirement). Marketing list until you unsubscribe. Loyalty stamp records for 24 months of inactivity.</p>
+                <p><b>What we collect:</b> name, email, phone (optional), booking details, purchase history, Visit Pass balance. We don't collect payment card details — those are handled by our PCI-compliant processor SumUp.</p>
+                <p><b>How we use it:</b> to process your booking, contact you about reservations and events, send you the weekly newsletter (only if you opt in), and run our Visit Pass programme. We never sell your data.</p>
+                <p><b>How long we keep it:</b> booking &amp; purchase records for 6 years (HMRC requirement). Marketing list until you unsubscribe. Visit Pass records for 24 months of inactivity.</p>
                 <p><b>Your rights:</b> access, rectification, erasure, restriction, portability, objection. Email <a href="mailto:privacy@salonpoke.co.uk" class="link-accent">privacy@salonpoke.co.uk</a> — we respond within 30 days.</p>
                 <p><b>Complaints:</b> ICO, Wycliffe House, Water Lane, Wilmslow SK9 5AF.</p>
             </div>
@@ -1247,6 +1291,40 @@
                 <p>The Google Maps embed on the Visit section may set its own cookies when you interact with the map. View <a href="https://policies.google.com/technologies/cookies" target="_blank" rel="noopener" class="link-accent">Google's cookie policy</a>.</p>
                 <p>The Instagram and WhatsApp link buttons simply open those apps — we don't embed their trackers.</p>
                 <p>You can block all cookies in your browser settings without losing core site functionality.</p>
+            </div>
+
+            <div class="legal-panel" data-panel="passes">
+                <h3>Visit Pass Terms</h3>
+                <p><b>What a Visit Pass is:</b> a prepaid bundle of N themed Pack Opening Nights. Each pass is tied to one email address. Visits are deducted when you attend a night, not when you book.</p>
+                <p><b>Validity:</b> 5-visit passes expire 90 days from purchase; 10-visit 180 days; 20-visit 365 days. Expired visits are not refundable.</p>
+                <p><b>Refunds (unstarted):</b> within 14 days of purchase, full refund if zero visits used. After 14 days, or once any visit is redeemed, no refund.</p>
+                <p><b>Refunds (partially used):</b> not offered. Once a visit is redeemed, the pass is non-refundable in part or whole.</p>
+                <p><b>Non-transferable:</b> passes are tied to one email and one account. You may bring a friend on the night, but only your seat uses a visit. Passes cannot be sold, gifted, or transferred to another email.</p>
+                <p><b>Lost / stolen:</b> passes are digital records — if you lose access to your email, we can recover the pass after verifying your identity (passport / driving licence).</p>
+                <p><b>Account deletion:</b> if you request GDPR deletion of your customer record, any active passes will be cancelled and a pro-rata refund issued for unused visits within the 14-day cooling-off window.</p>
+            </div>
+
+            <div class="legal-panel" data-panel="cancellation">
+                <h3>Cancellation Policy</h3>
+                <p><b>Pack Opening Night bookings (no pass):</b></p>
+                <ul>
+                    <li>Cancel ≥24 hours before your booking: free, no charge.</li>
+                    <li>Cancel &lt;24 hours before: one bundle (or equivalent) charged as late-cancellation fee.</li>
+                    <li>No-show (you don't arrive and don't cancel): full price charged.</li>
+                </ul>
+                <p><b>Pack Opening Night bookings (using a pass):</b></p>
+                <ul>
+                    <li>Cancel ≥24 hours before: visit is refunded to your pass.</li>
+                    <li>Cancel &lt;24 hours before: visit is NOT refunded.</li>
+                    <li>No-show: visit is NOT refunded.</li>
+                </ul>
+                <p><b>Pre-orders:</b></p>
+                <ul>
+                    <li>Cancel ≥7 days before release: full refund of deposit.</li>
+                    <li>Cancel 1–6 days before release: 50% refund of deposit.</li>
+                    <li>Cancel on or after release day: no refund.</li>
+                </ul>
+                <p><b>How to cancel:</b> use the cancel button in the Member Center on our site (look up by email), reply to your confirmation email, or message us on WhatsApp / Instagram. We confirm all cancellations in writing within 24 hours.</p>
             </div>
 
             <div class="legal-panel" data-panel="ip">
@@ -1297,8 +1375,10 @@
                 <div class="footer-heading">About</div>
                 <a href="#about">Our Story</a>
                 <a href="#rules">House Rules</a>
-                <a href="#loyalty">Loyalty Program</a>
+                <a href="#passes">Visit Passes</a>
+                <a href="#preorder">Pre-Orders</a>
                 <a href="#faq">FAQ</a>
+                <button class="footer-member-btn" id="openMemberCenterFooterBtn" type="button">🎟️ Member Center</button>
             </div>
             <div class="footer-col">
                 <div class="footer-heading">Visit</div>
@@ -1342,6 +1422,68 @@
     </button>
 </div>
 
+<!-- ============================================
+     BUY PASS MODAL
+     ============================================ -->
+<div class="sp-modal" id="buyPassModal" style="display:none;">
+    <div class="sp-modal-backdrop" data-sp-modal-close></div>
+    <div class="sp-modal-content sp-modal-narrow">
+        <button class="sp-modal-close" data-sp-modal-close aria-label="Close">×</button>
+        <div class="sp-modal-head">
+            <div class="sp-modal-kicker" id="buyPassKicker">VISIT PASS</div>
+            <h3 id="buyPassTitle">Buy a Pass</h3>
+            <p id="buyPassDesc"></p>
+        </div>
+        <form class="sp-modal-form" id="buyPassForm">
+            <input type="hidden" name="passTemplateId" id="buyPassTemplateId">
+            <div class="form-row">
+                <label class="form-label">Your Name</label>
+                <input type="text" class="form-input" name="name" placeholder="e.g. Alex Chen" required>
+            </div>
+            <div class="form-row">
+                <label class="form-label">Email Address</label>
+                <input type="email" class="form-input" name="email" placeholder="alex@email.com" required>
+            </div>
+            <div class="form-row">
+                <label class="form-label">Phone (optional)</label>
+                <input type="tel" class="form-input" name="phone" placeholder="+44 7...">
+            </div>
+            <div class="sp-modal-pay-info" id="buyPassPayInfo">
+                <strong>How to pay:</strong> We'll confirm your pass by email within 24h. Pay via <b>WhatsApp bank transfer</b>, in-store <b>cash</b>, or <b>card at the counter</b> on your first visit.
+            </div>
+            <button type="submit" class="btn btn-primary btn-full">Confirm — I'll pay on pickup</button>
+            <p class="form-foot">By buying a pass you agree to Salon Poke house rules. Unstarted passes refundable within 14 days.</p>
+        </form>
+        <div class="sp-modal-success" id="buyPassSuccess" style="display:none;"></div>
+    </div>
+</div>
+
+<!-- ============================================
+     MEMBER CENTER MODAL
+     ============================================ -->
+<div class="sp-modal" id="memberCenterModal" style="display:none;">
+    <div class="sp-modal-backdrop" data-sp-modal-close></div>
+    <div class="sp-modal-content">
+        <button class="sp-modal-close" data-sp-modal-close aria-label="Close">×</button>
+        <div class="sp-modal-head">
+            <div class="sp-modal-kicker">MEMBER CENTER</div>
+            <h3>Your passes &amp; bookings</h3>
+            <p>Enter the email you used to buy a pass or make a booking.</p>
+        </div>
+        <form class="sp-modal-form" id="memberLookupForm">
+            <div class="form-row">
+                <label class="form-label">Your email</label>
+                <input type="email" class="form-input" name="email" id="memberEmail" placeholder="alex@email.com" required>
+            </div>
+            <button type="submit" class="btn btn-primary btn-full">Look up my account</button>
+        </form>
+        <div class="sp-modal-result" id="memberCenterResult" style="display:none;"></div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-config.js"></script>
+<script src="supabase-data.js"></script>
 <script src="script.js"></script>
 </body>
 </html>

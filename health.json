@@ -1,0 +1,11 @@
+{
+  "status": "ok",
+  "version": "1.0.0",
+  "checks": {
+    "site_meta_loaded": true,
+    "pass_templates_count": 3,
+    "products_count": 6,
+    "schedule_days_count": 7,
+    "preorder_items_count": 3
+  }
+}

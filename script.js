@@ -40,8 +40,9 @@ const salonPoke = (function () {
     // ----- Scroll reveal animations -----
     const revealSelectors = [
         '.about-text', '.about-feature', '.product-card', '.event-detail',
-        '.day-card', '.pricing-matrix-row', '.rule-card', '.loyalty-text',
-        '.loyalty-card', '.preorder-card', '.gallery-item', '.testimonial',
+        '.day-card', '.pricing-matrix-row', '.rule-card',
+        '.pass-card', '.passes-faq-title', '.passes-faq-list',
+        '.preorder-card', '.gallery-item', '.testimonial',
         '.faq-item', '.book-intro', '.book-form', '.newsletter-inner',
         '.location-info', '.location-map', '.section-head', '.footer-col',
         '.pricing-matrix-head', '.quickbuy-card', '.quickbuy-head'
@@ -437,20 +438,98 @@ function getDeep(obj, path) {
     return path.split('.').reduce(function (o, k) { return o && o[k]; }, obj);
 }
 
+// Map Supabase rows to data.json format
+function dbToDataJson() {
+  var s = window.salonPokeState;
+  if (!s || !s.loaded) return null;
+
+  var products = (s.products || []).map(function (p) {
+    return {
+      id: p.id, code: p.code, jpCode: p.jp_code, name: p.name, jpName: p.jp_name,
+      price: p.price, tier: p.tier, badgeText: p.badge_text, img: p.img, alt: p.alt,
+      desc: p.description, stock: p.stock, stockStatus: p.stock_status, featured: p.featured
+    };
+  });
+  var schedule = (s.schedule || []).map(function (d) {
+    return {
+      day: d.day, dayNum: d.day_num, kicker: d.kicker, theme: d.theme, jpTheme: d.jp_theme,
+      themeClass: d.theme_class, startTime: d.start_time, endTime: d.end_time, seats: d.seats,
+      closed: d.closed, singlePrice: d.single_price, bundlePrice: d.bundle_price,
+      boxPrice: d.box_price, entryPrice: d.entry_price, isFeatured: d.is_featured,
+      isClosed: d.is_closed, sessionNote: d.session_note
+    };
+  });
+  var preorder = (s.preorderItems || []).map(function (p) {
+    return {
+      id: p.id, code: p.code, jpCode: p.jp_code, name: p.name, jpName: p.jp_name,
+      releaseDate: p.release_date, img: p.image_url, alt: p.name + ' booster box',
+      desc: p.description, reservedPct: p.reserved_pct, isUpcoming: p.is_active, badge: p.badge
+    };
+  });
+  var passTemplates = (s.passTemplates || []).map(function (p) {
+    return {
+      id: p.id, name: p.name, jpName: p.jp_name, visitsTotal: p.visits_total,
+      priceGbp: p.price_gbp, validityDays: p.validity_days, description: p.description,
+      badge: p.badge, sortOrder: p.sort_order, isActive: p.is_active, accent: p.accent
+    };
+  });
+  var ss = s.siteSettings || {};
+  return {
+    siteMeta: ss.site_meta || {},
+    hero: ss.hero || {},
+    pricing: ss.pricing || {},
+    openingHours: ss.opening_hours || {},
+    admin: ss.admin_config || { password: 'salonpoke2026', sessionHours: 12 },
+    passTemplates: passTemplates,
+    passFaq: ss.pass_faq || [],
+    products: products,
+    schedule: schedule,
+    preorder: preorder,
+    promo: ss.promo || { enabled: false, text: '', cta: '', link: '#' }
+  };
+}
+
 function loadSiteData() {
-    return fetch('data.json?_=' + Date.now())
-        .then(function (r) { return r.json(); })
-        .then(function (defaultData) {
+    // Track page view (fire and forget, no await)
+    if (window.salonPokeData2 && window.salonPokeData2.trackPageView) {
+      try { window.salonPokeData2.trackPageView(window.location.pathname, document.referrer); } catch (e) {}
+    }
+    // Try Supabase first
+    if (window.salonPokeData2 && typeof window.salonPokeData2.loadAllData === 'function') {
+      return window.salonPokeData2.loadAllData()
+        .then(function () {
+          var data = dbToDataJson();
+          if (data) {
+            // Apply any legacy localStorage overrides
             var overrides = {};
             try { overrides = JSON.parse(localStorage.getItem(DATA_KEY) || '{}'); } catch (e) { overrides = {}; }
-            return mergeDeep(defaultData, overrides);
+            return mergeDeep(data, overrides);
+          }
+          // Fallback to fetch
+          return fetchFallback();
         })
-        .catch(function () {
-            try {
-                var stored = JSON.parse(localStorage.getItem(DATA_KEY) || 'null');
-                return stored || null;
-            } catch (e) { return null; }
+        .catch(function (e) {
+          console.warn('[Salon Poke] Supabase load failed, falling back to data.json:', e);
+          return fetchFallback();
         });
+    }
+    return fetchFallback();
+}
+
+function fetchFallback() {
+  return fetch('data.json?_=' + Date.now())
+    .then(function (r) { return r.json(); })
+    .then(function (defaultData) {
+      var overrides = {};
+      try { overrides = JSON.parse(localStorage.getItem(DATA_KEY) || '{}'); } catch (e) { overrides = {}; }
+      return mergeDeep(defaultData, overrides);
+    })
+    .catch(function () {
+      try {
+        var stored = JSON.parse(localStorage.getItem(DATA_KEY) || 'null');
+        return stored || null;
+      } catch (e) { return null; }
+    });
 }
 
 function mergeDeep(target, source) {
@@ -495,7 +574,7 @@ function renderProducts(products) {
             stockHtml = '<div class="stock-badge stock-in">In Stock</div>';
         }
         var imgHtml = p.img
-            ? '<img src="' + p.img + '" alt="' + p.alt + '" class="product-img">' + stockHtml
+            ? '<img src="' + p.img + '" alt="' + p.alt + '" class="product-img" loading="lazy" decoding="async">' + stockHtml
             : '<div class="product-img-placeholder"><div class="placeholder-text">' + p.name + '<br><span>' + p.code + '</span></div></div>';
         var ctaClass = p.featured ? 'btn btn-primary btn-sm' : 'btn btn-ghost btn-sm';
         var ctaText = p.featured ? ('Hold One — £' + p.price) : 'Hold One';
@@ -577,16 +656,31 @@ function renderSchedule(schedule) {
 function renderPreorder(items, deposit) {
     var grid = document.getElementById('preorderGrid');
     if (!grid || !items) return;
+    // Compute real reserved counts from localStorage
+    var reservations = lsGetLs('salonPokePreorderReservations', []);
+    var liveReservedByItem = {};
+    reservations.forEach(function (r) {
+        if (r.status === 'reserved' || r.status === 'picked_up') {
+            liveReservedByItem[r.preorderItemId] = (liveReservedByItem[r.preorderItemId] || 0) + (r.quantity || 1);
+        }
+    });
     var html = '';
     for (var i = 0; i < items.length; i++) {
         var p = items[i];
         var cardClass = 'preorder-card';
         if (p.isUpcoming) cardClass += ' preorder-upcoming';
         var ctaClass = p.isUpcoming ? 'btn btn-primary btn-sm' : 'btn btn-ghost btn-sm';
-        html += '<div class="' + cardClass + '">';
+        // Compute reservedPct: use static data.json as baseline OR live count, whichever higher
+        var liveCount = liveReservedByItem[p.id] || 0;
+        // Assume each preorder item has a "totalSlots" baseline; if not, use reservedPct as proxy
+        var totalSlots = p.totalSlots || 20; // default 20 slots per item
+        var livePct = Math.min(100, Math.round((liveCount / totalSlots) * 100));
+        var displayPct = Math.max(p.reservedPct || 0, livePct);
+        var liveNote = liveCount > 0 ? ' · ' + liveCount + ' live reservations' : '';
+        html += '<div class="' + cardClass + '" data-preorder-id="' + p.id + '">';
         html += '  <div class="preorder-badge">' + p.badge + '</div>';
         html += '  <div class="preorder-img-wrap">';
-        if (p.img) html += '    <img src="' + p.img + '" alt="' + p.alt + '" class="product-img">';
+        if (p.img) html += '    <img src="' + p.img + '" alt="' + p.alt + '" class="product-img" loading="lazy" decoding="async">';
         html += '  </div>';
         html += '  <div class="preorder-info">';
         html += '    <div class="preorder-code">' + p.code + (p.jpCode ? (' · ' + p.jpCode) : '') + '</div>';
@@ -594,14 +688,91 @@ function renderPreorder(items, deposit) {
         html += '    <div class="preorder-jp">' + p.jpName + '</div>';
         html += '    <p>' + p.desc + '</p>';
         html += '    <div class="preorder-stock">';
-        html += '      <span class="preorder-stock-bar"><span style="width:' + p.reservedPct + '%"></span></span>';
-        html += '      <span class="preorder-stock-text">' + p.reservedPct + '% reserved</span>';
+        html += '      <span class="preorder-stock-bar"><span style="width:' + displayPct + '%"></span></span>';
+        html += '      <span class="preorder-stock-text">' + displayPct + '% reserved' + liveNote + '</span>';
         html += '    </div>';
-        html += '    <a href="#book" class="' + ctaClass + '">Reserve · £' + deposit + ' deposit</a>';
+        html += '    <button class="' + ctaClass + '" data-preorder-reserve="' + p.id + '">Reserve · £' + deposit + ' deposit</button>';
         html += '  </div>';
         html += '</div>';
     }
     grid.innerHTML = html;
+    // wire reserve buttons
+    grid.querySelectorAll('[data-preorder-reserve]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            openPreorderModal(btn.getAttribute('data-preorder-reserve'));
+        });
+    });
+}
+
+// ----- Pre-order reservation modal -----
+function openPreorderModal(itemId) {
+    var modal = document.getElementById('preorderModal');
+    if (!modal) return;
+    var items = (window.salonPokeData && window.salonPokeData.preorder) || [];
+    var p = items.find(function (x) { return x.id === itemId; });
+    if (!p) return;
+    var deposit = (window.salonPokeData && window.salonPokeData.pricing && window.salonPokeData.pricing.preorderDeposit) || 20;
+    document.getElementById('preorderKicker').textContent = 'PRE-ORDER · ' + (p.code || 'NEW');
+    document.getElementById('preorderTitle').textContent = 'Reserve ' + p.name;
+    document.getElementById('preorderDesc').innerHTML =
+        '<b>' + (p.jpName || p.name) + '</b> · ' + p.desc + '<br>' +
+        '<span style="color:#888;font-size:12px;">Expected release: ' + (p.releaseDate || 'TBC') + '</span>';
+    document.getElementById('preorderItemId').value = p.id;
+    document.getElementById('preorderDepositAmt').textContent = '£' + deposit;
+    var f = document.getElementById('preorderForm');
+    if (f) { f.reset(); f.style.display = ''; }
+    var s = document.getElementById('preorderSuccess');
+    if (s) s.style.display = 'none';
+    modal.style.display = 'flex';
+}
+
+function handlePreorderReservation(e) {
+    if (e && e.preventDefault) e.preventDefault();
+    var form = e.target;
+    var data = Object.fromEntries(new FormData(form).entries());
+    var itemId = data.preorderItemId;
+    var items = (window.salonPokeData && window.salonPokeData.preorder) || [];
+    var p = items.find(function (x) { return x.id === itemId; });
+    if (!p) { spToast('Item not found', 'error'); return false; }
+    if (!data.name || !data.email) { spToast('Name and email required', 'error'); return false; }
+
+    var qty = parseInt(data.quantity, 10) || 1;
+    var deposit = (window.salonPokeData && window.salonPokeData.pricing && window.salonPokeData.pricing.preorderDeposit) || 20;
+
+    var sb2 = window.salonPokeData2;
+    sb2.upsertCustomer({ email: data.email, name: data.name, phone: data.phone })
+      .then(function (customer) {
+        return sb2.createPreorderReservation({
+          customerId: customer.id,
+          preorderItemId: itemId,
+          itemName: p.name,
+          itemCode: p.code,
+          quantity: qty,
+          depositPaid: qty * deposit,
+          status: 'reserved'
+        });
+      })
+      .then(function () {
+        form.style.display = 'none';
+        var s = document.getElementById('preorderSuccess');
+        if (s) {
+            s.innerHTML =
+                '<div class="sp-success-icon">✓</div>' +
+                '<h3>Reservation locked in</h3>' +
+                '<p><b>' + qty + ' × ' + escapeHtmlLs(p.name) + '</b> reserved for ' + escapeHtmlLs(data.name) + '.</p>' +
+                '<p>Deposit due: <b>£' + (qty * deposit) + '</b>. We\'ll confirm by email within 24h.</p>' +
+                '<div class="sp-success-actions">' +
+                    '<button class="btn btn-primary" onclick="document.getElementById(\'preorderModal\').style.display=\'none\'; if(typeof renderPreorder===\'function\'){var d=window.salonPokeData; renderPreorder(d.preorder, d.pricing.preorderDeposit);}">Done</button>' +
+                    '<a href="#book" class="btn btn-ghost" onclick="document.getElementById(\'preorderModal\').style.display=\'none\';">Book a night →</a>' +
+                '</div>';
+            s.style.display = '';
+        }
+      })
+      .catch(function (err) {
+        spToast('Error: ' + (err.message || err), 'error');
+        console.error('[Preorder] Error:', err);
+      });
+    return false;
 }
 
 function renderPromoBanner(promo) {
@@ -671,6 +842,75 @@ function applyMap(data) {
     el.src = 'https://www.google.com/maps?q=' + addr + '&output=embed';
 }
 
+// ----- Render Visit Passes (cards) -----
+function renderPasses(templates) {
+    var grid = document.getElementById('passesGrid');
+    if (!grid) return;
+    if (!templates || templates.length === 0) {
+        grid.innerHTML = '<p style="color:#888;text-align:center;padding:32px;">No visit passes available right now — please check back soon.</p>';
+        return;
+    }
+    var active = templates.filter(function (t) { return t.isActive !== false; })
+                          .sort(function (a, b) { return (a.sortOrder || 0) - (b.sortOrder || 0); });
+    if (active.length === 0) {
+        grid.innerHTML = '<p style="color:#888;text-align:center;padding:32px;">No active visit passes — please check back soon.</p>';
+        return;
+    }
+    var html = '';
+    active.forEach(function (t) {
+        var accent = t.accent || '#ffd700';
+        html += '<div class="pass-card" style="--pass-accent:' + accent + ';">';
+        html += '  <div class="pass-card-badge">' + escapeHtmlLs(t.badge || 'PASS') + '</div>';
+        html += '  <div class="pass-card-head">';
+        html += '    <div class="pass-card-name">' + escapeHtmlLs(t.name) + '</div>';
+        if (t.jpName) html += '    <div class="pass-card-jp">' + escapeHtmlLs(t.jpName) + '</div>';
+        html += '  </div>';
+        html += '  <div class="pass-card-visits"><b>' + t.visitsTotal + '</b><span>visits</span></div>';
+        html += '  <div class="pass-card-price">£' + t.priceGbp + '</div>';
+        html += '  <div class="pass-card-per">' + (t.validityDays ? 'valid ' + t.validityDays + ' days' : 'no expiry') + '</div>';
+        html += '  <p class="pass-card-desc">' + escapeHtmlLs(t.description || '') + '</p>';
+        html += '  <button class="btn btn-primary btn-full" data-buy-pass="' + escapeHtmlLs(t.id) + '">Buy this pass</button>';
+        html += '</div>';
+    });
+    grid.innerHTML = html;
+    // wire buy buttons
+    grid.querySelectorAll('[data-buy-pass]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            if (typeof openBuyPassModal === 'function') openBuyPassModal(btn.getAttribute('data-buy-pass'));
+        });
+    });
+}
+
+// ----- Render Pass FAQ -----
+function renderPassFaq(faqs) {
+    var list = document.getElementById('passesFaqList');
+    if (!list) return;
+    if (!faqs || faqs.length === 0) {
+        list.innerHTML = '';
+        return;
+    }
+    var html = '';
+    faqs.forEach(function (f, idx) {
+        html += '<div class="faq-item">' +
+                    '<button class="faq-q" type="button">' +
+                        '<span>' + escapeHtmlLs(f.q) + '</span>' +
+                        '<span class="faq-icon">+</span>' +
+                    '</button>' +
+                    '<div class="faq-a"><p>' + escapeHtmlLs(f.a) + '</p></div>' +
+                '</div>';
+    });
+    list.innerHTML = html;
+    // wire accordion (same pattern as main FAQ)
+    list.querySelectorAll('.faq-q').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            var item = btn.closest('.faq-item');
+            var wasOpen = item.classList.contains('open');
+            list.querySelectorAll('.faq-item').forEach(function (i) { i.classList.remove('open'); });
+            if (!wasOpen) item.classList.add('open');
+        });
+    });
+}
+
 // Main init
 loadSiteData().then(function (data) {
     if (!data) {
@@ -683,6 +923,8 @@ loadSiteData().then(function (data) {
     renderSchedule(data.schedule);
     renderPreorder(data.preorder, data.pricing ? data.pricing.preorderDeposit : 20);
     renderPromoBanner(data.promo);
+    renderPasses(data.passTemplates);
+    renderPassFaq(data.passFaq);
     applyDataCfgElements(data);
     applyOpeningHours(data);
     applyAddress(data);
@@ -690,14 +932,20 @@ loadSiteData().then(function (data) {
     applyMap(data);
     if (typeof renderPreorderCountdowns === 'function') renderPreorderCountdowns(data);
     document.dispatchEvent(new CustomEvent('salonpoke:dataLoaded', { detail: data }));
-    // Hide loading screen once data is rendered
+    // Hide loading screen once data is rendered (with min visible time to avoid flash)
+    var loadedAt = Date.now();
+    var minVisible = 400;
     setTimeout(function() {
-        var ls = document.getElementById('loadingScreen');
-        if (ls) {
-            ls.classList.add('is-hidden');
-            setTimeout(function() { if (ls.parentNode) ls.parentNode.removeChild(ls); }, 600);
-        }
-    }, 250);
+        var elapsed = Date.now() - loadedAt;
+        var wait = Math.max(0, minVisible - elapsed);
+        setTimeout(function() {
+            var ls = document.getElementById('loadingScreen');
+            if (ls) {
+                ls.classList.add('is-hidden');
+                setTimeout(function() { if (ls.parentNode) ls.parentNode.removeChild(ls); }, 600);
+            }
+        }, wait);
+    }, 50);
 });
 
 /* ============================================
@@ -759,7 +1007,42 @@ loadSiteData().then(function (data) {
     if (reject) reject.addEventListener('click', function () { dismiss('necessary'); });
 })();
 
-// ----- Booking form: real handler (opens WhatsApp with prefilled message) -----
+// ----- Booking form: real handler (writes to localStorage, no WhatsApp) -----
+// TODO: Replace with Supabase insert once project is ready.
+var KEY_CUSTOMERS_LS = 'salonPokeCustomers';
+var KEY_BOOKINGS_LS = 'salonPokeBookings';
+var KEY_CUSTOMER_PASSES_LS = 'salonPokeCustomerPasses';
+
+function lsGetLs(key, fallback) {
+    try { var v = JSON.parse(localStorage.getItem(key) || 'null'); return v === null ? fallback : v; }
+    catch (e) { return fallback; }
+}
+function lsSetLs(key, val) { try { localStorage.setItem(key, JSON.stringify(val)); } catch (e) {} }
+
+function findOrCreateCustomerLs(email, name, phone) {
+    email = (email || '').trim().toLowerCase();
+    name = (name || '').trim();
+    phone = (phone || '').trim();
+    if (!email) return null;
+    var customers = lsGetLs(KEY_CUSTOMERS_LS, []);
+    var existing = customers.find(function (c) { return c.email === email; });
+    if (existing) {
+        if (name && existing.name !== name) existing.name = name;
+        if (phone && !existing.phone) existing.phone = phone;
+        existing.updatedAt = new Date().toISOString();
+        lsSetLs(KEY_CUSTOMERS_LS, customers);
+        return existing;
+    }
+    var c = {
+        id: 'cust_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+        email: email, name: name || email.split('@')[0], phone: phone || '',
+        createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()
+    };
+    customers.push(c);
+    lsSetLs(KEY_CUSTOMERS_LS, customers);
+    return c;
+}
+
 function handleBookingReal(e) {
     if (e && e.preventDefault) e.preventDefault();
     var form = (e && e.target) || document.querySelector('.book-form');
@@ -767,60 +1050,691 @@ function handleBookingReal(e) {
     var data = {};
     try { data = Object.fromEntries(new FormData(form).entries()); } catch (err) { return; }
 
-    var dayMap = { mon: 'Monday', tue: 'Tuesday', wed: 'Wednesday', thu: 'Thursday', fri: 'Friday (Black Bolt · Signature)', sat: 'Saturday (Community)', sun: 'Sunday (Private Hire)' };
-    var planMap = { single: 'Single Pack £8', bundle: '3-Pack Bundle £24', box: 'Full Box', byo: 'BYO £15' };
+    // Validate
+    if (!data.name || !data.email || !data.day || !data.date) {
+        spToast('Please fill in your name, email, preferred night and date.', 'error');
+        return false;
+    }
 
-    var lines = [];
-    lines.push('Hi Salon Poke! I\'d like to book a seat:');
-    lines.push('');
-    lines.push('Name: ' + (data.name || '-'));
-    lines.push('Email: ' + (data.email || '-'));
-    if (data.phone) lines.push('Phone: ' + data.phone);
-    lines.push('Date: ' + (data.date || '-'));
-    lines.push('Night: ' + (dayMap[data.day] || data.day || '-'));
-    lines.push('Plan: ' + (planMap[data.plan] || data.plan || '-'));
-    lines.push('Party size: ' + (data.party || '1'));
-    if (data.notes) { lines.push(''); lines.push('Notes: ' + data.notes); }
+    // Check blocked dates
+    var blocked = lsGetLs('salonPokeBlockedDates', []);
+    var blockedEntry = blocked.find(function (b) { return b.date === data.date; });
+    if (blockedEntry) {
+        var reason = blockedEntry.reason ? ' (' + blockedEntry.reason + ')' : '';
+        spConfirm('That date is currently blocked' + reason + '. Submit anyway and the team will review?', function () {
+            doSubmitBooking(form, data, data.usePass && data.usePass !== 'none' ? data.usePass : null);
+        });
+        return false;
+    }
 
-    var msg = encodeURIComponent(lines.join('\n'));
-    var waUrl = 'https://wa.me/441175550182?text=' + msg;
-    var mailto = 'mailto:book@salonpoke.co.uk?subject=' + encodeURIComponent('Booking request from ' + (data.name || 'website')) + '&body=' + msg;
+    doSubmitBooking(form, data, data.usePass && data.usePass !== 'none' ? data.usePass : null);
+    return false;
+}
 
-    // Show success in form
+function doSubmitBooking(form, data, customerPassId) {
     var btn = form.querySelector('button[type="submit"]');
     var orig = btn ? btn.textContent : '';
-    if (btn) { btn.textContent = 'Opening WhatsApp…'; btn.disabled = true; }
+    if (btn) { btn.textContent = 'Saving...'; btn.disabled = true; }
     var successEl = form.querySelector('.form-success');
     if (!successEl) {
         successEl = document.createElement('div');
         successEl.className = 'form-success';
         form.appendChild(successEl);
     }
-    successEl.innerHTML = '✓ Booking captured. Opening WhatsApp to confirm with the team — if it does not open, <a href="' + mailto + '" class="link-accent">email us instead</a> or call <a href="tel:+441175550182" class="link-accent">+44 117 555 0182</a>.';
-    successEl.classList.add('show');
 
-    // Open WhatsApp in new tab
-    try { window.open(waUrl, '_blank', 'noopener'); } catch (err) { window.location.href = waUrl; }
+    // Supabase: upsert customer, then create booking
+    var sb2 = window.salonPokeData2;
+    sb2.upsertCustomer({ email: data.email, name: data.name, phone: data.phone })
+      .then(function (customer) {
+        var booking = {
+          customerId: customer.id,
+          customerPassId: customerPassId,
+          night: data.day,
+          bookingDate: data.date,
+          partySize: parseInt(data.party, 10) || 1,
+          plan: data.plan || 'bundle',
+          notes: data.notes || '',
+          status: 'pending',
+          source: 'web'
+        };
+        return sb2.createBooking(booking);
+      })
+      .then(function (newBooking) {
+        if (btn) { btn.textContent = 'Booking saved ✓'; btn.style.background = 'linear-gradient(135deg, #4ddb8e, #2eb872)'; }
+        var passNote = customerPassId
+            ? '<br><span class="link-accent">🎟️ 1 visit will be deducted when you attend.</span>'
+            : '';
+        successEl.innerHTML = '✓ Booking received for <b>' + escapeHtmlLs(data.name || 'you') + '</b> — ' +
+            escapeHtmlLs((data.day || '').toUpperCase()) + ' ' + escapeHtmlLs(data.date || '') + '. ' +
+            'The team will confirm within 24h. ' +
+            '<a href="#book">Book another night</a> or ' +
+            '<a href="#" onclick="document.getElementById(\'openMemberCenterBtn\').click(); return false;">view your account</a>.' +
+            passNote;
+        successEl.classList.add('show');
+        spToast('Booking confirmed! Check your email.', 'success');
 
-    // Save to localStorage for record
-    try {
-        var saved = JSON.parse(localStorage.getItem('salonpoke.bookings') || '[]');
-        saved.push({ ts: new Date().toISOString(), data: data });
-        localStorage.setItem('salonpoke.bookings', JSON.stringify(saved.slice(-50)));
-    } catch (err) {}
-
-    setTimeout(function () {
+        setTimeout(function () {
+            if (btn) { btn.textContent = orig; btn.disabled = false; btn.style.background = ''; }
+            form.reset();
+            var di = form.querySelector('input[type="date"][name="date"]');
+            if (di) {
+              var t = new Date();
+              di.value = t.getFullYear() + '-' + String(t.getMonth() + 1).padStart(2, '0') + '-' + String(t.getDate()).padStart(2, '0');
+            }
+            var rb = form.querySelector('input[name="plan"][value="bundle"]');
+            if (rb) rb.checked = true;
+            if (typeof updateUsePassOptionsLs === 'function') updateUsePassOptionsLs();
+        }, 5000);
+      })
+      .catch(function (err) {
         if (btn) { btn.textContent = orig; btn.disabled = false; }
-        form.reset();
-        // Re-set default date
-        var di = form.querySelector('input[type="date"][name="date"]');
-        if (di) {
-            var t = new Date();
-            di.value = t.getFullYear() + '-' + String(t.getMonth() + 1).padStart(2, '0') + '-' + String(t.getDate()).padStart(2, '0');
+        successEl.innerHTML = '';
+        successEl.classList.remove('show');
+        spToast('Could not save booking: ' + (err.message || err), 'error');
+        console.error('[Booking] Error:', err);
+      });
+}
+
+// ----- Update "Use a Visit Pass" radios based on email typed in form -----
+function updateUsePassOptionsLs() {
+    var emailEl = document.querySelector('#bookingForm input[name="email"]');
+    var row = document.getElementById('usePassRow');
+    var radios = document.getElementById('usePassRadios');
+    var hint = document.getElementById('usePassHint');
+    if (!emailEl || !row || !radios) return;
+    var email = (emailEl.value || '').trim().toLowerCase();
+    if (!email || email.indexOf('@') < 1) {
+        row.style.display = 'none';
+        return;
+    }
+    var customers = lsGetLs(KEY_CUSTOMERS_LS, []);
+    var cust = customers.find(function (c) { return c.email === email; });
+    if (!cust) {
+        row.style.display = 'none';
+        return;
+    }
+    var passes = lsGetLs(KEY_CUSTOMER_PASSES_LS, []).filter(function (p) {
+        return p.customerId === cust.id && p.status === 'active' && p.visitsRemaining > 0;
+    });
+    if (passes.length === 0) {
+        row.style.display = 'none';
+        return;
+    }
+    var templates = (window.salonPokeData && window.salonPokeData.passTemplates) || [];
+    var tMap = {};
+    templates.forEach(function (t) { tMap[t.id] = t; });
+    var html = '<label class="form-radio"><input type="radio" name="usePass" value="none" checked> Pay normally (no pass)</label>';
+    passes.forEach(function (p) {
+        var t = tMap[p.passTemplateId] || { name: 'Pass' };
+        html += '<label class="form-radio"><input type="radio" name="usePass" value="' + p.id + '"> 🎟️ ' + t.name + ' (' + p.visitsRemaining + ' left)</label>';
+    });
+    radios.innerHTML = html;
+    if (hint) hint.innerHTML = 'Your active pass will redeem 1 visit when you attend. Cancel ≥24h before to keep the visit.';
+    row.style.display = '';
+}
+
+// ----- Buy pass: open modal with template context -----
+function openBuyPassModal(templateId) {
+    var modal = document.getElementById('buyPassModal');
+    if (!modal) return;
+    var templates = (window.salonPokeData && window.salonPokeData.passTemplates) || [];
+    var t = templates.find(function (x) { return x.id === templateId; });
+    if (!t) return;
+    document.getElementById('buyPassKicker').textContent = (t.badge || 'VISIT PASS') + ' · ' + t.visitsTotal + ' VISITS';
+    document.getElementById('buyPassTitle').textContent = 'Buy the ' + t.name;
+    document.getElementById('buyPassDesc').innerHTML =
+        '<b>£' + t.priceGbp + '</b> · ' + t.description +
+        (t.validityDays ? '<br><span style="color:#888;font-size:12px;">Valid for ' + t.validityDays + ' days from purchase.</span>' : '');
+    document.getElementById('buyPassTemplateId').value = t.id;
+    // Reset form
+    var f = document.getElementById('buyPassForm');
+    if (f) { f.reset(); f.style.display = ''; }
+    var s = document.getElementById('buyPassSuccess');
+    if (s) s.style.display = 'none';
+    modal.style.display = 'flex';
+}
+
+function handleBuyPassSubmit(e) {
+    if (e && e.preventDefault) e.preventDefault();
+    var form = e.target;
+    var data = Object.fromEntries(new FormData(form).entries());
+    var templateId = data.passTemplateId;
+    var templates = (window.salonPokeData && window.salonPokeData.passTemplates) || [];
+    var t = templates.find(function (x) { return x.id === templateId; });
+    if (!t) { spToast('Pass template not found', 'error'); return false; }
+    if (!data.name || !data.email) { spToast('Name and email are required', 'error'); return false; }
+
+    var now = new Date();
+    var expires = null;
+    if (t.validityDays && t.validityDays > 0) {
+        expires = new Date(now.getTime() + t.validityDays * 86400000).toISOString();
+    }
+
+    var sb2 = window.salonPokeData2;
+    sb2.upsertCustomer({ email: data.email, name: data.name, phone: data.phone })
+      .then(function (customer) {
+        return sb2.createCustomerPass({
+          customerId: customer.id,
+          passTemplateId: t.id,
+          visitsTotal: t.visitsTotal,
+          visitsRemaining: t.visitsTotal,
+          visitsUsed: 0,
+          purchasedAt: now.toISOString(),
+          expiresAt: expires,
+          status: 'active',
+          paymentStatus: 'pending',
+          priceGbp: t.priceGbp
+        });
+      })
+      .then(function () {
+        form.style.display = 'none';
+        var s = document.getElementById('buyPassSuccess');
+        if (s) {
+            s.innerHTML =
+                '<div class="sp-success-icon">✓</div>' +
+                '<h3>Pass reserved for ' + escapeHtmlLs(data.name) + '</h3>' +
+                '<p>Your <b>' + escapeHtmlLs(t.name) + '</b> is logged in our system. Visit count: <b>' + t.visitsTotal + ' / ' + t.visitsTotal + '</b>.</p>' +
+                '<p>We\'ll confirm payment within 24h. In the meantime you can already book a night and tick "Use my pass".</p>' +
+                '<div class="sp-success-actions">' +
+                    '<button class="btn btn-primary" onclick="document.getElementById(\'buyPassModal\').style.display=\'none\';">Done</button>' +
+                    '<a href="#book" class="btn btn-ghost" onclick="document.getElementById(\'buyPassModal\').style.display=\'none\';">Book a night →</a>' +
+                '</div>';
+            s.style.display = '';
         }
-        var rb = form.querySelector('input[name="plan"][value="bundle"]');
-        if (rb) rb.checked = true;
-    }, 4000);
+      })
+      .catch(function (err) {
+        spToast('Error: ' + (err.message || err), 'error');
+        console.error('[Buy Pass] Error:', err);
+      });
+    return false;
+}
+
+function escapeHtmlLs(s) {
+    if (s === undefined || s === null) return '';
+    return String(s).replace(/[&<>"']/g, function (c) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+}
+
+// ============================================
+// EMAIL / NOTIFICATION TEMPLATES
+// ============================================
+function nl2br(s) { return String(s || '').replace(/\n/g, '<br>'); }
+function formatDateHuman(iso) {
+    if (!iso) return '';
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return iso;
+    var days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+    var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return days[d.getDay()] + ' ' + d.getDate() + ' ' + months[d.getMonth()] + ' ' + d.getFullYear();
+}
+
+function emailBookingConfirmation(booking) {
+    var data = (window.salonPokeData || {});
+    var sm = data.siteMeta || {};
+    var schedule = data.schedule || [];
+    var dayMap = { mon: 'Monday', tue: 'Tuesday', wed: 'Wednesday', thu: 'Thursday', fri: 'Friday', sat: 'Saturday', sun: 'Sunday' };
+    var night = dayMap[booking.night] || booking.night;
+    var dayCfg = schedule.find(function (d) { return d.day && d.day.toLowerCase().slice(0,3) === booking.night; });
+    var time = (dayCfg && dayCfg.startTime) ? dayCfg.startTime + ' – ' + (dayCfg.endTime || '') : '';
+    var planLabels = { single: 'Single Pack (£8)', bundle: '3-Pack Bundle (£24)', box: 'Full Box', byo: 'BYO (£15)' };
+    var plan = planLabels[booking.plan] || booking.plan;
+    var customers = lsGetLs('salonPokeCustomers', []);
+    var customer = customers.find(function (c) { return c.id === booking.customerId; });
+    var name = customer ? customer.name : 'there';
+    var passNote = booking.customerPassId ? '\n\n🎟️ You\'re using a Visit Pass — we\'ll deduct 1 visit when you attend.' : '';
+    return 'Subject: Booking confirmed — ' + night + ' ' + booking.bookingDate + '\n\n' +
+        'Hi ' + name + ',\n\n' +
+        'Thanks for booking a seat at Salon Poke!\n\n' +
+        '  Night:    ' + night + ' (' + booking.bookingDate + ')\n' +
+        (time ? '  Time:     ' + time + '\n' : '') +
+        '  Plan:     ' + plan + '\n' +
+        '  Party:    ' + (booking.partySize || 1) + (booking.notes ? '\n  Notes:    ' + booking.notes : '') + '\n\n' +
+        'Address: ' + (sm.address || '60A Park Row') + ', ' + (sm.city || 'Bristol') + ' ' + (sm.postcode || 'BS1 5LE') + '\n' +
+        'Phone:   ' + (sm.phoneDisplay || '+44 117 555 0182') + '\n\n' +
+        'Free cancellation up to 24h before. We\'ll send a reminder the day before.' +
+        passNote + '\n\n' +
+        'See you at the counter 🎴\n' +
+        'Salon Poke';
+}
+
+function emailBookingReminder(booking) {
+    var data = (window.salonPokeData || {});
+    var sm = data.siteMeta || {};
+    var customers = lsGetLs('salonPokeCustomers', []);
+    var customer = customers.find(function (c) { return c.id === booking.customerId; });
+    var name = customer ? customer.name.split(' ')[0] : 'there';
+    var dayMap = { mon: 'Monday', tue: 'Tuesday', wed: 'Wednesday', thu: 'Thursday', fri: 'Friday', sat: 'Saturday', sun: 'Sunday' };
+    return 'Subject: Reminder — your seat is reserved for tomorrow\n\n' +
+        'Hi ' + name + ',\n\n' +
+        'Just a quick reminder — your seat at Salon Poke is reserved for:\n\n' +
+        '  ' + (dayMap[booking.night] || booking.night) + ' ' + booking.bookingDate + '\n\n' +
+        'Address: ' + (sm.address || '60A Park Row') + ', ' + (sm.city || 'Bristol') + ' ' + (sm.postcode || 'BS1 5LE') + '\n' +
+        'Doors: see Schedule page for this night\'s start time.\n\n' +
+        'Need to cancel? Reply to this email at least 24h ahead.\n\n' +
+        'See you tomorrow 🎴\n' +
+        'Salon Poke';
+}
+
+function emailPassPurchase(pass, customer) {
+    var data = (window.salonPokeData || {});
+    var templates = data.passTemplates || [];
+    var t = templates.find(function (x) { return x.id === pass.passTemplateId; });
+    var tName = t ? t.name : 'Visit Pass';
+    var exp = pass.expiresAt ? 'Valid until: ' + pass.expiresAt.slice(0, 10) : 'No expiry';
+    return 'Subject: Welcome to Salon Poke — your ' + tName + '\n\n' +
+        'Hi ' + (customer ? customer.name.split(' ')[0] : 'there') + ',\n\n' +
+        'Your ' + tName + ' is active!\n\n' +
+        '  Visits:    ' + pass.visitsTotal + ' (use any time on any themed night)\n' +
+        '  ' + exp + '\n\n' +
+        'Book any night on our site, tick "Use my Visit Pass", and we deduct 1 visit when you attend.\n\n' +
+        'View your account anytime via the Member Center on our site.\n\n' +
+        'See you at the counter 🎴\n' +
+        'Salon Poke';
+}
+
+function emailPreorderConfirmation(reservation) {
+    var data = (window.salonPokeData || {});
+    var sm = data.siteMeta || {};
+    var customers = lsGetLs('salonPokeCustomers', []);
+    var customer = customers.find(function (c) { return c.id === reservation.customerId; });
+    var name = customer ? customer.name.split(' ')[0] : 'there';
+    return 'Subject: Pre-order reserved — ' + reservation.itemName + '\n\n' +
+        'Hi ' + name + ',\n\n' +
+        'Your pre-order is locked in:\n\n' +
+        '  Item:      ' + reservation.itemName + (reservation.itemCode ? ' (' + reservation.itemCode + ')' : '') + '\n' +
+        '  Quantity:  ' + (reservation.quantity || 1) + '\n' +
+        '  Deposit:   £' + reservation.depositPaid + '\n' +
+        '  Pay rest:  on pickup day\n\n' +
+        'We\'ll email you again when the box lands. Cancel up to 7 days before release for a full refund.\n\n' +
+        'Salon Poke';
+}
+
+function emailPassExpiryWarning(pass, customer) {
+    var data = (window.salonPokeData || {});
+    var templates = data.passTemplates || [];
+    var t = templates.find(function (x) { return x.id === pass.passTemplateId; });
+    var tName = t ? t.name : 'Visit Pass';
+    return 'Subject: Heads up — your ' + tName + ' expires soon\n\n' +
+        'Hi ' + (customer ? customer.name.split(' ')[0] : 'there') + ',\n\n' +
+        'You\'ve got ' + pass.visitsRemaining + ' visit' + (pass.visitsRemaining === 1 ? '' : 's') + ' left on your ' + tName + ',\n' +
+        'and it expires on ' + (pass.expiresAt ? pass.expiresAt.slice(0, 10) : 'soon') + '.\n\n' +
+        'Book a night soon to use them up: ' + window.location.origin + '#passes\n\n' +
+        'Cheers,\nSalon Poke';
+}
+
+// Open mailto with pre-filled email
+function sendEmail(to, subject, body) {
+    var mailto = 'mailto:' + encodeURIComponent(to) +
+        '?subject=' + encodeURIComponent(subject) +
+        '&body=' + encodeURIComponent(body);
+    window.open(mailto, '_blank', 'noopener');
+}
+
+// WhatsApp message
+function sendWhatsApp(phoneRaw, message) {
+    var url = 'https://wa.me/' + phoneRaw + '?text=' + encodeURIComponent(message);
+    window.open(url, '_blank', 'noopener');
+}
+
+// ============================================
+// STYLED TOAST + CONFIRM (replaces alert/confirm)
+// ============================================
+function spToast(message, kind) {
+    kind = kind || 'info'; // info / success / error
+    var existing = document.getElementById('spToast');
+    if (existing) existing.remove();
+    var el = document.createElement('div');
+    el.id = 'spToast';
+    el.className = 'sp-toast sp-toast-' + kind;
+    el.textContent = message;
+    el.setAttribute('role', 'status');
+    document.body.appendChild(el);
+    setTimeout(function () {
+        el.classList.add('sp-toast-out');
+        setTimeout(function () { el.remove(); }, 300);
+    }, 3000);
+}
+
+function spConfirm(message, onYes, onNo) {
+    var existing = document.getElementById('spConfirm');
+    if (existing) existing.remove();
+    var el = document.createElement('div');
+    el.id = 'spConfirm';
+    el.className = 'sp-confirm';
+    el.setAttribute('role', 'alertdialog');
+    el.innerHTML =
+        '<div class="sp-confirm-backdrop" data-confirm-no="1"></div>' +
+        '<div class="sp-confirm-box">' +
+            '<p>' + escapeHtmlLs(message) + '</p>' +
+            '<div class="sp-confirm-actions">' +
+                '<button class="btn btn-ghost btn-sm" data-confirm-no="1">Cancel</button>' +
+                '<button class="btn btn-primary btn-sm" data-confirm-yes="1">OK</button>' +
+            '</div>' +
+        '</div>';
+    document.body.appendChild(el);
+    function done(result) {
+        el.remove();
+        if (result && onYes) onYes();
+        if (!result && onNo) onNo();
+    }
+    el.querySelector('[data-confirm-yes]').addEventListener('click', function () { done(true); });
+    el.querySelector('[data-confirm-no]').addEventListener('click', function () { done(false); });
+    el.querySelector('.sp-confirm-backdrop').addEventListener('click', function () { done(false); });
+    el.addEventListener('keydown', function (e) { if (e.key === 'Escape') done(false); if (e.key === 'Enter') done(true); });
+    setTimeout(function () { el.querySelector('[data-confirm-yes]').focus(); }, 50);
+}
+
+function spPrompt(message, defaultValue, onOk) {
+    var existing = document.getElementById('spPrompt');
+    if (existing) existing.remove();
+    var el = document.createElement('div');
+    el.id = 'spPrompt';
+    el.className = 'sp-confirm';
+    el.setAttribute('role', 'alertdialog');
+    el.innerHTML =
+        '<div class="sp-confirm-backdrop" data-prompt-no="1"></div>' +
+        '<div class="sp-confirm-box">' +
+            '<p>' + escapeHtmlLs(message) + '</p>' +
+            '<input type="text" class="form-input" id="spPromptInput" value="' + escapeHtmlLs(defaultValue || '') + '">' +
+            '<div class="sp-confirm-actions">' +
+                '<button class="btn btn-ghost btn-sm" data-prompt-no="1">Cancel</button>' +
+                '<button class="btn btn-primary btn-sm" data-prompt-yes="1">OK</button>' +
+            '</div>' +
+        '</div>';
+    document.body.appendChild(el);
+    function done(result) {
+        if (result) {
+            var v = document.getElementById('spPromptInput').value;
+            el.remove();
+            if (onOk) onOk(v);
+        } else {
+            el.remove();
+        }
+    }
+    el.querySelector('[data-prompt-yes]').addEventListener('click', function () { done(true); });
+    el.querySelector('[data-prompt-no]').addEventListener('click', function () { done(false); });
+    el.querySelector('.sp-confirm-backdrop').addEventListener('click', function () { done(false); });
+    el.addEventListener('keydown', function (e) { if (e.key === 'Escape') done(false); if (e.key === 'Enter') done(true); });
+    setTimeout(function () { document.getElementById('spPromptInput').focus(); document.getElementById('spPromptInput').select(); }, 50);
+}
+
+// ============================================
+// CUSTOMER SELF-SERVICE PORTAL
+// (used by Member Center on public site)
+// ============================================
+var customerPortal = {
+    findByEmail: function (email) {
+        // Use Supabase data layer if available
+        if (window.salonPokeData2 && window.salonPokeData2.customerPortal) {
+            return window.salonPokeData2.customerPortal.findByEmail(email);
+        }
+        email = (email || '').trim().toLowerCase();
+        if (!email) return null;
+        var customers = lsGetLs(KEY_CUSTOMERS_LS, []);
+        var c = customers.find(function (x) { return x.email === email; });
+        if (!c) return null;
+        return {
+            customer: c,
+            bookings: lsGetLs(KEY_BOOKINGS_LS, []).filter(function (b) { return b.customerId === c.id; }),
+            passes: lsGetLs(KEY_CUSTOMER_PASSES_LS, []).filter(function (p) { return p.customerId === c.id; }),
+            preorders: lsGetLs('salonPokePreorderReservations', []).filter(function (r) { return r.customerId === c.id; })
+        };
+    },
+    cancelBooking: function (bookingId, email) {
+        if (window.salonPokeData2 && window.salonPokeData2.customerPortal) {
+            return window.salonPokeData2.customerPortal.cancelBooking(bookingId, email);
+        }
+        email = (email || '').trim().toLowerCase();
+        var bookings = lsGetLs(KEY_BOOKINGS_LS, []);
+        var b = bookings.find(function (x) { return x.id === bookingId; });
+        if (!b) return { ok: false, error: 'Booking not found' };
+        var customers = lsGetLs(KEY_CUSTOMERS_LS, []);
+        var c = customers.find(function (x) { return x.id === b.customerId; });
+        if (!c || c.email !== email) return { ok: false, error: 'Email does not match this booking' };
+        if (b.status === 'cancelled') return { ok: false, error: 'Booking is already cancelled' };
+        if (b.status === 'attended') return { ok: false, error: 'Cannot cancel — you already attended this night' };
+        if (b.status === 'no_show') return { ok: false, error: 'Cannot cancel a no-show record' };
+        b.status = 'cancelled';
+        b.cancelledAt = new Date().toISOString();
+        b.cancelledBy = 'customer';
+        lsSetLs(KEY_BOOKINGS_LS, bookings);
+        return { ok: true };
+    },
+    rescheduleBooking: function (bookingId, email, newDate, newNight) {
+        if (window.salonPokeData2 && window.salonPokeData2.customerPortal) {
+            return window.salonPokeData2.customerPortal.rescheduleBooking(bookingId, email, newDate, newNight);
+        }
+        email = (email || '').trim().toLowerCase();
+        var bookings = lsGetLs(KEY_BOOKINGS_LS, []);
+        var b = bookings.find(function (x) { return x.id === bookingId; });
+        if (!b) return { ok: false, error: 'Booking not found' };
+        var customers = lsGetLs(KEY_CUSTOMERS_LS, []);
+        var c = customers.find(function (x) { return x.id === b.customerId; });
+        if (!c || c.email !== email) return { ok: false, error: 'Email does not match this booking' };
+        if (b.status !== 'pending' && b.status !== 'confirmed') {
+            return { ok: false, error: 'Cannot reschedule a ' + b.status + ' booking' };
+        }
+        if (!newDate) return { ok: false, error: 'New date required' };
+        var blocked = lsGetLs('salonPokeBlockedDates', []).find(function (x) { return x.date === newDate; });
+        if (blocked) return { ok: false, error: 'New date is blocked' };
+        b.bookingDate = newDate;
+        b.night = newNight || b.night;
+        b.rescheduledAt = new Date().toISOString();
+        b.rescheduledBy = 'customer';
+        lsSetLs(KEY_BOOKINGS_LS, bookings);
+        return { ok: true };
+    },
+    cancelPreorder: function (resId, email) {
+        if (window.salonPokeData2 && window.salonPokeData2.customerPortal) {
+            return window.salonPokeData2.customerPortal.cancelPreorder(resId, email);
+        }
+        email = (email || '').trim().toLowerCase();
+        var list = lsGetLs('salonPokePreorderReservations', []);
+        var r = list.find(function (x) { return x.id === resId; });
+        if (!r) return { ok: false, error: 'Pre-order not found' };
+        var customers = lsGetLs(KEY_CUSTOMERS_LS, []);
+        var c = customers.find(function (x) { return x.id === r.customerId; });
+        if (!c || c.email !== email) return { ok: false, error: 'Email does not match this reservation' };
+        if (r.status !== 'reserved') return { ok: false, error: 'Pre-order is ' + r.status };
+        r.status = 'cancelled';
+        r.cancelledAt = new Date().toISOString();
+        r.cancelledBy = 'customer';
+        lsSetLs('salonPokePreorderReservations', list);
+        return { ok: true };
+    },
+    downloadBookingIcs: function (bookingId, email) {
+        email = (email || '').trim().toLowerCase();
+        var bookings = lsGetLs(KEY_BOOKINGS_LS, []);
+        var b = bookings.find(function (x) { return x.id === bookingId; });
+        if (!b) return;
+        var customers = lsGetLs(KEY_CUSTOMERS_LS, []);
+        var c = customers.find(function (x) { return x.id === b.customerId; });
+        if (!c || c.email !== email) return;
+        var data = window.salonPokeData || {};
+        var sm = data.siteMeta || {};
+        var schedule = data.schedule || [];
+        var dayCfg = schedule.find(function (d) { return d.day && d.day.toLowerCase().slice(0, 3) === b.night; });
+        var startTime = (dayCfg && dayCfg.startTime) || '19:00';
+        var endTime = (dayCfg && dayCfg.endTime) || '22:00';
+        var dateStr = b.bookingDate.replace(/-/g, '');
+        var ics = [
+            'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Salon Poke//Booking//EN',
+            'BEGIN:VEVENT',
+            'UID:' + b.id + '@salonpoke.co.uk',
+            'DTSTAMP:' + new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, ''),
+            'DTSTART:' + dateStr + 'T' + startTime.replace(':', '') + '00',
+            'DTEND:' + dateStr + 'T' + endTime.replace(':', '') + '00',
+            'SUMMARY:Salon Poke — ' + (dayCfg ? dayCfg.theme : b.night),
+            'DESCRIPTION:' + (b.plan + ' · party of ' + (b.partySize || 1)).replace(/\n/g, '\\n'),
+            'LOCATION:' + (sm.address || '60A Park Row') + ', ' + (sm.city || 'Bristol') + ' ' + (sm.postcode || 'BS1 5LE'),
+            'END:VEVENT', 'END:VCALENDAR'
+        ].join('\r\n');
+        var blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = 'salonpoke-' + b.bookingDate + '.ics';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+};
+window.salonPokeCustomerPortal = customerPortal;
+
+// ----- Member center: lookup by email -----
+function openMemberCenter() {
+    var modal = document.getElementById('memberCenterModal');
+    if (!modal) return;
+    var f = document.getElementById('memberLookupForm');
+    if (f) f.style.display = '';
+    var r = document.getElementById('memberCenterResult');
+    if (r) r.style.display = 'none';
+    modal.style.display = 'flex';
+    setTimeout(function () {
+        var e = document.getElementById('memberEmail');
+        if (e) e.focus();
+    }, 100);
+}
+
+function handleMemberLookup(e) {
+    if (e && e.preventDefault) e.preventDefault();
+    var form = e.target;
+    var email = (form.email.value || '').trim().toLowerCase();
+    if (!email || email.indexOf('@') < 1) { alert('Please enter a valid email'); return false; }
+
+    var customers = lsGetLs(KEY_CUSTOMERS_LS, []);
+    var customer = customers.find(function (c) { return c.email === email; });
+    if (!customer) {
+        var r = document.getElementById('memberCenterResult');
+        r.innerHTML = '<div class="sp-empty"><p>No account found for <b>' + escapeHtmlLs(email) + '</b>.</p>' +
+            '<p>Buy a pass or make a booking first — accounts are created automatically.</p>' +
+            '<a href="#passes" class="btn btn-primary" onclick="document.getElementById(\'memberCenterModal\').style.display=\'none\';">Buy a pass →</a></div>';
+        r.style.display = '';
+        form.style.display = 'none';
+        return false;
+    }
+
+    var passes = lsGetLs(KEY_CUSTOMER_PASSES_LS, []).filter(function (p) { return p.customerId === customer.id; });
+    var bookings = lsGetLs(KEY_BOOKINGS_LS, []).filter(function (b) { return b.customerId === customer.id; });
+    var reservations = lsGetLs('salonPokePreorderReservations', []).filter(function (r) { return r.customerId === customer.id; });
+    var templates = (window.salonPokeData && window.salonPokeData.passTemplates) || [];
+    var tMap = {};
+    templates.forEach(function (t) { tMap[t.id] = t; });
+    var dayNames = { mon: 'Mon', tue: 'Tue', wed: 'Wed', thu: 'Thu', fri: 'Fri', sat: 'Sat', sun: 'Sun' };
+
+    var html = '<div class="mc-account-head">' +
+        '<div class="mc-name">' + escapeHtmlLs(customer.name) + '</div>' +
+        '<div class="mc-email">' + escapeHtmlLs(customer.email) + '</div>' +
+    '</div>';
+
+    html += '<h4>Your Passes (' + passes.length + ')</h4>';
+    if (passes.length === 0) {
+        html += '<p class="sp-empty-inline">No passes yet. <a href="#passes" onclick="document.getElementById(\'memberCenterModal\').style.display=\'none\';">Buy one →</a></p>';
+    } else {
+        html += passes.map(function (p) {
+            var t = tMap[p.passTemplateId] || { name: '(deleted)' };
+            var exp = p.expiresAt ? ' · expires ' + p.expiresAt.slice(0, 10) : '';
+            return '<div class="mc-pass mc-pass-' + p.status + '">' +
+                '<div class="mc-pass-name"><b>' + escapeHtmlLs(t.name) + '</b></div>' +
+                '<div class="mc-pass-progress">' + p.visitsRemaining + ' / ' + p.visitsTotal + ' visits left</div>' +
+                '<div class="mc-pass-meta">' + p.status + exp + '</div>' +
+            '</div>';
+        }).join('');
+    }
+
+    // Pre-orders section
+    if (preservations.length > 0) {
+        html += '<h4>Your Pre-Orders (' + reservations.length + ')</h4>';
+        html += '<div class="mc-pres">' + reservations.map(function (r) {
+            var actions = r.status === 'reserved'
+                ? '<button class="mc-bk-btn mc-bk-btn-danger" data-mc-cancel-pre="' + r.id + '">✕ Cancel reservation</button>'
+                : '';
+            return '<div class="mc-pre mc-pre-' + r.status + '">' +
+                '<div><b>' + escapeHtmlLs(r.itemName) + '</b> ' + (r.itemCode ? '· ' + escapeHtmlLs(r.itemCode) : '') + '</div>' +
+                '<div class="mc-bk-meta">' + (r.quantity || 1) + ' box' + ((r.quantity || 1) > 1 ? 'es' : '') + ' · £' + r.depositPaid + ' deposit · <span class="mc-bk-status">' + r.status + '</span></div>' +
+                (actions ? '<div class="mc-bk-actions">' + actions + '</div>' : '') +
+            '</div>';
+        }).join('') + '</div>';
+    }
+
+    html += '<h4>Your Bookings (' + bookings.length + ')</h4>';
+    if (bookings.length === 0) {
+        html += '<p class="sp-empty-inline">No bookings yet.</p>';
+    } else {
+        // Sort: future/upcoming first, then past
+        var todayStr = new Date().toISOString().slice(0, 10);
+        bookings.sort(function (a, b) {
+            var aActive = (a.status === 'pending' || a.status === 'confirmed') && a.bookingDate >= todayStr;
+            var bActive = (b.status === 'pending' || b.status === 'confirmed') && b.bookingDate >= todayStr;
+            if (aActive && !bActive) return -1;
+            if (!aActive && bActive) return 1;
+            if (aActive && bActive) return a.bookingDate.localeCompare(b.bookingDate);
+            return b.bookingDate.localeCompare(a.bookingDate);
+        });
+        html += '<div class="mc-bookings">' + bookings.map(function (b) {
+            var isUpcoming = (b.status === 'pending' || b.status === 'confirmed') && b.bookingDate >= todayStr;
+            var canReschedule = b.status === 'pending' || b.status === 'confirmed';
+            var canCancel = b.status === 'pending' || b.status === 'confirmed';
+            var canIcs = b.status === 'confirmed';
+            var actions = '';
+            if (canReschedule) actions += '<button class="mc-bk-btn" data-mc-reschedule="' + b.id + '">↻ Reschedule</button>';
+            if (canIcs) actions += '<button class="mc-bk-btn" data-mc-ics="' + b.id + '">📅 Add to Calendar</button>';
+            if (canCancel) actions += '<button class="mc-bk-btn mc-bk-btn-danger" data-mc-cancel="' + b.id + '">✕ Cancel</button>';
+            return '<div class="mc-bk mc-bk-' + b.status + (isUpcoming ? ' mc-bk-upcoming' : '') + '">' +
+                '<div><b>' + (dayNames[b.night] || b.night) + '</b> ' + b.bookingDate + '</div>' +
+                '<div class="mc-bk-meta">' + b.plan + ' · party of ' + (b.partySize || 1) + ' · <span class="mc-bk-status">' + b.status + '</span>' + (b.customerPassId ? ' · 🎟️' : '') + '</div>' +
+                (actions ? '<div class="mc-bk-actions">' + actions + '</div>' : '') +
+            '</div>';
+        }).join('') + '</div>';
+    }
+
+    var r = document.getElementById('memberCenterResult');
+    r.innerHTML = html;
+    r.style.display = '';
+    form.style.display = 'none';
+
+    // Wire up self-service buttons
+    r.querySelectorAll('[data-mc-cancel]').forEach(function (b) {
+        b.addEventListener('click', function () {
+            if (!confirm('Cancel this booking?')) return;
+            Promise.resolve(customerPortal.cancelBooking(b.getAttribute('data-mc-cancel'), email))
+              .then(function (res) {
+                if (!res.ok) { alert(res.error); return; }
+                alert('✓ Booking cancelled. Your seat is released.');
+                handleMemberLookup({ preventDefault: function(){}, target: { email: { value: email } } });
+              });
+        });
+    });
+    r.querySelectorAll('[data-mc-reschedule]').forEach(function (b) {
+        b.addEventListener('click', function () {
+            var newDate = prompt('New date (YYYY-MM-DD):', new Date().toISOString().slice(0, 10));
+            if (!newDate) return;
+            Promise.resolve(customerPortal.rescheduleBooking(b.getAttribute('data-mc-reschedule'), email, newDate))
+              .then(function (res) {
+                if (!res.ok) { alert(res.error); return; }
+                alert('✓ Rescheduled to ' + newDate);
+                handleMemberLookup({ preventDefault: function(){}, target: { email: { value: email } } });
+              });
+        });
+    });
+    r.querySelectorAll('[data-mc-ics]').forEach(function (b) {
+        b.addEventListener('click', function () {
+            customerPortal.downloadBookingIcs(b.getAttribute('data-mc-ics'), email);
+        });
+    });
+    r.querySelectorAll('[data-mc-cancel-pre]').forEach(function (b) {
+        b.addEventListener('click', function () {
+            if (!confirm('Cancel this pre-order? Refund terms depend on release date — please contact us for the refund.')) return;
+            Promise.resolve(customerPortal.cancelPreorder(b.getAttribute('data-mc-cancel-pre'), email))
+              .then(function (res) {
+                if (!res.ok) { alert(res.error); return; }
+                alert('✓ Pre-order cancelled.');
+                handleMemberLookup({ preventDefault: function(){}, target: { email: { value: email } } });
+              });
+        });
+    });
 
     return false;
 }
@@ -864,10 +1778,55 @@ var mailto = 'mailto:hello@salonpoke.co.uk?subject=' + encodeURIComponent('Newsl
 if (window.salonPoke) {
     window.salonPoke.handleBooking = handleBookingReal;
     window.salonPoke.handleNewsletter = handleNewsletterReal;
+    window.salonPoke.openBuyPassModal = openBuyPassModal;
+    window.salonPoke.openMemberCenter = openMemberCenter;
+    window.salonPoke.updateUsePassOptions = updateUsePassOptionsLs;
 }
 // Also rebind via attribute (in case onsubmit fired before this script ran)
 document.querySelectorAll('form.book-form, form.newsletter-form').forEach(function (f) {
     f.onsubmit = null;
+});
+// Rebind buy pass + member lookup + preorder forms
+document.querySelectorAll('form#buyPassForm, form#memberLookupForm, form#preorderForm').forEach(function (f) {
+    f.onsubmit = null;
+    if (f.id === 'buyPassForm') f.addEventListener('submit', handleBuyPassSubmit);
+    if (f.id === 'memberLookupForm') f.addEventListener('submit', handleMemberLookup);
+    if (f.id === 'preorderForm') f.addEventListener('submit', handlePreorderReservation);
+});
+
+// Wire booking form's email field to update pass options as user types
+var bookingEmailEl = document.querySelector('#bookingForm input[name="email"]');
+if (bookingEmailEl) {
+    bookingEmailEl.addEventListener('input', updateUsePassOptionsLs);
+    bookingEmailEl.addEventListener('blur', updateUsePassOptionsLs);
+}
+
+// Wire up "Open Member Center" buttons (multiple entry points: passes section, nav, footer)
+document.querySelectorAll('#openMemberCenterBtn, #openMemberCenterNavBtn, #openMemberCenterNavBtnMobile, #openMemberCenterFooterBtn, [data-open-member-center]').forEach(function (b) {
+    b.addEventListener('click', function (e) {
+        e.preventDefault();
+        openMemberCenter();
+        // Close mobile menu if open
+        var links = document.getElementById('navLinks');
+        if (links && links.classList.contains('is-open')) {
+            links.classList.remove('is-open');
+        }
+    });
+});
+
+// Wire up modal close buttons
+document.querySelectorAll('[data-sp-modal-close]').forEach(function (el) {
+    el.addEventListener('click', function () {
+        var m = el.closest('.sp-modal');
+        if (m) m.style.display = 'none';
+    });
+});
+
+// Close sp-modal on Escape
+document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') {
+        document.querySelectorAll('.sp-modal').forEach(function (m) { m.style.display = 'none'; });
+    }
 });
 
 // ----- Pre-order countdown timer -----

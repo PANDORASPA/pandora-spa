@@ -1,0 +1,17 @@
+{
+  "name": "Salon Poke — Japanese Pokemon TCG Lounge",
+  "short_name": "Salon Poke",
+  "description": "Bristol's home for sealed Japanese Pokemon TCG. Booster boxes, pack opening nights, visit passes & pre-orders.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0a0a",
+  "theme_color": "#ffd700",
+  "icons": [
+    {
+      "src": "imgs/black_bolt_box.jpg",
+      "sizes": "512x512",
+      "type": "image/jpeg",
+      "purpose": "any"
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+﻿insert into products (id, code, jp_code, name, jp_name, price, tier, badge_text, img, alt, description, stock, stock_status, featured) values
+  ('blackBolt', 'SV11B', '黒龍', 'Black Bolt', '黒炎のドラグーン', 96, 'TOP', 'TOP TIER · £96', 'imgs/black_bolt_box.jpg', 'Black Bolt booster box', 'Stellar Crown · 30 packs · Dragona ex chase · Friday signature night', 4, 'low', true),
+  ('whiteFlare', 'SV11W', '白龍', 'White Flare', 'ホワイトフレア', 96, 'TOP', 'TOP TIER · £96', 'imgs/white_flare_box.jpg', 'White Flare booster box', 'Stellar Crown · 30 packs · White Dragnoir ex · Wednesday night', 5, 'low', true),
+  ('pokemon151', 'SV2a', '', 'Pokemon 151', 'ポケモン151', 78, 'CLASSIC', 'CLASSIC · £78', 'imgs/pokemon_151.jpg', 'Pokemon 151 booster box', 'Reprint · 30 packs · Original 151 chase · Monday night', 3, 'low', false),
+  ('shinyTreasure', 'SV4a', '', 'Shiny Treasure ex', 'シャイニートレジャー', 72, 'CLASSIC', 'CLASSIC · £72', 'imgs/shiny_treasure.jpg', 'Shiny Treasure ex booster box', 'Shiny reprint · 30 packs · Shiny chase · Tuesday night', 99, 'in', false),
+  ('matchless', 'S5a', '', 'Matchless Fighter', '一撃マスター', 54, 'ENTRY', 'ENTRY · £54', 'imgs/matchless.jpg', 'Matchless Fighter booster box', 'SWSH · 30 packs · Budget entry box', 99, 'in', false),
+  ('vmaxClimax', 'S8', '', 'VMAX Climax', 'VMAXクライマックス', 48, 'ENTRY', 'ENTRY · £48', 'imgs/vmax_climax.jpg', 'VMAX Climax booster box', 'SWSH · 30 packs · Bulk SWSH favourite', 2, 'low', false);

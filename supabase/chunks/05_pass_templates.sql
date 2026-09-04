@@ -1,0 +1,4 @@
+﻿insert into pass_templates (id, name, jp_name, visits_total, price_gbp, validity_days, description, badge, sort_order, is_active, accent) values
+  ('pass5', '5 Visit Pass', '5回パス', 5, 95, 90, 'Five themed Pack Opening Nights. Use any week, any theme. Best for occasional visitors who want a discount.', 'STARTER', 1, true, '#4ddb8e'),
+  ('pass10', '10 Visit Pass', '10回パス', 10, 180, 180, 'Ten nights, our most popular option. Save £60 vs single bundles. Includes 48-hour early pre-order access.', 'MOST POPULAR', 2, true, '#ffd700'),
+  ('pass20', '20 Visit Pass', '20回パス', 20, 320, 365, 'Twenty nights, full year. Save £160 vs single bundles. Includes all member perks plus invite-only events.', 'BEST VALUE', 3, true, '#ff8c00');
