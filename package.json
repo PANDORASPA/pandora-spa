@@ -1,0 +1,11 @@
+{
+  "name": "salon-poke",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Salon Poke — Bristol's home for sealed Japanese Pokemon TCG. Static site deployed on Vercel.",
+  "scripts": {
+    "build": "echo Static site — no build step",
+    "dev": "python -m http.server 8000",
+    "deploy": "vercel --prod"
+  }
+}
